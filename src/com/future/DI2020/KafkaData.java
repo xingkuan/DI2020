@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
+import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -78,14 +79,19 @@ class KafkaData extends DataPointer {
 		String cientID = metaData.getJobID() + "_" + metaData.getAuxPoolID();
 
 		String strVal = conf.getConf("kafkaMaxBlockMS");
-		String strACKS = conf.getConf("kafkaACKS");
+		String kafkaACKS = conf.getConf("kafkaACKS");
+		String kafkaINDEM = conf.getConf("kafkaINDEM");
 		int kafkaMaxBlockMS = Integer.parseInt(strVal);
 
 		Properties props = new Properties();
 		props.put("bootstrap.servers", URL);
-		props.put("acks", strACKS);
-		props.put("retries", 0);
-		props.put("batch.size", 16384);
+		
+	    props.put("acks", kafkaACKS);
+	    props.put("enable.idempotence", kafkaINDEM);
+	    //props.put("message.send.max.retries", kafkaSendTries);
+	//    props.put("retries", kafkaSendTries);
+	    props.put("batch.size", 1638400);
+
 		props.put("linger.ms", 1);
 		props.put("buffer.memory", 33554432);
 		props.put("max.block.ms", kafkaMaxBlockMS); // default 60000 ms
@@ -107,7 +113,7 @@ class KafkaData extends DataPointer {
 	     int rrn=0;
 	        long seq=0l;
 	        String srcTbl;
-		    ProducerRecord<Long, String> aMsg;
+		    //ProducerRecord<Long, String> aMsg;
 
 	        List<String> tblList = metaData.getDB2TablesOfJournal(dbID, metaData.getJournalLib()+"."+metaData.getJournalName());     
 	        
@@ -119,8 +125,22 @@ class KafkaData extends DataPointer {
 				srcTbl=srcRset.getString("SRCTBL");
 				// ignore those for unregister tables:
 				if (tblList.contains(srcTbl)) {
-					aMsg = new ProducerRecord<Long, String>(srcTbl, seq, String.valueOf(rrn));
-					RecordMetadata metadata = producer.send(aMsg).get();
+					final	ProducerRecord<Long, String> aMsg = new ProducerRecord<Long, String>(srcTbl, seq, String.valueOf(rrn));
+					//RecordMetadata metadata = producer.send(aMsg).get();
+					producer.send(aMsg, new Callback() {
+	                    public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+	                        //execute everytime a record is successfully sent or exception is thrown
+	                        if(e == null){
+	                           // No Exception
+	                        }else{
+	    						ovLogger.error("      exception at " + " " + aMsg.key() + ". Exit here!");
+	    						ovLogger.error(e);
+	    						//set the aMsg.key and exit. Question: will the loop stop when encounter this exception?
+	    						metaData.setRefreshSeqThis(aMsg.key());
+	                        }
+	                    }
+	                });
+					
 				}
 			}
 			rtc=true;
@@ -129,13 +149,13 @@ class KafkaData extends DataPointer {
 		} catch (SQLException e) {
 			ovLogger.error("   failed to retrieve from DB2: " + e);
 			rtc=true;   // ignore this one, and move on to the next one.
-		} catch (InterruptedException e) {
+		} /*catch (InterruptedException e) {
 			ovLogger.error("   failed to write to kafka: " + e);
 			rtc=false;
 		} catch (ExecutionException e) {
 			ovLogger.error("   failed to write to kafka: " + e);
 			rtc=false;
-		}
+		}*/
 }
 	
 	public void close() {

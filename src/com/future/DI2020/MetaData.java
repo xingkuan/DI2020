@@ -395,7 +395,7 @@ class MetaData {
    public void setRefreshTS(Timestamp thisRefreshHostTS) {
 		tsThisRefresh = thisRefreshHostTS;
 	}
-	public void setRefreshSeq(long thisRefreshSeq) {
+	public void setRefreshSeqThis(long thisRefreshSeq) {
 		if(thisRefreshSeq>0) {
 			seqThisRef=thisRefreshSeq;
 		}else {
@@ -403,6 +403,10 @@ class MetaData {
 			ovLogger.info("...hmm, got a 0 for SEQ# for srcTbl " + srcTable + ". The last one: " + seqLastRef);
 		}
 	}
+
+	   public void setRefreshSeqLast(long seq) {
+		   
+	   }
 
 	   public String getJobID() {
 		   return jobID;
@@ -467,12 +471,6 @@ class MetaData {
    public String getSQLWhereClause() {
 	      return sqlWhereClause;
 	   }
-   public void setRefreshSeq400This(long seq) {
-	   
-   }
-   public void setRefreshSeq400Last(long seq) {
-	   
-   }
    public String getSQLCopySource() {
       return sqlCopySource;
    }

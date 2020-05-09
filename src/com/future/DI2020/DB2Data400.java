@@ -206,8 +206,8 @@ class DB2Data400 extends DataPointer {
 			if ((seqThisFresh == 0)) // .. display_journal did not return, perhaps the journal is archived.
 				setThisRefreshSeqInitExt(); // try the one with *CURCHAIN
 
-			metaData.setRefreshSeq400This(seqThisFresh); // set last to the current seqNum
-			metaData.setRefreshSeq400Last(seqThisFresh); // and this too
+			metaData.setRefreshSeqThis(seqThisFresh); // set last to the current seqNum
+			metaData.setRefreshSeqLast(seqThisFresh); // and this too
 		}
 		if (seqThisFresh > metaData.getSeqLastRefresh())
 			proceed = true;
@@ -286,7 +286,7 @@ class DB2Data400 extends DataPointer {
 			// could be empty when DB2 just switched log file.
 			if (lrRset.next()) {
 				seqThisFresh = lrRset.getLong(1);
-				metaData.setRefreshSeq400This(seqThisFresh);
+				metaData.setRefreshSeqThis(seqThisFresh);
 			}
 			lrRset.close();
 
@@ -320,7 +320,7 @@ class DB2Data400 extends DataPointer {
 			// I guess it could be 0 when DB2 just switched log file.
 			if (lrRset.next()) {
 				seqThisFresh = lrRset.getLong(1);
-				metaData.setRefreshSeq400This(seqThisFresh);
+				metaData.setRefreshSeqThis(seqThisFresh);
 			}
 			lrRset.close();
 

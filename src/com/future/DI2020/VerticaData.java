@@ -139,7 +139,7 @@ class VerticaData extends DataPointer {
 		metaData.sendMetrix();
 
 		metaData.setRefreshCnt(cntRRN);
-		metaData.setRefreshSeq(lastJournalSeqNum);
+		metaData.setRefreshSeqLast(lastJournalSeqNum);
 
 		metaData.saveRefreshStats(metaData.getJobID());
 

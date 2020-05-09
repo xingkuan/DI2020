@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.io.File;
 
 
-public class RegisterTbl400 {
+public class RegisterTbl {
    private static final Logger ovLogger = LogManager.getLogger();
 
 
@@ -220,7 +220,7 @@ public class RegisterTbl400 {
 
 System.out.println(Arrays.toString(args));      
 System.out.println(outPath);      
-      RegisterTbl400 regTbl = new RegisterTbl400();
+      RegisterTbl regTbl = new RegisterTbl();
       
       //check if the Journal can be accessed 
       boolean isJournalOK = regTbl.verifyJournal (srcDBid, srcSch, srcTbl, jrnlName);
