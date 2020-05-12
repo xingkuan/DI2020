@@ -30,7 +30,7 @@ class OracleData extends DataPointer{
    
    private static final Logger ovLogger = LogManager.getLogger();
 
-   public OracleData(String dbID) {
+   public OracleData(String dbID) throws SQLException {
 		super(dbID);
    }
    

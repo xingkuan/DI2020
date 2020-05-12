@@ -35,7 +35,7 @@ class VerticaData extends DataPointer {
 
 	private static final Logger ovLogger = LogManager.getLogger();
 
-	public VerticaData(String dbid) {
+	public VerticaData(String dbid) throws SQLException {
 		super(dbid);
 	}
 
@@ -548,6 +548,8 @@ class VerticaData extends DataPointer {
 			ovLogger.error(e.getMessage());
 		}
 	}
+	
+	
 	/*
 	 * public int initLoadType2() throws SQLException { // perform load type 2 on
 	 * table (this is no longer used) int[] batchResults = null;

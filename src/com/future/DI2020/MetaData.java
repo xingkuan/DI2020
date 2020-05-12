@@ -134,28 +134,39 @@ class MetaData {
 	   tableID=tblID;
 	   readTableDetails();
 	   
-	   srcDBDetail = readDBDetails(tblDetail.get("src_dbid").toString());
-	   tgtDBDetail = readDBDetails(tblDetail.get("tgt_dbid").toString());
-	   auxDBDetail = readDBDetails(tblDetail.get("aux_dbid").toString());
+	   try {
+		srcDBDetail = readDBDetails(tblDetail.get("src_dbid").toString());
+		   tgtDBDetail = readDBDetails(tblDetail.get("tgt_dbid").toString());
+		   auxDBDetail = readDBDetails(tblDetail.get("aux_dbid").toString());
+	} catch (SQLException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
    }
 
    //return db details as a simpleJSON object, (instead of a Java object, which is too cumbersome).
-   public JSONObject readDBDetails(String dbid) {
-	  boolean rtv = true;
-      java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis()); 
-      java.sql.Timestamp ats;
-      long ets;
+   public JSONObject readDBDetails(String dbid) throws SQLException {
       
       JSONObject jo = new JSONObject();
-      //JSONArray jArray = new JSONArray();
+      Statement stmt=null;
+      ResultSet rset=null;
 
       try {
-         rRset = repStmt.executeQuery("select db_id, url, driver, userid, passwd, type "
-         		+ " from vertsnap.sync_db "  
-         		+ " where db_id=" + dbid);   
-         jo =  ResultSetToJsonMapper(rRset);
+    	    stmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+         rset = stmt.executeQuery("select db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd "
+         		+ " from meta_db "  
+         		+ " where db_id='" + dbid + "'");   
+         jo =  ResultSetToJsonMapper(rset);
        } catch(SQLException e) {
          ovLogger.error(e.getMessage());
+      }finally {
+    	  try {
+			rset.close();
+	    	  stmt.close();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
       }
       
       return jo;

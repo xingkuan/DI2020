@@ -22,10 +22,10 @@ class DB2Data400 extends DataPointer {
 
 	private static final Logger ovLogger = LogManager.getLogger();
 
-	public DB2Data400(String dbid) {
+	public DB2Data400(String dbid) throws SQLException {
 		super(dbid);
 	}
-	
+
 	protected void initializeFrom(DataPointer dt) {
 	}
 
@@ -38,10 +38,10 @@ class DB2Data400 extends DataPointer {
 		Statement sqlStmt;
 		ResultSet sqlRset = null;
 
-		String whereClause="";
+		String whereClause = "";
 
-		if (!whr.equals(""))	
-			whereClause = " where rrn(a) in (" + whr + ")"; 
+		if (!whr.equals(""))
+			whereClause = " where rrn(a) in (" + whr + ")";
 
 		String sqlStr = metaData.getSQLSelect() + whereClause;
 
@@ -62,7 +62,6 @@ class DB2Data400 extends DataPointer {
 		setThisRefreshSeq();
 		return seqThisFresh;
 	}
-	
 
 	public ResultSet getAuxResultSet(String rrns) {
 		Statement sqlStmt;
@@ -89,7 +88,8 @@ class DB2Data400 extends DataPointer {
 
 		return sqlRset;
 	}
-	//build where clause from meta data
+
+	// build where clause from meta data
 	public ResultSet getAuxResultSet() {
 		Statement sqlStmt;
 		ResultSet sqlRset = null;
@@ -109,6 +109,7 @@ class DB2Data400 extends DataPointer {
 
 		return sqlRset;
 	}
+
 	public ResultSet initSrcLogQuery400() {
 		Statement sqlStmt;
 		ResultSet sqlRset = null;
@@ -118,7 +119,8 @@ class DB2Data400 extends DataPointer {
 
 		if (metaData.getSeqLastRefresh() == 0) {
 			ovLogger.error("   " + jLibName + "." + jName + " is not initialized.");
-			//Should we abort here ??? or call setThisRefreshSeqInitExt() to initialize it? ;
+			// Should we abort here ??? or call setThisRefreshSeqInitExt() to initialize it?
+			// ;
 		} else {
 			ovLogger.info(
 					"initSrcLogQuery(): " + jLibName + "." + jName + " last Seq: " + metaData.getSeqLastRefresh());
@@ -145,7 +147,7 @@ class DB2Data400 extends DataPointer {
 				;
 				sqlRset = sqlStmt.executeQuery(StrSQLRRN);
 				if (sqlRset.isBeforeFirst()) // this check can throw exception, and do the needed below.
-					ovLogger.info("   opened src jrnl recordset: " );
+					ovLogger.info("   opened src jrnl recordset: ");
 			} catch (SQLException e) {
 				ovLogger.error("initSrcLogQuery() failure: " + e);
 				// 2020.04.12:
@@ -169,7 +171,7 @@ class DB2Data400 extends DataPointer {
 																// number seems not takining effect
 					;
 					sqlRset = sqlStmt.executeQuery(StrSQLx);
-					ovLogger.info("   opened src jrnl recordset on ultimate try: " );
+					ovLogger.info("   opened src jrnl recordset on ultimate try: ");
 				} catch (SQLException ex) {
 					ovLogger.error("   ultimate failure: " + jLibName + "." + jName + " !");
 					ovLogger.error("   initSrcLogQuery() failure: " + ex);
@@ -194,10 +196,9 @@ class DB2Data400 extends DataPointer {
 		return isReady;
 	}
 
-
 //TODO: used only by DB2toKafka. move to KafkaData ?
 	public boolean initForKafkaMeta() {
-		boolean proceed=false;
+		boolean proceed = false;
 		jLibName = metaData.getJournalLib();
 		jName = metaData.getJournalName();
 
@@ -215,7 +216,6 @@ class DB2Data400 extends DataPointer {
 		return proceed;
 	}
 
-
 	public int getThreshLogCount() {
 		Statement sqlStmt;
 		ResultSet sqlRset = null;
@@ -225,7 +225,7 @@ class DB2Data400 extends DataPointer {
 		try {
 			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			sqlRset = sqlStmt.executeQuery(
-					" select count(distinct M_ROW)   from   " + metaData.getTableDetails().get("src_log") );
+					" select count(distinct M_ROW)   from   " + metaData.getTableDetails().get("src_log"));
 			sqlRset.next();
 			lc = Integer.parseInt(sqlRset.getString(1));
 			sqlRset.close();
@@ -233,11 +233,11 @@ class DB2Data400 extends DataPointer {
 		} catch (SQLException e) {
 			// System.out.println(label + " error during threshlogcnt");
 //.         ovLogger.log(label + " error during threshlogcnt");
-			ovLogger.error( " error during threshlogcnt");
+			ovLogger.error(" error during threshlogcnt");
 		}
 		// System.out.println(label + " theshold log count: " + lc);
 //.      ovLogger.log(label + " theshold log count: " + lc);
-		ovLogger.info( " theshold log count: " + lc);
+		ovLogger.info(" theshold log count: " + lc);
 		return lc;
 	}
 
@@ -249,8 +249,8 @@ class DB2Data400 extends DataPointer {
 		try {
 			Statement sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 
-			lrRset = sqlStmt
-					.executeQuery("select count(*) from " + metaData.getTableDetails().get("src_sch").toString() + "." + metaData.getTableDetails().get("src_tbl").toString());
+			lrRset = sqlStmt.executeQuery("select count(*) from " + metaData.getTableDetails().get("src_sch").toString()
+					+ "." + metaData.getTableDetails().get("src_tbl").toString());
 			lrRset.next();
 			rtv = Integer.parseInt(lrRset.getString(1));
 
@@ -261,7 +261,6 @@ class DB2Data400 extends DataPointer {
 		}
 		return rtv;
 	}
-
 
 	// locate the ending SEQUENCE_NUMBER of this run:
 	private void setThisRefreshSeq() {
@@ -293,7 +292,7 @@ class DB2Data400 extends DataPointer {
 			sqlStmt.close();
 		} catch (SQLException e) {
 			ovLogger.error("   error in setThisRefreshSeq(): " + e);
-			//TODO: if empty, shouldn't something be done here?
+			// TODO: if empty, shouldn't something be done here?
 		}
 	}
 
@@ -329,6 +328,81 @@ class DB2Data400 extends DataPointer {
 			ovLogger.error("   error in setThisRefreshSeq(): " + e);
 		}
 	}
+
+	// methods for registration
+	public ResultSet getFieldMeta(String srcSch, String srcTbl, String journal) {
+		Statement stmt;
+		ResultSet rset = null;
+
+		try {
+			stmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+			////
+			String sqlStmt = "select " + "       c.ordinal_position," + "       c.column_name,"
+					+ "       k.ordinal_position as key_column," + "       k.asc_or_desc      as key_order,"
+					+ "       c.data_type, c.length, c.numeric_scale, c.is_nullable, c.column_text"
+					+ "  from qsys2.syscolumns   c" + "  join qsys2.systables    t"
+					+ "    on c.table_schema = t.table_schema" + "   and c.table_name   = t.table_name"
+					+ "  left outer join sysibm.sqlstatistics k" + "    on c.table_schema = k.table_schem"
+					+ "   and c.table_name   = k.table_name" + "   and c.table_name   = k.index_name "
+					+ "   and c.column_name  = k.column_name" + " where c.table_schema = '" + srcSch + "' "
+					+ "   and c.table_name   = '" + srcTbl + "' " + " order by ordinal_position asc";
+			rset = stmt.executeQuery(sqlStmt);
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return rset;
+	}
+
+	public boolean regTblMisc(String srcSch, String srcTbl, String srcLog) {
+		boolean rslt = false;
+		String[] res = srcLog.split("[.]", 0);
+		// String jLibName = "JOHNLEE2";
+		// String jName = "QSQJRN";
+		String jLibName = res[0];
+		String jName = res[1];
+
+		Statement stmt;
+		ResultSet rset = null;
+
+		try {
+			String rLib = "", rName = ""; // all receiver?
+			// try to read journal of the last 4 hours(I know I'm using the client time;
+			// that does not matter)
+			Calendar cal = Calendar.getInstance();
+			cal.add(Calendar.HOUR_OF_DAY, -4);
+
+			//stmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+			stmt = dbConn.createStatement();
+
+			String strTS = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(cal.getTime());
+			String sqlStmt = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR"
+					+ " FROM table (Display_Journal('" + jLibName + "', '" + jName + "', " + "   '" + rLib + "', '"
+					+ rName + "', " + "   cast('" + strTS + "' as TIMESTAMP), " // pass-in the start timestamp;
+					+ "   cast(null as decimal(21,0)), " // starting SEQ #
+					+ "   'R', " // JOURNAL CODE:
+					+ "   ''," // JOURNAL entry:UP,DL,PT,PX
+					+ "   '" + srcSch + "', '" + srcTbl + "', '*QDDS', ''," // Object library, Object name, Object type,
+																			// Object member
+					+ "   '', '', ''" // User, Job, Program
+					+ ") ) as x order by 2 asc";
+
+			rset = stmt.executeQuery(sqlStmt);
+
+			if (rset.next()) {
+				// rslt = true;
+			}
+			rslt = true;
+
+			rset.close();
+			stmt.close();
+		} catch (SQLException e) {
+			ovLogger.error(e.getMessage());
+		}
+
+		return rslt;
+	}
+	// ..............
 
 	public long getCurrSeq() {
 		return seqThisFresh;

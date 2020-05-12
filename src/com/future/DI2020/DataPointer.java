@@ -4,6 +4,8 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -17,7 +19,7 @@ public class DataPointer {
 	protected String driver;
 	protected String userID;
 	protected String passPWD;
-	protected String dbType;
+	protected String dbType, dbCat;
 	protected Connection dbConn;
 
 	protected static final Logger ovLogger = LogManager.getLogger();
@@ -26,23 +28,25 @@ public class DataPointer {
 	protected static final Metrix metrix = Metrix.getInstance();
 	protected static final String logDir = conf.getConf("logDir");
 
-	private static Map<String, DataPointer> dataPtrs;
+	private static Map<String, DataPointer> dataPtrs=new HashMap<>();
 
 	protected int totalErrCnt = 0, totalInsCnt = 0, totalDelCnt = 0, totalSynCnt=0;
 
 	public DataPointer() {
         ovLogger.info("implicit DataPointer constructor.");
 	}
-	public DataPointer(String dbID) {
+	public DataPointer(String dbID) throws SQLException {
 	//protected DataPointer(String url, String cls, String user, String pwd) {
 		JSONObject jo = metaData.readDBDetails(dbID);
 		
 		dbID=jo.get("db_id").toString();
-		URL=jo.get("db_url").toString();
+		URL=jo.get("db_conn").toString();
 		driver=jo.get("db_driver").toString();
-		userID=jo.get("db_user").toString();
-		passPWD=jo.get("passwd").toString();
+		userID=jo.get("db_usr").toString();
+		passPWD=jo.get("db_pwd").toString();
+		dbType=jo.get("db_cat").toString();
 		dbType=jo.get("db_type").toString();
+		dbCat=jo.get("db_cat").toString();
 		connectDB();  
 	}
 	
@@ -53,14 +57,29 @@ public class DataPointer {
 		if(db != null) {
 			return db;
 		}else {
-			db = new DataPointer(dbid);
+			try {
+				//db = new DataPointer(dbid);
+				JSONObject jo = metaData.readDBDetails(dbid);
+				String dbType=jo.get("db_type").toString();
+				switch(dbType){
+					case "DB2/AS400":
+						db = new DB2Data400(dbid);
+						break;
+					case "VERTICA":
+						db = new VerticaData(dbid);
+						break;
+				}
+			} catch (SQLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
 
 			dataPtrs.put(dbid, db);
 		}
 		return db;
 	}
 	private void connectDB() {
-		if(dbType.equals("Relational")){
+		if(dbCat.equals("RDBMS")){
 		try {
             //Class.forName("oracle.jdbc.OracleDriver"); 
             Class.forName(driver); 
@@ -74,8 +93,6 @@ public class DataPointer {
          //establish DB connection
          dbConn = DriverManager.getConnection(URL, userID, passPWD);
          dbConn.setAutoCommit(false);
-		dbConn.setAutoCommit(false);
-
       } catch(SQLException e) {
          ovLogger.error("   cannot connect to db");
          ovLogger.error(e);
@@ -135,6 +152,12 @@ public class DataPointer {
 		
 	}
 	
+	public ResultSet getFieldMeta(String srcSch, String srcTbl, String journal){
+		return null;
+	}
+	protected boolean regTblMisc(String srcSch, String srcTbl, String srcLog) {
+		return false;
+	}
 
 	
 }
