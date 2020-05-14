@@ -26,14 +26,16 @@ public class RegisterTbl {
 
 	private static int tblID;
 
-	static FileWriter verticaDDL;
-	static FileWriter repoInsTbl;
-	static FileWriter repoInsCols;
-
-	static FileWriter hadRegistered;
-	static FileWriter kafkaTopic;
-
 	static DataPointer srcDB;
+
+	static String crtTblSQL = "verticaDDL.sql";
+	static String repTblIns = "repoTblDML.sql";
+	static String repFldIns = "repoColsDML.sql";
+	static String hadRegister = "hadRegistered.sql";
+	static String kafka = "kafkaTopic.sh";
+	static String db2Journal = "repoJ400row.sql";
+
+	static String outPath;
 
 	public static void main(String[] args) throws IOException {
 		System.out.println(args.length);
@@ -59,7 +61,7 @@ public class RegisterTbl {
 		String tgtTbl = args[6];
 		String auxDB = args[7];
 		String auxTopic = args[8];
-		String outPath = args[9];
+		outPath = args[9];
 		int poolID = Integer.parseInt(args[10]);
 
 		System.out.println(Arrays.toString(args));
@@ -83,47 +85,10 @@ public class RegisterTbl {
 				 * "repoTblDML.sql")); repoInsCols = new FileWriter(new File(dir,
 				 * "repoColsDML.sql"));
 				 */
-				verticaDDL = new FileWriter(new File(outPath + "verticaDDL.sql"));
-				repoInsTbl = new FileWriter(new File(outPath + "repoTblDML.sql"));
-				repoInsCols = new FileWriter(new File(outPath + "repoColsDML.sql"));
 
-				try {
-					regTbl.genDDL(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
-				} catch (SQLException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-
-				verticaDDL.close();
-				repoInsTbl.close();
-				repoInsCols.close();
-
-				// generate comands for checking existence
-				String strText;
-				hadRegistered = new FileWriter(new File(outPath + "hadRegistered.sql"));
-				strText = "select 'exit already!!!' from sync_table where source_db_id=" + srcDBid
-						+ " and source_schema='" + srcSch + "' and source_table='" + srcTbl + "';";
-				hadRegistered.write(strText);
-				hadRegistered.close();
-
-				// generate command for create kafka topic
-				kafkaTopic = new FileWriter(new File(outPath + "kafkaTopic.sh"));
-				strText = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " + srcSch
-						+ "." + srcTbl + "\n\n" + "/opt/kafka/bin/kafka-topics.sh --create "
-						+ "--zookeeper usir1xrvkfk02:2181 " + "--replication-factor 2 " + "--partitions 2 "
-						+ "--config retention.ms=86400000 " + "--topic " + srcSch + "." + srcTbl + " \n";
-				kafkaTopic.write(strText);
-				kafkaTopic.close();
-
-				FileWriter repoJournalRow = new FileWriter(new File(outPath + "repoJ400row.sql"));
-				String jRow = "merge into VERTSNAP.sync_journal400 a \n"
-						+ "using (select distinct source_db_id, source_log_table from VERTSNAP.sync_table where pool_id = "
-						+ poolID + " ) b \n"
-						+ "on (a.source_db_id = b.source_db_id and a.source_log_table=b.source_log_table) \n"
-						+ "when not matched then \n" + "  insert (a.source_db_id, a.source_log_table) \n"
-						+ "  values (b.source_db_id, b.source_log_table) \n";
-				repoJournalRow.write(jRow);
-				repoJournalRow.close();
+				regTbl.genRepTblDML(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genRegSQLs(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genMisc(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
 
 			} else {
 				System.out.println("TableID " + tblID + " has been used already!");
@@ -133,13 +98,9 @@ public class RegisterTbl {
 		}
 	}
 
-	private int genDDL(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch,
-			String tgtTbl, int poolID) throws SQLException {
-		srcDB = DataPointer.dataPtrCreater(srcDBid);
+	private boolean genRepTblDML(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
+		FileWriter repoInsTbl;
 
-		ResultSet rset = srcDB.getFieldMeta(srcSch, srcTbl, journal);
-
-		// For sync_table
 		String sqlRepoDML1 = "insert into didb.META_TABLE \n" + " (TBL_ID, TBL_PK, \n"
 				+ "  SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" + "  TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
 				+ "  POOL_ID, INIT_DT, INIT_DURATION, \n" + "  CURR_STATE, \n" + "  AUX_DB_ID, AUX_PRG_TYPE, \n"
@@ -147,111 +108,89 @@ public class RegisterTbl {
 				+ "  (" + tblID + ", 'DB2RRN', " + "  '" + srcDBid + "', '" + srcSch + "', '" + "', '" + srcTbl
 				+ "', \n" + "  '" + tgtDBid + "', '" + tgtSch + "', '" + "', '" + tgtTbl + "', \n" + "  0, , , \n"
 				+ "  0, \n" + " 'xx', 'xx', \n" + " '" + journal + "', 'prg', 'topic', \n" + " , ,) \n;";
-		// System.out.println(sqlRepoDML1);
 		try {
+			repoInsTbl = new FileWriter(new File(outPath + repTblIns));
 			repoInsTbl.write(sqlRepoDML1);
+			repoInsTbl.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
+			return false;
 		}
 
-		// for sync_table_field:
-		String sqlRepoDMLTemp = "insert into SYNC_TABLE_FIELD "
-				+ "(FIELD_ID, TABLE_ID, SOURCE_FIELD, TARGET_FIELD, XFORM_FCTN, XFORM_TYPE ) " + "values (" + "";
-		String sqlRepoDMLfield = "";
-		// prepare target DDL(Vertica):
-		String sqlDDLv = "create table " + tgtSch + "." + tgtTbl + "\n ( ";
-		String strDataSpec;
-		int scal;
-		String sDataType, tDataType;
-		String xForm = "";
-		int xType;
-		int fieldCnt = 0;
-		while (rset.next()) {
-			sqlRepoDMLfield = "";
-			fieldCnt++;
+		return true;
+	}
 
-			sDataType = rset.getString("data_type");
+	private boolean genRegSQLs(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
+		FileWriter verticaDDL;
+		FileWriter repoInsCols;
 
-			if (sDataType.equals("VARCHAR")) {
-				strDataSpec = "VARCHAR2(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
+		srcDB = DataPointer.dataPtrCreater(srcDBid);
 
-				xType = 1;
-				xForm = "nvl(" + rset.getString("column_name") + ", NULL)";
-			} else if (sDataType.equals("DATE")) {
-				strDataSpec = "DATE";
-				xType = 7;
-				xForm = "nvl(to_char(" + rset.getString("column_name") + ",''dd-mon-yyyy''), NULL)";
-			} else if (sDataType.equals("TIMESTMP")) {
-				strDataSpec = "TIMESTAMP";
-				xType = 6;
-				xForm = "nvl(to_char(" + rset.getString("column_name") + ",''dd-mon-yyyy hh24:mi:ss''), NULL)";
-			} else if (sDataType.equals("NUMERIC")) {
-				scal = rset.getInt("numeric_scale");
-				if (scal > 0) {
-					strDataSpec = "NUMBER(" + rset.getInt("length") + ", " + rset.getInt("numeric_scale") + ")";
+		JSONObject json = ((DB2Data400) srcDB).genRegSQLs(tblID, srcSch, srcTbl, tgtSch, tgtTbl);
+		String sqlStr;
 
-					xType = 4; // was 5; but let's make them all DOUBLE
-					xForm = "nvl(to_char(" + rset.getString("column_name") + "), NULL)";
-				} else {
-					strDataSpec = "NUMBER(" + rset.getInt("length") + ")";
-
-					xType = 1; // or 2
-					// xForm = ;
-				}
-			} else if (sDataType.equals("CHAR")) {
-				strDataSpec = "CHAR(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
-
-				xType = 1;
-				xForm = "nvl(" + rset.getString("column_name") + "), NULL)";
-			} else {
-				strDataSpec = sDataType;
-
-				xType = 1;
-				xForm = "nvl(to_char(" + rset.getString("column_name") + "), NULL)";
-			}
-			sqlDDLv = sqlDDLv + "\"" + rset.getString("column_name") + "\" " + strDataSpec + ",\n";
-
-			sqlRepoDMLfield = sqlRepoDMLTemp + rset.getInt("ordinal_position") + ", " + tblID + ", '"
-					+ rset.getString("column_name") + "', '" + rset.getString("column_name") + "', '" + xForm + "', "
-					+ xType + ") ;\n";
-
-			// System.out.println(sqlRepoDMLfield);
-			try {
-				repoInsCols.write(sqlRepoDMLfield);
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-		}
-		sqlDDLv = sqlDDLv + " DB2RRN int ) \n;";
-		// System.out.println(sqlDDLv);
 		try {
-			verticaDDL.write(sqlDDLv);
+			verticaDDL = new FileWriter(new File(outPath + crtTblSQL));
+			repoInsCols = new FileWriter(new File(outPath + repFldIns));
+
+			sqlStr = json.get("crtTbl").toString();
+			verticaDDL.write(sqlStr);
+			verticaDDL.close();
+			
+			sqlStr = json.get("fldSQL").toString();
+			repoInsCols.write(sqlStr);
+			repoInsCols.close();
+			
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
+			return false;
 		}
 
-		fieldCnt++;
-		sqlRepoDMLfield = sqlRepoDMLTemp + fieldCnt + ", " + tblID + ", 'RRN(a) as DB2RRN', 'DB2RRN', "
-				+ " 'nvl(rrn(a), NULL)', 1) \n;";
-		// System.out.println(sqlRepoDMLfield);
+		return true;
+	}
+
+	private boolean genMisc(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch,
+			String tgtTbl, int poolID) {
+		FileWriter hadRegistered;
+		FileWriter kafkaTopic;
+
+		
 		try {
-			repoInsCols.write(sqlRepoDMLfield);
+			String strText;
+			hadRegistered = new FileWriter(new File(outPath + hadRegister));
+			strText = "select 'exit already!!!' from sync_table where source_db_id=" + srcDBid + " and source_schema='"
+					+ srcSch + "' and source_table='" + srcTbl + "';";
+			hadRegistered.write(strText);
+			hadRegistered.close();
+
+			// generate command for create kafka topic
+			kafkaTopic = new FileWriter(new File(outPath + kafka));
+			strText = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " + srcSch + "."
+					+ srcTbl + "\n\n" + "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
+					+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " + "--topic "
+					+ srcSch + "." + srcTbl + " \n";
+			kafkaTopic.write(strText);
+			kafkaTopic.close();
+
+			FileWriter repoJournalRow = new FileWriter(new File(outPath + db2Journal));
+			String jRow = "merge into VERTSNAP.sync_journal400 a \n"
+					+ "using (select distinct source_db_id, source_log_table from VERTSNAP.sync_table where pool_id = "
+					+ poolID + " ) b \n"
+					+ "on (a.source_db_id = b.source_db_id and a.source_log_table=b.source_log_table) \n"
+					+ "when not matched then \n" + "  insert (a.source_db_id, a.source_log_table) \n"
+					+ "  values (b.source_db_id, b.source_log_table) \n";
+			repoJournalRow.write(jRow);
+			repoJournalRow.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
 			e.printStackTrace();
+			return false;
 		}
 
-		rset.close();
-
-		return 0;
+		return true;
 	}
 
 	private int getNextTblID() {
 		return metaData.getNextTblID();
 	}
-
 
 }

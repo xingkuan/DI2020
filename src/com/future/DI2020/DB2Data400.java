@@ -4,12 +4,16 @@ import java.io.*;
 import java.util.*;
 import java.text.*;
 import java.sql.*;
-import oracle.jdbc.*;
-import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
 import org.apache.logging.log4j.LogManager;
+
+
+interface FunctionalTry {
+    int calculate(int x); 
+}
+
 
 class DB2Data400 extends DataPointer {
 	private int tableID;
@@ -329,29 +333,105 @@ class DB2Data400 extends DataPointer {
 		}
 	}
 
-	// methods for registration
-	public ResultSet getFieldMeta(String srcSch, String srcTbl, String journal) {
+	//try Functional programming
+public void tryFunctional(String srcSch, String srcTbl, String journal, FunctionalTry s) {
+	//FunctionalTry s = (int x)->x*x; 
+	int ans = s.calculate(5); 
+    System.out.println(ans + srcSch); 
+}
+
+// methods for registration
+	public JSONObject genRegSQLs(int tblID, String srcSch, String srcTbl, String tgtSch, String tgtTbl) {
 		Statement stmt;
 		ResultSet rset = null;
+		JSONObject json = new JSONObject();
+
+		String sqlFields = "insert into META_TABLE_FIELD \n"
+				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, TGT_FIELD, TGT_FIELD_TYPE, JAVA_TYPE) \n"  
+				+ " values \n";
+		String sqlCrtTbl = "create table " + tgtSch + "." + tgtTbl + "\n ( ";
 
 		try {
-			stmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-			////
-			String sqlStmt = "select " + "       c.ordinal_position," + "       c.column_name,"
-					+ "       k.ordinal_position as key_column," + "       k.asc_or_desc      as key_order,"
-					+ "       c.data_type, c.length, c.numeric_scale, c.is_nullable, c.column_text"
-					+ "  from qsys2.syscolumns   c" + "  join qsys2.systables    t"
-					+ "    on c.table_schema = t.table_schema" + "   and c.table_name   = t.table_name"
-					+ "  left outer join sysibm.sqlstatistics k" + "    on c.table_schema = k.table_schem"
-					+ "   and c.table_name   = k.table_name" + "   and c.table_name   = k.index_name "
-					+ "   and c.column_name  = k.column_name" + " where c.table_schema = '" + srcSch + "' "
-					+ "   and c.table_name   = '" + srcTbl + "' " + " order by ordinal_position asc";
+			stmt = dbConn.createStatement();
+			String sqlStmt = "select c.ordinal_position, c.column_name, "
+					// not needed columns          + "k.ordinal_position as key_column, k.asc_or_desc as key_order, "
+					          + "c.data_type, c.length, c.numeric_scale, c.is_nullable, c.column_text "
+					+ "from qsys2.syscolumns c join qsys2.systables t "
+					+ "on c.table_schema = t.table_schema and c.table_name = t.table_name "
+					+ "left outer join sysibm.sqlstatistics k on c.table_schema = k.table_schem "
+					+ " and c.table_name   = k.table_name and c.table_name   = k.index_name "
+					+ " and c.column_name  = k.column_name " 
+					+ "where c.table_schema = '" + srcSch + "' "
+					+ "  and c.table_name   = '" + srcTbl + "' " 
+					+ " order by ordinal_position asc";
 			rset = stmt.executeQuery(sqlStmt);
+			
+			String strDataSpec;
+			int scal;
+			String sDataType, tDataType;
+			int xType;
+			int fieldCnt = 0;
+			while (rset.next()) {
+				fieldCnt++;
+
+				sDataType = rset.getString("data_type");
+
+				if (sDataType.equals("VARCHAR")) {
+					strDataSpec = "VARCHAR2(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
+
+					xType = 1;
+				} else if (sDataType.equals("DATE")) {
+					strDataSpec = "DATE";
+					xType = 7;
+				} else if (sDataType.equals("TIMESTMP")) {
+					strDataSpec = "TIMESTAMP";
+					xType = 6;
+				} else if (sDataType.equals("NUMERIC")) {
+					scal = rset.getInt("numeric_scale");
+					if (scal > 0) {
+						strDataSpec = "NUMBER(" + rset.getInt("length") + ", " + rset.getInt("numeric_scale") + ")";
+
+						xType = 4; // was 5; but let's make them all DOUBLE
+					} else {
+						strDataSpec = "NUMBER(" + rset.getInt("length") + ")";
+
+						xType = 1; // or 2
+					}
+				} else if (sDataType.equals("CHAR")) {
+					strDataSpec = "CHAR(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
+
+					xType = 1;
+				} else {
+					strDataSpec = sDataType;
+
+					xType = 1;
+				}
+				sqlCrtTbl = sqlCrtTbl + "\"" + rset.getString("column_name") + "\" " + strDataSpec + ",\n";  //""" is needed because column name can contain space!
+
+				sqlFields = sqlFields 
+						+ "(" + tblID + ", " + rset.getInt("ordinal_position") + ", '"  
+						+ rset.getString("column_name") + "', '" + sDataType + "', "
+						+ rset.getString("column_name") + "', '" + strDataSpec + "', "
+						+ xType + "),\n";
+			}
+			sqlCrtTbl = sqlCrtTbl + " DB2RRN int ) \n;";
+
+			fieldCnt++;
+			sqlFields = sqlFields
+					+ "("+ tblID +", " + fieldCnt + ", " 
+					+ ", 'RRN(a) as DB2RRN', 'bigint', "
+					+ "'DB2RRN', 'bigint', "
+					+ "1) \n;";
+			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-		return rset;
+		
+		json.put("crtTbl", sqlCrtTbl);
+		json.put("fldSQL", sqlFields);
+
+		return json;
 	}
 
 	public boolean regTblMisc(String srcSch, String srcTbl, String srcLog) {

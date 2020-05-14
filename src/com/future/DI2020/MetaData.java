@@ -13,8 +13,6 @@ import java.text.*;
 import java.sql.*;
 import java.sql.Date;
 
-import oracle.jdbc.*;
-import oracle.jdbc.pool.OracleDataSource;
 
 /*
  class Meta
@@ -773,10 +771,10 @@ public boolean isNewTblID(int tblID) {
  String strSQL;
  boolean rslt = true;
  
- strSQL = "select TABLE_ID from sync_table where table_id = " + tblID;
+ strSQL = "select TBL_ID from meta_table where tbl_id = " + tblID;
 	      
 	   try {
-     lrepStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+     lrepStmt = repConn.createStatement();
      lrRset = repStmt.executeQuery(strSQL);
      if(lrRset.next()){
      	rslt = false;
