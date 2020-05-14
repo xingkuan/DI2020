@@ -410,7 +410,7 @@ public void tryFunctional(String srcSch, String srcTbl, String journal, Function
 
 				sqlFields = sqlFields 
 						+ "(" + tblID + ", " + rset.getInt("ordinal_position") + ", '"  
-						+ rset.getString("column_name") + "', '" + sDataType + "', "
+						+ rset.getString("column_name") + "', '" + sDataType + "', '"
 						+ rset.getString("column_name") + "', '" + strDataSpec + "', "
 						+ xType + "),\n";
 			}
@@ -419,7 +419,7 @@ public void tryFunctional(String srcSch, String srcTbl, String journal, Function
 			fieldCnt++;
 			sqlFields = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
-					+ ", 'RRN(a) as DB2RRN', 'bigint', "
+					+ "'RRN(a) as DB2RRN', 'bigint', "
 					+ "'DB2RRN', 'bigint', "
 					+ "1) \n;";
 			

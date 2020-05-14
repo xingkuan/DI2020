@@ -21,52 +21,58 @@ import org.apache.logging.log4j.LogManager;
 */
 
 class initTable {
-	private static String jobID="initTbl";
+	private static String jobID = "initTbl";
 
 	private static final Logger ovLogger = LogManager.getLogger();
 	private static final Metrix metrix = Metrix.getInstance();
 	private static final MetaData metaData = MetaData.getInstance();
 
-	int tableID;
+	static int tableID;
 
 //	private int totalDelCnt = 0, totalInsCnt = 0, totalErrCnt = 0;
 
-	DataPointer srcData;
-	DataPointer tgtData;
+	static DataPointer srcData;
+	static DataPointer tgtData;
 
-	// setup the source and target
-	private void setup() {
-		ovLogger.info(jobID + " " + tableID + metaData.getTableDetails().get("src_tbl").toString());
-		metaData.setupForJob(jobID, tableID);
-		
-		JSONObject tblDetail = metaData.getTableDetails();
+	public static void main(String[] args) {
+		System.out.println(args.length);
 
-		srcData = DataPointer.dataPtrCreater(tblDetail.get("srcDBID").toString());
-		ovLogger.info("   connected to source: " );
+		if (args.length != 1) {
+			System.out.println("Usage:   initTable tblID");
+			//return -1;
+		}
 
-		tgtData = DataPointer.dataPtrCreater(tblDetail.get("srcDBID").toString());
-		ovLogger.info("   connected to target");
-	}
-
-	public boolean initializeTable(int tID) {
-		tableID = tID;
-
+		tableID = Integer.parseInt(args[0]);
 		setup();
 		initializeTgtFromSrc();
 
-		return true;
+		//return 0;
 	}
 
+	// setup the source and target
+	private static void setup() {
+		metaData.setupForJob(jobID, tableID);
+		
+		ovLogger.info(jobID + " " + tableID + ":" + metaData.getTableDetails().get("src_table").toString());
 
-	private boolean initializeTgtFromSrc() {
+		JSONObject tblDetail = metaData.getTableDetails();
+
+		srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString());
+		ovLogger.info("   connected to source: ");
+
+		tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString());
+		ovLogger.info("   connected to target");
+	}
+
+	private static boolean initializeTgtFromSrc() {
 		boolean rtv = true;
 
 		srcData.miscPrep();
-		ovLogger.info("      src ready: " + metaData.getTableDetails().get("src_tbl").toString() );
+		ovLogger.info("      src ready: " + metaData.getTableDetails().get("src_table").toString());
 
 		tgtData.miscPrep();
 		tgtData.setupSinkData();
-		ovLogger.info("      tgt ready: " + metaData.getTgtTable() );
+		ovLogger.info("      tgt ready: " + metaData.getTgtTable());
 
 		metaData.markStartTime();
 
@@ -75,44 +81,32 @@ class initTable {
 		return rtv;
 	}
 
-/*
-	public boolean reInitializeTable(int tblID) {
-
-
-		return true;
-	}
-
-	public boolean tblInitType2() {
-		if (tblMeta.getCurrState() == 0) {
-			// initialize table
-			ovLogger.info("JobID: " + jobID + ", tblID: " + tblMeta.getTableID() + " init type 2");
-			tblMeta.setCurrentState(1); // set current state to initializing
-
-			tblMeta.markStartTime();
-			try {
-				tblTgt.truncate();
-				tblSrc.setTriggerOn();
-			} catch (SQLException e) {
-
-			}
-		} else {
-			ovLogger.error("JobID: " + jobID + ", tblID: " + tblMeta.getTableID()
-					+ " Cannot initialize... not in correct state");
-		}
-		return true;
-	}
-
-	public void tblLoadSwap() {
-		tblMeta.setTgtUseAlt();
-		if (tblInitType1()) {
-			ovLogger.info("tblID: " + tblMeta.getTableID() + " Init successful. JobID: " + jobID);
-		} else {
-			ovLogger.info("tblID: " + tblMeta.getTableID() + " Init failed. JobID: " + jobID);
-		}
-		tblTgt.swapTable();
-	}
-*/
+	/*
+	 * public boolean reInitializeTable(int tblID) {
+	 * 
+	 * 
+	 * return true; }
+	 * 
+	 * public boolean tblInitType2() { if (tblMeta.getCurrState() == 0) { //
+	 * initialize table ovLogger.info("JobID: " + jobID + ", tblID: " +
+	 * tblMeta.getTableID() + " init type 2"); tblMeta.setCurrentState(1); // set
+	 * current state to initializing
+	 * 
+	 * tblMeta.markStartTime(); try { tblTgt.truncate(); tblSrc.setTriggerOn(); }
+	 * catch (SQLException e) {
+	 * 
+	 * } } else { ovLogger.error("JobID: " + jobID + ", tblID: " +
+	 * tblMeta.getTableID() + " Cannot initialize... not in correct state"); }
+	 * return true; }
+	 * 
+	 * public void tblLoadSwap() { tblMeta.setTgtUseAlt(); if (tblInitType1()) {
+	 * ovLogger.info("tblID: " + tblMeta.getTableID() + " Init successful. JobID: "
+	 * + jobID); } else { ovLogger.info("tblID: " + tblMeta.getTableID() +
+	 * " Init failed. JobID: " + jobID); } tblTgt.swapTable(); }
+	 */
 	public void close() {
+		srcData.close();
+		tgtData.close();
 		ovLogger.info("closing tgt. tblID: " + metaData.getTableID());
 	}
 }

@@ -27,9 +27,6 @@ class VerticaData extends DataPointer {
 	private boolean stmtOpen;
 	private ResultSet sRset;
 
-	private int connAtmptLim = 5;
-	private int AtmptDelay = 5000;
-
 	private long seqThisFresh = 0;
 	private java.sql.Timestamp tsThisRefesh = null;
 

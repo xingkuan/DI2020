@@ -79,13 +79,6 @@ public class RegisterTbl {
 
 			// make sure tableID is not used
 			if (metaData.isNewTblID(tblID)) {
-				/*
-				 * File dir = new File (outPath); verticaDDL = new FileWriter(new File(dir,
-				 * "verticaDDL.sql")); repoInsTbl = new FileWriter(new File(dir,
-				 * "repoTblDML.sql")); repoInsCols = new FileWriter(new File(dir,
-				 * "repoColsDML.sql"));
-				 */
-
 				regTbl.genRepTblDML(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
 				regTbl.genRegSQLs(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
 				regTbl.genMisc(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
@@ -101,13 +94,22 @@ public class RegisterTbl {
 	private boolean genRepTblDML(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
 		FileWriter repoInsTbl;
 
-		String sqlRepoDML1 = "insert into didb.META_TABLE \n" + " (TBL_ID, TBL_PK, \n"
-				+ "  SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" + "  TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
-				+ "  POOL_ID, INIT_DT, INIT_DURATION, \n" + "  CURR_STATE, \n" + "  AUX_DB_ID, AUX_PRG_TYPE, \n"
-				+ "  SRC_JURL_NAME, AUX_PRG_NAME, AUX_CHG_TOPIC, \n" + "  TS_LAST_REF, SEQ_LAST_REF \n" + "values \n"
-				+ "  (" + tblID + ", 'DB2RRN', " + "  '" + srcDBid + "', '" + srcSch + "', '" + "', '" + srcTbl
-				+ "', \n" + "  '" + tgtDBid + "', '" + tgtSch + "', '" + "', '" + tgtTbl + "', \n" + "  0, , , \n"
-				+ "  0, \n" + " 'xx', 'xx', \n" + " '" + journal + "', 'prg', 'topic', \n" + " , ,) \n;";
+		String sqlRepoDML1 = "insert into META_TABLE \n" 
+				+ "(TBL_ID, TBL_PK, \n"
+				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
+				+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
+				+ "POOL_ID, INIT_DT, INIT_DURATION, \n" 
+				+ "CURR_STATE, \n" 
+				+ "AUX_DB_ID, AUX_PRG_TYPE, \n"
+				+ "SRC_JURL_NAME, AUX_PRG_NAME, AUX_CHG_TOPIC, \n" 
+				+ "TS_LAST_REF, SEQ_LAST_REF) \n" + "values \n"
+				+ "(" + tblID + ", 'DB2RRN', '" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
+				+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
+				+ " 0, null, null, \n"
+				+ " 0, \n" 
+				+ "'KAFKA', 'Ext Java', \n" 
+				+ "'" + journal + "', 'Java', 'topic', \n"
+				+ "null, null) \n;";
 		try {
 			repoInsTbl = new FileWriter(new File(outPath + repTblIns));
 			repoInsTbl.write(sqlRepoDML1);
@@ -123,8 +125,6 @@ public class RegisterTbl {
 	private boolean genRegSQLs(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
 		FileWriter verticaDDL;
 		FileWriter repoInsCols;
-
-		srcDB = DataPointer.dataPtrCreater(srcDBid);
 
 		JSONObject json = ((DB2Data400) srcDB).genRegSQLs(tblID, srcSch, srcTbl, tgtSch, tgtTbl);
 		String sqlStr;
@@ -158,8 +158,8 @@ public class RegisterTbl {
 		try {
 			String strText;
 			hadRegistered = new FileWriter(new File(outPath + hadRegister));
-			strText = "select 'exit already!!!' from sync_table where source_db_id=" + srcDBid + " and source_schema='"
-					+ srcSch + "' and source_table='" + srcTbl + "';";
+			strText = "select 'exit already!!!', tbl_id from meta_table where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
+					+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
 			hadRegistered.write(strText);
 			hadRegistered.close();
 
@@ -171,14 +171,11 @@ public class RegisterTbl {
 					+ srcSch + "." + srcTbl + " \n";
 			kafkaTopic.write(strText);
 			kafkaTopic.close();
-
 			FileWriter repoJournalRow = new FileWriter(new File(outPath + db2Journal));
-			String jRow = "merge into VERTSNAP.sync_journal400 a \n"
-					+ "using (select distinct source_db_id, source_log_table from VERTSNAP.sync_table where pool_id = "
-					+ poolID + " ) b \n"
-					+ "on (a.source_db_id = b.source_db_id and a.source_log_table=b.source_log_table) \n"
-					+ "when not matched then \n" + "  insert (a.source_db_id, a.source_log_table) \n"
-					+ "  values (b.source_db_id, b.source_log_table) \n";
+			String jRow = "insert into META_EXT_PRG \n"
+					+ "values \n"
+					+ "(0, '" + srcDBid + "', '" + journal + "', null, null) \n"
+					+ "on conflict do nothing;";
 			repoJournalRow.write(jRow);
 			repoJournalRow.close();
 		} catch (IOException e) {
