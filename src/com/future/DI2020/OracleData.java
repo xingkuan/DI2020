@@ -106,7 +106,7 @@ class OracleData extends DataPointer{
    public void setTriggerOn() throws SQLException {
 	   Statement sqlStmt;
  	  sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-	      sqlStmt.executeUpdate("alter trigger "  + metaData.getSrcTrigger() + " enable");    
+	      sqlStmt.executeUpdate("alter trigger "  + metaData.getTableDetails().get("aux_pgm_name").toString() + " enable");    
    }
 
    public void commit() throws SQLException {

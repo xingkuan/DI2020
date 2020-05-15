@@ -67,11 +67,12 @@ class audtTable {
 
        metaData.saveAudit(srcRC, tgtRC);
        rowDiff = srcRC - tgtRC;
-
+//move to metaData
+       /*
       metrix.sendMX("rowDiff,jobId="+jobID+",tblID="+metaData.getSrcTblAb7()+"~"+metaData.getTableID()+" value=" + rowDiff + "\n");
       metrix.sendMX("rowSrc,jobId="+jobID+",tblID="+metaData.getSrcTblAb7()+"~"+metaData.getTableID()+" value=" + srcRC + "\n");
       metrix.sendMX("rowTgt,jobId="+jobID+",tblID="+metaData.getSrcTblAb7()+"~"+metaData.getTableID()+" value=" + tgtRC + "\n");
- 
+ */
 //TODO: remove it .. it is here for immediate Prod needs. 08/02/2017
       //writeAudit(srcRC, tgtRC, rowDiff);
    }

@@ -144,10 +144,11 @@ class VerticaData extends DataPointer {
 		ovLogger.info("Refreshed tblID: " + metaData.getTableID() + ", Ins Cnt: " + totalInsCnt);
 		ovLogger.info("Refreshed tblID: " + metaData.getTableID() + ", Err Cnt: " + totalErrCnt);
 
-		if (lastJournalSeqNum > 0)
+		//move to metaData
+/*		if (lastJournalSeqNum > 0)
 			metrix.sendMX("JournalSeq,metaData.getJobID()=" + metaData.getJobID() + ",tblID=" + metaData.getSrcTblAb7()
 					+ "~" + metaData.getTableID() + " value=" + lastJournalSeqNum + "\n");
-
+*/
 		ovLogger.info("tblID: " + metaData.getTableID() + ", " + " - " + metaData.getTableDetails().get("src_sch") + "."
 				+ metaData.getTableDetails().get("src_tbl").toString() + " commited");
 
@@ -177,6 +178,9 @@ class VerticaData extends DataPointer {
 		String ts;
 		String sDebug;
 
+		int[] javaType = metaData.getFldJavaType();
+		String[] fldNames = metaData.getFldNames();
+
 		PreparedStatement tgtPStmt;
 
 		ResultSet srcRset = rsltSet;
@@ -190,13 +194,14 @@ class VerticaData extends DataPointer {
 			double tmpDouble;
 			long tmpLong;
 			// insert records into batch
+			
 			while (srcRset.next()) {
 				i = 0;
 				// RowIDs[curRecCnt]=srcRset.getString("rowid");
 				RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
 				try {
-					for (i = 1; i <= metaData.getFldCnt(); i++) {
-						switch (metaData.getFldType(i - 1)) {
+					for (i = 1; i <= javaType.length; i++) {
+						switch (javaType[i - 1]) {
 						case 1: // String
 							// String x1 =srcRset.getString(i);
 							tgtPStmt.setString(i, srcRset.getString(i));
@@ -338,7 +343,7 @@ class VerticaData extends DataPointer {
 					ovLogger.error("   " + e.toString());
 					ovLogger.error("    ****************************");
 					ovLogger.error("    rowid: " + RowIDs[curRecCnt]);
-					ovLogger.error("    fieldno: " + i + "  " + metaData.getFldName(i - 1));
+					ovLogger.error("    fieldno: " + i + "  " + fldNames[i - 1]);
 					// return -1;
 				}
 				// insert batch into target table
@@ -355,7 +360,7 @@ class VerticaData extends DataPointer {
 						ovLogger.error("   executeBatch Error... ");
 						ovLogger.error(e.toString());
 						//commFlag = false;
-						for (i = 1; i <= metaData.getFldCnt(); i++) {
+						for (i = 1; i <= fldNames.length; i++) {
 							ovLogger.error("   " + srcRset.getString(i));
 						}
 						int[] iii;

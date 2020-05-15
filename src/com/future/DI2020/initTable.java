@@ -44,15 +44,15 @@ class initTable {
 
 		tableID = Integer.parseInt(args[0]);
 		setup();
+
 		initializeTgtFromSrc();
 
 		//return 0;
 	}
 
-	// setup the source and target
+	// setup metaData, source and target
 	private static void setup() {
 		metaData.setupForJob(jobID, tableID);
-		
 		ovLogger.info(jobID + " " + tableID + ":" + metaData.getTableDetails().get("src_table").toString());
 
 		JSONObject tblDetail = metaData.getTableDetails();
@@ -72,7 +72,7 @@ class initTable {
 
 		tgtData.miscPrep();
 		tgtData.setupSinkData();
-		ovLogger.info("      tgt ready: " + metaData.getTgtTable());
+		ovLogger.info("      tgt ready: " + metaData.getTableDetails().get("tgt_tbl").toString());
 
 		metaData.markStartTime();
 

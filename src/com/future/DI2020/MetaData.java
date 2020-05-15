@@ -35,29 +35,12 @@ class MetaData {
 	private ResultSet rRset;
 	private int tableID;
 	private int currState = 0;
+
 	private int fldCnt;
-	private int refreshCnt;
-	private int[] xformType;
-	private String[] fldName;
+
 	private String sqlSelectSource;
 	private String sqlInsertTarget;
-	private String sqlInsertTargetAlt;
-	private String sqlCopyTarget;
-	private String sqlCopySource;
-	private String srcSchema;
-	private String srcTable;
-	private String tgtSchema;
-	private String tgtTable;
-	private String tgtTableAlt;
-	private String srcTrigger;
-	private String srcLogTable;
-	private String tgtPK;
-	private String oraDelimiter;
-	private String vrtDelimiter;
-	private int defInitType;
-	private int refreshType;
-	private int recordCountThreshold;
-	private int minPollInterval;
+
 	private Timestamp tsLastAudit;
 	private int auditExp;
 	private Timestamp tsLastRefresh;
@@ -90,6 +73,13 @@ class MetaData {
 	private JSONObject srcDBDetail;
 	private JSONObject tgtDBDetail;
 	private JSONObject auxDBDetail;
+	
+	//may not needed
+	//private Map<Integer, Integer> fldType = new HashMap<>();
+	int[] fldType; 
+	String[] fldNames; 
+	
+	private int refreshCnt;
 
 	private static MetaData instance = null; // use lazy instantiation ;
 
@@ -127,6 +117,7 @@ class MetaData {
 		jobID = jID;
 		tableID = tblID;
 		initTableDetails();
+		initFieldMetaData();
 
 		try {
 			srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
@@ -255,73 +246,65 @@ class MetaData {
 		return true;
 	}
 
-	private void getFieldMetaData() throws SQLException {
-		// creates select and insert strings
+	// creates select and insert strings
+	private void initFieldMetaData() {
 		Statement lrepStmt;
 		ResultSet lrRset;
 		int i;
 
-		lrepStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+		try {
+			lrepStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 
-		// get field count
-		lrRset = lrepStmt.executeQuery("select count(*) from vertsnap.sync_table_field where table_id=" + tableID);
-		// System.out.println("select count(*) from " + OVSTableField + " where
-		// table_id=" + tableID);
-		if (lrRset.next()) {
-			fldCnt = lrRset.getInt(1);
-		}
-		lrRset.close();
-
-		// get field info
-		xformType = new int[fldCnt];
-		fldName = new String[fldCnt];
+//		fldName = new String[fldCnt];
 		// System.out.println("field cnt: " + fldCnt);
 		i = 0;
 		lrRset = lrepStmt.executeQuery(
-				"select xform_fctn, target_field, source_field, xform_type  from vertsnap.sync_table_field "
-						+ " where table_id=" + tableID + " order by field_id");
+			  "select tgt_field, src_field, java_type from meta_table_field "
+			+ " where tbl_id=" + tableID + " order by field_id");
+		//first line
 		if (lrRset.next()) {
-			sqlSelectSource = "select \n" + lrRset.getString("source_field");
-			sqlInsertTarget = "insert into " + tgtSchema + "." + tgtTable;
-			sqlInsertTargetAlt = "insert into " + tgtSchema + "." + tgtTableAlt;
-			sqlInsertTarget += "\n( " + "\"" + lrRset.getString("target_field") + "\"";
-			sqlInsertTargetAlt += "\n( " + "\"" + lrRset.getString("target_field") + "\"";
-			xformType[i] = lrRset.getInt("xform_type");
-			fldName[i] = lrRset.getString("target_field");
-			sqlCopySource = "select \n" + lrRset.getString("xform_fctn");
-			sqlCopyTarget = "copy " + tgtSchema + "." + tgtTable + " (" + "\"" + lrRset.getString("target_field")
-					+ "\"";
+			sqlSelectSource = "select " + lrRset.getString("src_field");
+			sqlInsertTarget = "insert into " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table")
+				+ lrRset.getString("tgt_field")	;
+			fldType[i] = lrRset.getInt("java_type");
+			fldNames[i] = lrRset.getString("src_field");
+			i++;
 		}
+		//rest line
 		while (lrRset.next()) {
-			sqlSelectSource += " \n , " + lrRset.getString("source_field");
-			sqlInsertTarget += " \n , " + "\"" + lrRset.getString("target_field") + "\"";
-			sqlInsertTargetAlt += " \n , " + "\"" + lrRset.getString("target_field") + "\"";
-			sqlCopySource += " || " + oraDelimiter + " || \n" + lrRset.getString("xform_fctn");
-			sqlCopyTarget += ", " + "\"" + lrRset.getString("target_field") + "\"";
+			sqlSelectSource += ", " + lrRset.getString("src_field");
+			sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
+			fldType[i] = lrRset.getInt("java_type");
+			fldNames[i] = lrRset.getString("src_field");
 			i++;
 			// System.out.println(i);
-			xformType[i] = lrRset.getInt("xform_type");
-			fldName[i] = lrRset.getString("target_field");
 		}
+		fldCnt=i;
 		lrRset.close();
-		sqlCopyTarget += ") FROM LOCAL STDIN DELIMITER " + vrtDelimiter + "DIRECT ENFORCELENGTH";
-		sqlCopySource += "\nfrom " + srcSchema + "." + srcTable + " a";
-		sqlSelectSource += " \n from " + srcSchema + "." + srcTable + " a";
+		
+		sqlSelectSource += " \n from " + tblDetailJSON.get("src_schema") + "." + tblDetailJSON.get("src_table") + " a";
 		sqlInsertTarget += ") \n    Values ( ";
-		sqlInsertTargetAlt += ") \n    Values ( ";
 		for (i = 1; i <= fldCnt; i++) {
 			if (i == 1) {
 				sqlInsertTarget += "?";
-				sqlInsertTargetAlt += "?";
 			} else {
 				sqlInsertTarget += ",?";
-				sqlInsertTargetAlt += ",?";
 			}
 		}
 		sqlInsertTarget += ") ";
-		sqlInsertTargetAlt += ") ";
-	}
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 
+	}
+//may not needed later on.
+public int[] getFldJavaType() {
+	return fldType;
+}
+public String[] getFldNames() {
+	return fldNames;
+}
 	public void markStartTime() {
 		Calendar cal = Calendar.getInstance();
 		startMS = cal.getTimeInMillis();
@@ -413,7 +396,7 @@ class MetaData {
 			seqThisRef = thisRefreshSeq;
 		} else {
 			seqThisRef = seqLastRef;
-			ovLogger.info("...hmm, got a 0 for SEQ# for srcTbl " + srcTable + ". The last one: " + seqLastRef);
+			ovLogger.info("...hmm, got a 0 for SEQ# for srcTbl " + tblDetailJSON.get("src_table") + ". The last one: " + seqLastRef);
 		}
 	}
 
@@ -429,17 +412,6 @@ class MetaData {
 		return prcTimeout;
 	}
 
-	public int getRefreshType() {
-		return refreshType;
-	}
-
-	public int getRecordCountThreshold() {
-		return recordCountThreshold;
-	}
-
-	public int getMinPollInterval() {
-		return minPollInterval;
-	}
 
 	public Timestamp getLastAudit() {
 		return tsLastAudit;
@@ -457,41 +429,11 @@ class MetaData {
 		return poolID;
 	}
 
-	public String getLogTable() {
-		return srcLogTable;
-	}
-
-	public String getSrcTrigger() {
-		return srcTrigger;
-	}
-
-	public String getSrcTblAb7() {
-		return srcTblAb7;
-	}
-
-	public String getTgtTable() {
-		return tgtTable;
-	}
-
-	public String getTgtTableAlt() {
-		return tgtTableAlt;
-	}
 
 	public String getSQLInsert() {
 		return sqlInsertTarget;
 	}
 
-	public String getSQLInsertAlt() {
-		return sqlInsertTargetAlt;
-	}
-
-	public void setTgtUseAlt() {
-		tgtUseAlt = true;
-	}
-
-	public boolean getTgtUseAlt() {
-		return tgtUseAlt;
-	}
 
 	public String getSQLSelect() {
 		return sqlSelectSource;
@@ -501,16 +443,9 @@ class MetaData {
 		return sqlWhereClause;
 	}
 
-	public String getSQLCopySource() {
-		return sqlCopySource;
-	}
-
-	public String getSQLCopyTarget() {
-		return sqlCopyTarget;
-	}
 
 	public String getPK() {
-		return tgtPK;
+		return tblDetailJSON.get("tbl_pk").toString();
 	}
 
 	public String getSQLSelectXForm() {
@@ -538,22 +473,6 @@ class MetaData {
 
 	public int getTableID() {
 		return tableID;
-	}
-
-	public int getDefInitType() {
-		return defInitType;
-	}
-
-	public int getFldCnt() {
-		return fldCnt;
-	}
-
-	public int getFldType(int i) {
-		return xformType[i];
-	}
-
-	public String getFldName(int i) {
-		return fldName[i];
 	}
 
 	public void setRefreshCnt(int i) {
@@ -712,11 +631,12 @@ class MetaData {
 
 	public JSONObject getLogDetails() {
 		JSONObject jo = null;
+
 		try {
 			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-			rRset = repStmt.executeQuery("select SOURCE_DB_ID, SOURCE_LOG_TABLE, SEQ_LAST_REF, TS_LAST_REF400 "
-					+ " from vertsnap.sync_journal400 " + " where SOURCE_DB_ID=" + srcDBid + " and SOURCE_LOG_TABLE='"
-					+ srcLogTable + "'");
+			rRset = repStmt.executeQuery("select src_db_id, src_jurl_name, seq_last_ref, last_ref_ts "
+					+ " from meta_ext_prg " + " where src_db_id=" + srcDBid + " and src_jurl_name='"
+					+ tblDetailJSON.get("src_jurl_name") + "'");
 			rRset.next();
 			jo = ResultSetToJsonMapper(rRset);
 			rRset.close();

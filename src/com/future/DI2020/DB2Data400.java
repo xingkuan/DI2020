@@ -437,8 +437,6 @@ public void tryFunctional(String srcSch, String srcTbl, String journal, Function
 	public boolean regTblMisc(String srcSch, String srcTbl, String srcLog) {
 		boolean rslt = false;
 		String[] res = srcLog.split("[.]", 0);
-		// String jLibName = "JOHNLEE2";
-		// String jName = "QSQJRN";
 		String jLibName = res[0];
 		String jName = res[1];
 
@@ -477,6 +475,7 @@ public void tryFunctional(String srcSch, String srcTbl, String journal, Function
 			rset.close();
 			stmt.close();
 		} catch (SQLException e) {
+			rslt = false;
 			ovLogger.error(e.getMessage());
 		}
 
