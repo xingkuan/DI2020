@@ -89,8 +89,6 @@ public class DataPointer {
          }
       
       try {
-         close();
-         //establish DB connection
          dbConn = DriverManager.getConnection(URL, userID, passPWD);
          dbConn.setAutoCommit(false);
       } catch(SQLException e) {

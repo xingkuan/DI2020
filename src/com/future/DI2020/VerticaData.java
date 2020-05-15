@@ -21,9 +21,7 @@ import org.apache.logging.log4j.LogManager;
 
 class VerticaData extends DataPointer {
 
-	private Connection dbConn;
 	private Statement sqlStmt;
-	private boolean dbConnOpen;
 	private boolean stmtOpen;
 	private ResultSet sRset;
 
@@ -50,7 +48,8 @@ class VerticaData extends DataPointer {
 	public void initDataFrom(DataPointer srcData) {
 		ovLogger.info("    START...");
 		ResultSet rsltSet = srcData.getAuxResultSet("");
-		copyDataFrom(rsltSet);
+		//copyDataFrom(rsltSet);
+		copyDataFromV2(rsltSet);
 		ovLogger.info("    COMPLETE.");
 	}
 
@@ -178,8 +177,8 @@ class VerticaData extends DataPointer {
 		String ts;
 		String sDebug;
 
-		int[] javaType = metaData.getFldJavaType();
-		String[] fldNames = metaData.getFldNames();
+		ArrayList<Integer> javaType = metaData.getFldJavaType();
+		ArrayList<String> fldNames = metaData.getFldNames();
 
 		PreparedStatement tgtPStmt;
 
@@ -194,135 +193,133 @@ class VerticaData extends DataPointer {
 			double tmpDouble;
 			long tmpLong;
 			// insert records into batch
-			
+			int k=0;
 			while (srcRset.next()) {
-				i = 0;
-				// RowIDs[curRecCnt]=srcRset.getString("rowid");
-				RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
 				try {
-					for (i = 1; i <= javaType.length; i++) {
-						switch (javaType[i - 1]) {
+					for (i = 0; i < javaType.size(); i++) {
+						k=i+1; //field num start with 1
+						switch (javaType.get(i)) {
 						case 1: // String
 							// String x1 =srcRset.getString(i);
-							tgtPStmt.setString(i, srcRset.getString(i));
+							tgtPStmt.setString(k, srcRset.getString(k));
 							break;
 						case 2: // int
 //	                     tgtPStmt.setInt(i,srcRset.getInt(i));
-							tmpInt = srcRset.getInt(i);
+							tmpInt = srcRset.getInt(k);
 							if ((tmpInt == 0) && srcRset.wasNull())
-								tgtPStmt.setNull(i, java.sql.Types.INTEGER);
+								tgtPStmt.setNull(k, java.sql.Types.INTEGER);
 							else
-								tgtPStmt.setInt(i, tmpInt);
+								tgtPStmt.setInt(k, tmpInt);
 							// int x2 =srcRset.getInt(i);
 							break;
 						case 3: // Long
 							// tgtPStmt.setLong(i,srcRset.getLong(i));
 							// long x3 =srcRset.getLong(i);
-							tmpLong = srcRset.getLong(i);
+							tmpLong = srcRset.getLong(k);
 							if ((tmpLong == 0) && srcRset.wasNull())
-								tgtPStmt.setNull(i, java.sql.Types.NULL);
+								tgtPStmt.setNull(k, java.sql.Types.NULL);
 							else
-								tgtPStmt.setDouble(i, tmpLong);
+								tgtPStmt.setDouble(k, tmpLong);
 							break;
 						case 4: // Double
 							// tgtPStmt.setDouble(i,srcRset.getDouble(i));
-							tmpDouble = srcRset.getDouble(i);
+							tmpDouble = srcRset.getDouble(k);
 							if ((tmpDouble == 0) && srcRset.wasNull())
-								tgtPStmt.setNull(i, java.sql.Types.DOUBLE);
+								tgtPStmt.setNull(k, java.sql.Types.DOUBLE);
 							else
-								tgtPStmt.setDouble(i, tmpDouble);
+								tgtPStmt.setDouble(k, tmpDouble);
 							break;
 						case 5: // Float
 							// tgtPStmt.setFloat(i,srcRset.getFloat(i));
-							tmpFloat = srcRset.getFloat(i);
+							tmpFloat = srcRset.getFloat(k);
 							if ((tmpFloat == 0) && srcRset.wasNull())
-								tgtPStmt.setNull(i, java.sql.Types.FLOAT);
+								tgtPStmt.setNull(k, java.sql.Types.FLOAT);
 							else
-								tgtPStmt.setFloat(i, tmpFloat);
+								tgtPStmt.setFloat(k, tmpFloat);
 							break;
 						case 6: // Timestamp
-							tgtPStmt.setTimestamp(i, srcRset.getTimestamp(i));
+							tgtPStmt.setTimestamp(k, srcRset.getTimestamp(k));
 							// Timestamp x6 =srcRset.getTimestamp(i);
 							break;
 						case 7: // Date
-							tgtPStmt.setDate(i, srcRset.getDate(i));
-							java.sql.Date x7 = srcRset.getDate(i);
+							java.sql.Date x7 = srcRset.getDate(k);
+							tgtPStmt.setDate(k, x7);
 							break;
 						case 100: // alternate encoding
-							tgtPStmt.setString(i, new String(srcRset.getString(i).getBytes("ISO-8859-15"), "UTF-8"));
+							tgtPStmt.setString(k, new String(srcRset.getString(k).getBytes("ISO-8859-15"), "UTF-8"));
 							break;
 						case 1000: // alternate encoding w debugging
-							sDebug = new String(srcRset.getString(i).getBytes("ISO-8859-15"), "UTF-8");
-							tgtPStmt.setString(i, sDebug);
+							sDebug = new String(srcRset.getString(k).getBytes("ISO-8859-15"), "UTF-8");
+							tgtPStmt.setString(k, sDebug);
 							System.out.println(sDebug);
 							break;
 						case 101: // alternate encoding
 							// System.out.println("type 101 - " + i + " |" + srcRset.getString(i) + "|");
-							ts = srcRset.getString(i);
+							ts = srcRset.getString(k);
 							if (ts != null) {
-								tgtPStmt.setString(i, new String(srcRset.getString(i).getBytes("US-ASCII"), "UTF-8"));
+								tgtPStmt.setString(k, new String(srcRset.getString(k).getBytes("US-ASCII"), "UTF-8"));
 							} else {
-								tgtPStmt.setString(i, "");
+								tgtPStmt.setString(k, "");
 							}
 							break;
 						case 1010: // alternate encoding w debugging
 							// System.out.println("type 101 - " + i + " |" + srcRset.getString(i) + "|");
-							ts = srcRset.getString(i);
+							ts = srcRset.getString(k);
 							if (ts != null) {
-								sDebug = new String(srcRset.getString(i).getBytes("US-ASCII"), "UTF-8");
-								tgtPStmt.setString(i, sDebug);
+								sDebug = new String(srcRset.getString(k).getBytes("US-ASCII"), "UTF-8");
+								tgtPStmt.setString(k, sDebug);
 								System.out.println(sDebug);
 							} else {
-								tgtPStmt.setString(i, "");
+								tgtPStmt.setString(k, "");
 							}
 							break;
 						case 102: // alternate encoding
-							tgtPStmt.setString(i, new String(srcRset.getString(i).getBytes("UTF-16"), "UTF-8"));
+							tgtPStmt.setString(k, new String(srcRset.getString(k).getBytes("UTF-16"), "UTF-8"));
 							break;
 						case 103: // alternate encoding
-							ts = srcRset.getString(i);
+							ts = srcRset.getString(k);
 							if (ts != null) {
-								tgtPStmt.setString(i, new String(srcRset.getString(i).getBytes("UTF-8"), "UTF-8"));
+								tgtPStmt.setString(k, new String(srcRset.getString(k).getBytes("UTF-8"), "UTF-8"));
 							} else {
-								tgtPStmt.setString(i, "");
+								tgtPStmt.setString(k, "");
 							}
 							break;
 						case 1030: // alternate encoding w debugging
-							sDebug = new String(srcRset.getString(i).getBytes("UTF-8"), "UTF-8");
-							tgtPStmt.setString(i, sDebug);
+							sDebug = new String(srcRset.getString(k).getBytes("UTF-8"), "UTF-8");
+							tgtPStmt.setString(k, sDebug);
 							System.out.println(sDebug);
 							break;
 						case 104: // alternate encoding
-							tgtPStmt.setString(i, new String(srcRset.getString(i).getBytes("ISO-8859-1"), "UTF-8"));
+							tgtPStmt.setString(k, new String(srcRset.getString(k).getBytes("ISO-8859-1"), "UTF-8"));
 							break;
 						case 1040: // alternate encoding w debugging
-							sDebug = new String(srcRset.getString(i).getBytes("ISO-8859-1"), "UTF-8");
-							tgtPStmt.setString(i, sDebug);
+							sDebug = new String(srcRset.getString(k).getBytes("ISO-8859-1"), "UTF-8");
+							tgtPStmt.setString(k, sDebug);
 							System.out.println(sDebug);
 							break;
 						case 105: // alternate encoding
-							tgtPStmt.setString(i, new String(srcRset.getString(i).getBytes("ISO-8859-2"), "UTF-8"));
+							tgtPStmt.setString(k, new String(srcRset.getString(k).getBytes("ISO-8859-2"), "UTF-8"));
 							break;
 						case 1050: // alternate encoding w debugging
-							sDebug = new String(srcRset.getString(i).getBytes("ISO-8859-2"), "UTF-8");
-							tgtPStmt.setString(i, sDebug);
+							sDebug = new String(srcRset.getString(k).getBytes("ISO-8859-2"), "UTF-8");
+							tgtPStmt.setString(k, sDebug);
 							System.out.println(sDebug);
 							break;
 						case 106: // alternate encoding
-							tgtPStmt.setString(i, new String(srcRset.getString(i).getBytes("ISO-8859-4"), "UTF-8"));
+							tgtPStmt.setString(k, new String(srcRset.getString(k).getBytes("ISO-8859-4"), "UTF-8"));
 							break;
 						case 1060: // alternate encoding w debugging
-							sDebug = new String(srcRset.getString(i).getBytes("ISO-8859-4"), "UTF-8");
-							tgtPStmt.setString(i, sDebug);
+							sDebug = new String(srcRset.getString(k).getBytes("ISO-8859-4"), "UTF-8");
+							tgtPStmt.setString(k, sDebug);
 							System.out.println(sDebug);
 							break;
 						case 107: // alternate encoding
-							tgtPStmt.setString(i,
-									new String(srcRset.getString(i).getBytes("ISO-8859-1"), "ISO-8859-1"));
+							tgtPStmt.setString(k,
+									new String(srcRset.getString(k).getBytes("ISO-8859-1"), "ISO-8859-1"));
 							break;
 						case 1070: // alternate encoding w debugging
-							sDebug = new String(srcRset.getString(i).getBytes("ISO-8859-1"), "ISO-8859-1");
-							tgtPStmt.setString(i, sDebug);
+							sDebug = new String(srcRset.getString(k).getBytes("ISO-8859-1"), "ISO-8859-1");
+							tgtPStmt.setString(k, sDebug);
 							System.out.println(sDebug);
 							break;
 						// case 125: //alternate encoding - unicode stream
@@ -331,19 +328,22 @@ class VerticaData extends DataPointer {
 						// "UTF-8"));
 						// break;
 						case 999: // set string blank more for testing purposes
-							tgtPStmt.setString(i, new String(""));
+							tgtPStmt.setString(k, new String(""));
 							break;
 						default: // default (String)
-							tgtPStmt.setString(i, srcRset.getString(i));
+							tgtPStmt.setString(k, srcRset.getString(k));
 							break;
 						}
 					}
+					//To save a little: the ID field is always the last column!
+					//RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
+					RowIDs[curRecCnt] = srcRset.getString(k);
 				} catch (Exception e) {
 					ovLogger.error("initLoadType1 Exception. Rollback.");
 					ovLogger.error("   " + e.toString());
 					ovLogger.error("    ****************************");
 					ovLogger.error("    rowid: " + RowIDs[curRecCnt]);
-					ovLogger.error("    fieldno: " + i + "  " + fldNames[i - 1]);
+					ovLogger.error("    fieldno: " + i + "  " + fldNames.get(i - 1));
 					// return -1;
 				}
 				// insert batch into target table
@@ -360,7 +360,123 @@ class VerticaData extends DataPointer {
 						ovLogger.error("   executeBatch Error... ");
 						ovLogger.error(e.toString());
 						//commFlag = false;
-						for (i = 1; i <= fldNames.length; i++) {
+						for (i = 1; i <= fldNames.size(); i++) {
+							ovLogger.error("   " + srcRset.getString(i));
+						}
+						int[] iii;
+						iii = e.getUpdateCounts();
+						for (i = 1; i <= batchSize; i++) {
+							if (iii[i - 1] == -3) { // JLEE, 07/24: the failed row.
+								ovLogger.info("   " + (i - 1) + " : " + iii[i - 1] + " - " + RowIDs[i - 1]);
+								putROWID(RowIDs[i - 1]);
+								totalErrCnt++;
+							}
+						}
+					}
+				}
+			}
+			// the last batch
+			try {
+				batchResults = tgtPStmt.executeBatch();
+			} catch (BatchUpdateException e) {
+				ovLogger.error("   Error... rolling back");
+				ovLogger.error(e.getMessage());
+
+				//commFlag = false;
+				int[] iii;
+				iii = e.getUpdateCounts();
+				ovLogger.error("   Number of records in batch: " + curRecCnt);
+
+				for (i = 1; i <= curRecCnt; i++) {
+					if (iii[i - 1] == -3) {
+						ovLogger.error("   " + (i - 1) + " : " + iii[i - 1] + " - " + RowIDs[i - 1]);
+						putROWID(RowIDs[i - 1]);
+						totalErrCnt++;
+					}
+				}
+			}
+
+			commit();
+		} catch (SQLException e) {
+			try {
+				rollback();
+			} catch (SQLException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+			ovLogger.error(e.getMessage());
+		}
+
+		metaData.setTotalInsCnt(totalSynCnt);
+		metaData.setTotalErrCnt(totalErrCnt);
+		metaData.setTotalDelCnt(totalErrCnt);
+		metaData.markEndTime();
+		metaData.saveInitStats();
+		metaData.sendMetrix();
+		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
+		// Journal level info. Don't do it here.
+
+		if (totalSynCnt < 0) {
+			metaData.setCurrentState(7); // broken - suspended
+			rtc=false;
+		} else {
+			metaData.setCurrentState(2); // initialized
+			rtc=true;
+		}
+		
+		return rtc;
+	}
+	
+	private boolean copyDataFromV2(ResultSet rsltSet) {
+		boolean rtc = true;
+		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
+
+		int[] batchResults = null;
+		String[] RowIDs = new String[batchSize];
+		int i = 0, curRecCnt = 0;
+
+		ArrayList<Integer> javaType = metaData.getFldJavaType();
+		ArrayList<String> fldNames = metaData.getFldNames();
+
+		PreparedStatement tgtPStmt;
+
+		ResultSet srcRset = rsltSet;
+		try {
+			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
+
+			tgtPStmt = dbConn.prepareStatement(metaData.getSQLInsert());
+
+			while (srcRset.next()) {
+				try {
+					for (i = 1; i <= javaType.size(); i++) {
+							tgtPStmt.setObject(i, srcRset.getObject(i));
+					}
+					//To save a little: the ID field is always the last column!
+					//RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
+					RowIDs[curRecCnt] = srcRset.getString(javaType.size());
+				} catch (Exception e) {
+					ovLogger.error("initLoadType1 Exception. Rollback.");
+					ovLogger.error("   " + e.toString());
+					ovLogger.error("    ****************************");
+					ovLogger.error("    rowid: " + RowIDs[curRecCnt]);
+					ovLogger.error("    fieldno: " + i + "  " + fldNames.get(i));
+					// return -1;
+				}
+				// insert batch into target table
+				tgtPStmt.addBatch();
+				totalSynCnt++;
+				curRecCnt++;
+
+				if (curRecCnt == batchSize) {
+					curRecCnt = 0;
+					ovLogger.info("   adding recs (accumulating) - " + totalSynCnt);
+					try {
+						batchResults = tgtPStmt.executeBatch();
+					} catch (BatchUpdateException e) {
+						ovLogger.error("   executeBatch Error... ");
+						ovLogger.error(e.toString());
+						//commFlag = false;
+						for (i = 1; i <= fldNames.size(); i++) {
 							ovLogger.error("   " + srcRset.getString(i));
 						}
 						int[] iii;
@@ -427,6 +543,7 @@ class VerticaData extends DataPointer {
 		return rtc;
 	}
 
+
 	private boolean replicateRowList(DataPointer srcData, String rrns) {
 		boolean success = true;
 
@@ -482,21 +599,14 @@ class VerticaData extends DataPointer {
 	}
 
 	public void close() {
-		try {
-			if (stmtOpen) {
-
-				sqlStmt.close();
-				stmtOpen = false;
-			}
-			if (dbConnOpen) {
-				dbConn.close();
-				dbConnOpen = false;
+				try {
+					sqlStmt.close();
+					dbConn.close();
+				} catch (SQLException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
 				ovLogger.info("   closed src db conn: " + dbID);
-			}
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
 	}
 
 	public boolean dropStaleRowsOfList(String rrnList) throws SQLException {

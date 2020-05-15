@@ -72,7 +72,7 @@ class initTable {
 
 		tgtData.miscPrep();
 		tgtData.setupSinkData();
-		ovLogger.info("      tgt ready: " + metaData.getTableDetails().get("tgt_tbl").toString());
+		ovLogger.info("      tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
 
 		metaData.markStartTime();
 

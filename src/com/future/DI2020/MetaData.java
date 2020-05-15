@@ -54,7 +54,6 @@ class MetaData {
 	private int tgtDBid;
 
 	private boolean tgtUseAlt;
-	private String label;
 	private String srcTblAb7;
 
 	private String sqlWhereClause;
@@ -76,8 +75,11 @@ class MetaData {
 	
 	//may not needed
 	//private Map<Integer, Integer> fldType = new HashMap<>();
-	int[] fldType; 
-	String[] fldNames; 
+	//int[] fldType = new int[] {}; 
+	//String[] fldNames = new String[] {}; 
+	ArrayList<Integer> fldType = new ArrayList<Integer>();
+	ArrayList<String> fldNames = new ArrayList<String>();
+	
 	
 	private int refreshCnt;
 
@@ -238,7 +240,7 @@ class MetaData {
 //for injecting data into Kafka (for DB2/AS400), instead of table level; read all entries of a Journal (which could be for many tables 
 	public boolean initForKafka(int dbID, String jLib, String jName) {
 		srcDBid = dbID;
-		label = "Inject Kafka DBid: " + dbID;
+		jobID = "Inject Kafka DBid: " + dbID;
 
 		journalLib = jLib;
 		journalName = jName;
@@ -265,22 +267,27 @@ class MetaData {
 		if (lrRset.next()) {
 			sqlSelectSource = "select " + lrRset.getString("src_field");
 			sqlInsertTarget = "insert into " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table")
-				+ lrRset.getString("tgt_field")	;
-			fldType[i] = lrRset.getInt("java_type");
-			fldNames[i] = lrRset.getString("src_field");
+				+ "(\""+ lrRset.getString("tgt_field") + "\""	;
+			//fldType[i] = lrRset.getInt("java_type");
+			//fldNames[i] = lrRset.getString("src_field");
+			fldType.add(lrRset.getInt("java_type"));
+			fldNames.add(lrRset.getString("src_field"));
 			i++;
 		}
 		//rest line
 		while (lrRset.next()) {
 			sqlSelectSource += ", " + lrRset.getString("src_field");
 			sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
-			fldType[i] = lrRset.getInt("java_type");
-			fldNames[i] = lrRset.getString("src_field");
+			//fldType[i] = lrRset.getInt("java_type");
+			//fldNames[i] = lrRset.getString("src_field");
+			fldType.add(lrRset.getInt("java_type"));
+			fldNames.add(lrRset.getString("src_field"));
 			i++;
 			// System.out.println(i);
 		}
 		fldCnt=i;
 		lrRset.close();
+		lrepStmt.close();
 		
 		sqlSelectSource += " \n from " + tblDetailJSON.get("src_schema") + "." + tblDetailJSON.get("src_table") + " a";
 		sqlInsertTarget += ") \n    Values ( ";
@@ -299,10 +306,10 @@ class MetaData {
 
 	}
 //may not needed later on.
-public int[] getFldJavaType() {
+public ArrayList<Integer> getFldJavaType() {
 	return fldType;
 }
-public String[] getFldNames() {
+public ArrayList<String> getFldNames() {
 	return fldNames;
 }
 	public void markStartTime() {
@@ -318,7 +325,7 @@ public String[] getFldNames() {
 
 	public void saveInitStats() {
 		int duration = (int) (endMS - startMS) / 1000;
-		ovLogger.info(label + " duration: " + duration + " seconds");
+		ovLogger.info(jobID + " duration: " + duration + " seconds");
 
 		// Save to InfluxDB:
 		metrix.sendMX(
@@ -342,7 +349,7 @@ public String[] getFldNames() {
 			rRset.updateRow();
 			repConn.commit();
 		} catch (SQLException e) {
-			ovLogger.error(label + e.getMessage());
+			ovLogger.error(jobID + e.getMessage());
 		}
 	}
 
@@ -373,7 +380,7 @@ public String[] getFldNames() {
 
 	public void saveAudit(int srcRC, int tgtRC) {
 		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		ovLogger.info(label + "source record count: " + srcRC + "     target record count: " + tgtRC);
+		ovLogger.info(jobID + "source record count: " + srcRC + "     target record count: " + tgtRC);
 //TODO: matrix
 		try {
 			rRset.updateTimestamp("TS_LAST_AUDIT", ts);
@@ -383,7 +390,7 @@ public String[] getFldNames() {
 			repConn.commit();
 			// System.out.println("audit info saved");
 		} catch (SQLException e) {
-			ovLogger.error(label + e.getMessage());
+			ovLogger.error(jobID + e.getMessage());
 		}
 	}
 
@@ -463,7 +470,7 @@ public String[] getFldNames() {
 			rRset.updateRow();
 			repConn.commit();
 		} catch (SQLException e) {
-			ovLogger.error(label + e.getMessage());
+			ovLogger.error(jobID + e.getMessage());
 		}
 	}
 
@@ -493,13 +500,13 @@ public String[] getFldNames() {
 			repStmt.close();
 			repConn.close();
 		} catch (SQLException e) {
-			ovLogger.error(label + e.getMessage());
+			ovLogger.error(jobID + e.getMessage());
 		}
 
 	}
 
 	public String getLabel() {
-		return label;
+		return jobID;
 	}
 
 	public String getJournalLib() {
@@ -659,8 +666,8 @@ public String[] getFldNames() {
 		} catch (SQLException e) {
 			System.out.println(e.getMessage());
 		}
-		metrix.sendMX("duration,jobId=" + label + " value=" + duration + "\n");
-		metrix.sendMX("Seq#,jobId=" + label + " value=" + seqThisRef + "\n");
+		metrix.sendMX("duration,jobId=" + jobID + " value=" + duration + "\n");
+		metrix.sendMX("Seq#,jobId=" + jobID + " value=" + seqThisRef + "\n");
 	}
 
 // ... move to MetaData ?
