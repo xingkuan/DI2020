@@ -101,18 +101,22 @@ public class DataPointer {
 		
 	}
 	//where clause compose of the parameter
-	protected ResultSet getAuxResultSet(String qry) {
+	protected ResultSet getSrcResultSet(String qry) {
 		return null;
 	}
-	//where clause is to be build from catalog
-	protected ResultSet getAuxResultSet() {
+	protected ResultSet getSrcResultSet() {
+		// TODO Auto-generated method stub
 		return null;
+	}
+
+	//where clause is to be build from catalog
+	protected void crtSrcResultSet(String str) {
 	}
 	
 	protected void initDataFrom(DataPointer dt) {
 	}
 
-	public boolean miscPrep() {
+	protected boolean miscPrep() {
 		totalErrCnt = 0; totalInsCnt = 0; totalDelCnt = 0; totalSynCnt=0;
 
 		return true;
@@ -137,10 +141,6 @@ public class DataPointer {
 		
 	}
 
-	public ResultSet getSrcResultSet() {
-		// TODO Auto-generated method stub
-		return null;
-	}
 	public void syncDataFrom(DataPointer srcData) {
 		// TODO Auto-generated method stub
 		

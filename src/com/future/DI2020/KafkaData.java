@@ -108,16 +108,17 @@ class KafkaData extends DataPointer {
 		return producer;
 	}
 
-	public void copyDataFrom(DataPointer srcData) {
+	public void syncDataFrom(DataPointer srcData) {
 		boolean rtc = false;
 	     int rrn=0;
 	        long seq=0l;
 	        String srcTbl;
 		    //ProducerRecord<Long, String> aMsg;
 
-	        List<String> tblList = metaData.getDB2TablesOfJournal(dbID, metaData.getJournalLib()+"."+metaData.getJournalName());     
+	        List<String> tblList = metaData.getDB2TablesOfJournal(dbID, metaData.getJournalName());     
 	        
-	        ResultSet srcRset = ((DB2Data400)srcData).initSrcLogQuery400();  
+	        ((DB2Data400)srcData).crtSrcAuxResultSet();  
+	        ResultSet srcRset = ((DB2Data400)srcData).getSrcResultSet();
         try {
 			while (srcRset.next()) {
 				rrn=srcRset.getInt("RRN");
@@ -136,7 +137,8 @@ class KafkaData extends DataPointer {
 	    						ovLogger.error("      exception at " + " " + aMsg.key() + ". Exit here!");
 	    						ovLogger.error(e);
 	    						//set the aMsg.key and exit. Question: will the loop stop when encounter this exception?
-	    						metaData.setRefreshSeqThis(aMsg.key());
+	    						//metaData.setRefreshSeqThis(aMsg.key());
+	    						metaData.getMiscValues().put("thisJournalSeq", aMsg.key());
 	                        }
 	                    }
 	                });
@@ -145,7 +147,7 @@ class KafkaData extends DataPointer {
 			}
 			rtc=true;
 			ovLogger.info("   last Journal Seq #: " + seq);
-			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getJournalLib()+"."+metaData.getJournalName()+" value=" + seq + "\n");
+			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getJournalName()+" value=" + seq + "\n");
 		} catch (SQLException e) {
 			ovLogger.error("   failed to retrieve from DB2: " + e);
 			rtc=true;   // ignore this one, and move on to the next one.

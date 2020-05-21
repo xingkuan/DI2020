@@ -102,14 +102,14 @@ public class RegisterTbl {
 				+ "CURR_STATE, \n" 
 				+ "AUX_DB_ID, AUX_PRG_TYPE, \n"
 				+ "SRC_JURL_NAME, AUX_PRG_NAME, AUX_CHG_TOPIC, \n" 
-				+ "TS_LAST_REF, SEQ_LAST_REF) \n" + "values \n"
+				+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" + "values \n"
 				+ "(" + tblID + ", 'DB2RRN', '" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
 				+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
 				+ " 0, null, null, \n"
 				+ " 0, \n" 
 				+ "'KAFKA', 'Ext Java', \n" 
 				+ "'" + journal + "', 'Java', 'topic', \n"
-				+ "null, null) \n;";
+				+ "CURRENT_TIMESTAMP, null, null) \n;";
 		try {
 			repoInsTbl = new FileWriter(new File(outPath + repTblIns));
 			repoInsTbl.write(sqlRepoDML1);

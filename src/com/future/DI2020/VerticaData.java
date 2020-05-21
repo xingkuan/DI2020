@@ -25,9 +25,6 @@ class VerticaData extends DataPointer {
 	private boolean stmtOpen;
 	private ResultSet sRset;
 
-	private long seqThisFresh = 0;
-	private java.sql.Timestamp tsThisRefesh = null;
-
 	private static final Logger ovLogger = LogManager.getLogger();
 
 	public VerticaData(String dbid) throws SQLException {
@@ -44,13 +41,34 @@ class VerticaData extends DataPointer {
 		return true;
 	}
 
-	// no where clause for initilizing
+	// no where clause for initializing
 	public void initDataFrom(DataPointer srcData) {
 		ovLogger.info("    START...");
-		ResultSet rsltSet = srcData.getAuxResultSet("");
+		ResultSet rsltSet = srcData.getSrcResultSet();
 		//copyDataFrom(rsltSet);
 		copyDataFromV2(rsltSet);
 		ovLogger.info("    COMPLETE.");
+		
+		
+		metaData.setTotalInsCnt(totalSynCnt);
+		metaData.setTotalErrCnt(totalErrCnt);
+		metaData.setTotalDelCnt(totalDelCnt);
+		metaData.markEndTime();
+		//metaData.setRefreshSeqThis(srcData.getThisJournalSeqNum());
+		metaData.getMiscValues().put("thisJournalSeq", ((DB2Data400) srcData).getThisRefreshSeq());
+		//to be called from driver pgm
+		//metaData.saveInitStats();
+		//metaData.sendMetrix();
+		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
+		// Journal level info. Don't do it here.
+
+		if (totalSynCnt < 0) {
+			metaData.setCurrentState(7); // broken - suspended
+		} else {
+			metaData.setCurrentState(2); // initialized
+		}
+
+		
 	}
 
 	// when log table is inserted from trigger
@@ -58,7 +76,7 @@ class VerticaData extends DataPointer {
 		ovLogger.info("    START...");
 
 		// where clause is to be composed from log table
-		ResultSet rsltSet = srcData.getAuxResultSet();
+		ResultSet rsltSet = srcData.getSrcResultSet();
 		try {
 			dropStaleRowsViaResultSet(rsltSet);
 		} catch (SQLException e) {
@@ -71,6 +89,24 @@ class VerticaData extends DataPointer {
 		copyDataFrom(rsltSet);
 
 		// TODO: and clear src log tables...
+		
+		metaData.setTotalInsCnt(totalSynCnt);
+		metaData.setTotalErrCnt(totalErrCnt);
+		metaData.setTotalDelCnt(totalDelCnt);
+		metaData.markEndTime();
+//		metaData.setRefreshSeqThis(srcData.getThisJournalSeqNum());
+		//to be called from driver pgm
+		//metaData.saveInitStats();
+		metaData.sendMetrix();
+		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
+		// Journal level info. Don't do it here.
+
+		if (totalSynCnt < 0) {
+			metaData.setCurrentState(7); // broken - suspended
+		} else {
+			metaData.setCurrentState(2); // initialized
+		}
+
 		ovLogger.info("    COMPLETE.");
 		srcData.close();
 		close();
@@ -134,20 +170,10 @@ class VerticaData extends DataPointer {
 		metaData.setTotalDelCnt(totalInsCnt);
 		metaData.sendMetrix();
 
-		metaData.setRefreshCnt(cntRRN);
-		metaData.setRefreshSeqLast(lastJournalSeqNum);
+		//smetaData.setRefreshSeqThis(lastJournalSeqNum);
+		//to be called from driver 
+		//metaData.saveRefreshStats(metaData.getJobID());
 
-		metaData.saveRefreshStats(metaData.getJobID());
-
-		ovLogger.info("Refreshed tblID: " + metaData.getTableID() + ", Del Cnt: " + totalDelCnt);
-		ovLogger.info("Refreshed tblID: " + metaData.getTableID() + ", Ins Cnt: " + totalInsCnt);
-		ovLogger.info("Refreshed tblID: " + metaData.getTableID() + ", Err Cnt: " + totalErrCnt);
-
-		//move to metaData
-/*		if (lastJournalSeqNum > 0)
-			metrix.sendMX("JournalSeq,metaData.getJobID()=" + metaData.getJobID() + ",tblID=" + metaData.getSrcTblAb7()
-					+ "~" + metaData.getTableID() + " value=" + lastJournalSeqNum + "\n");
-*/
 		ovLogger.info("tblID: " + metaData.getTableID() + ", " + " - " + metaData.getTableDetails().get("src_sch") + "."
 				+ metaData.getTableDetails().get("src_tbl").toString() + " commited");
 
@@ -160,9 +186,7 @@ class VerticaData extends DataPointer {
 			ovLogger.info("metaData.getJobID(): " + metaData.getJobID() + ", tblID: " + metaData.getTableID()
 					+ " <<<<<  refresh successfull");
 		}
-		ovLogger.info("    COMPLETE.");
-		srcData.close();
-		close();
+	
 	}
 
 	private boolean copyDataFrom(ResultSet rsltSet) {
@@ -186,7 +210,7 @@ class VerticaData extends DataPointer {
 		try {
 			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
 
-			tgtPStmt = dbConn.prepareStatement(metaData.getSQLInsert());
+			tgtPStmt = dbConn.prepareStatement(metaData.getSQLInsTgt());
 
 			int tmpInt;
 			float tmpFloat;
@@ -411,7 +435,8 @@ class VerticaData extends DataPointer {
 		metaData.setTotalErrCnt(totalErrCnt);
 		metaData.setTotalDelCnt(totalErrCnt);
 		metaData.markEndTime();
-		metaData.saveInitStats();
+		//to be called from driver pgm
+		//metaData.saveInitStats();
 		metaData.sendMetrix();
 		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
 		// Journal level info. Don't do it here.
@@ -432,6 +457,9 @@ class VerticaData extends DataPointer {
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 
 		int[] batchResults = null;
+	          // >=0: Successfully executed; The number represents number of affected rows
+	    	  // Statement.SUCCESS_NO_INFO: Successfully executed; number of affected rows not available
+	          // Statement.EXECUTE_FAILED;
 		String[] RowIDs = new String[batchSize];
 		int i = 0, curRecCnt = 0;
 
@@ -444,7 +472,7 @@ class VerticaData extends DataPointer {
 		try {
 			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
 
-			tgtPStmt = dbConn.prepareStatement(metaData.getSQLInsert());
+			tgtPStmt = dbConn.prepareStatement(metaData.getSQLInsTgt());
 
 			while (srcRset.next()) {
 				try {
@@ -455,36 +483,37 @@ class VerticaData extends DataPointer {
 					//RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
 					RowIDs[curRecCnt] = srcRset.getString(javaType.size());
 				} catch (Exception e) {
-					ovLogger.error("initLoadType1 Exception. Rollback.");
+					ovLogger.error("initLoadType1 Exception.");
 					ovLogger.error("   " + e.toString());
 					ovLogger.error("    ****************************");
-					ovLogger.error("    rowid: " + RowIDs[curRecCnt]);
+					ovLogger.error("    rowid: " + srcRset.getString(metaData.getPK()));
 					ovLogger.error("    fieldno: " + i + "  " + fldNames.get(i));
 					// return -1;
 				}
+				
 				// insert batch into target table
 				tgtPStmt.addBatch();
 				totalSynCnt++;
 				curRecCnt++;
 
 				if (curRecCnt == batchSize) {
-					curRecCnt = 0;
-					ovLogger.info("   adding recs (accumulating) - " + totalSynCnt);
 					try {
 						batchResults = tgtPStmt.executeBatch();
+
+						curRecCnt = 0;
+						ovLogger.info("   addied batch - " + totalSynCnt);
 					} catch (BatchUpdateException e) {
-						ovLogger.error("   executeBatch Error... ");
-						ovLogger.error(e.toString());
-						//commFlag = false;
+						ovLogger.error("   Batch Error... ");
+						ovLogger.error(e);
 						for (i = 1; i <= fldNames.size(); i++) {
 							ovLogger.error("   " + srcRset.getString(i));
 						}
-						int[] iii;
-						iii = e.getUpdateCounts();
-						for (i = 1; i <= batchSize; i++) {
-							if (iii[i - 1] == -3) { // JLEE, 07/24: the failed row.
-								ovLogger.info("   " + (i - 1) + " : " + iii[i - 1] + " - " + RowIDs[i - 1]);
-								putROWID(RowIDs[i - 1]);
+						//int[] iii;
+						//iii = e.getUpdateCounts();
+						for (i = 0; i < batchSize; i++) {
+							if (batchResults[i] == Statement.EXECUTE_FAILED) {
+								ovLogger.info("   " +  RowIDs[i]);
+								putROWID(RowIDs[i]);
 								totalErrCnt++;
 							}
 						}
@@ -498,15 +527,10 @@ class VerticaData extends DataPointer {
 				ovLogger.error("   Error... rolling back");
 				ovLogger.error(e.getMessage());
 
-				//commFlag = false;
-				int[] iii;
-				iii = e.getUpdateCounts();
-				ovLogger.error("   Number of records in batch: " + curRecCnt);
-
-				for (i = 1; i <= curRecCnt; i++) {
-					if (iii[i - 1] == -3) {
-						ovLogger.error("   " + (i - 1) + " : " + iii[i - 1] + " - " + RowIDs[i - 1]);
-						putROWID(RowIDs[i - 1]);
+				for (i = 0; i < batchSize; i++) {
+					if (batchResults[i] == Statement.EXECUTE_FAILED) {
+						ovLogger.info("   " +  RowIDs[i]);
+						putROWID(RowIDs[i]);
 						totalErrCnt++;
 					}
 				}
@@ -523,26 +547,9 @@ class VerticaData extends DataPointer {
 			ovLogger.error(e.getMessage());
 		}
 
-		metaData.setTotalInsCnt(totalSynCnt);
-		metaData.setTotalErrCnt(totalErrCnt);
-		metaData.setTotalDelCnt(totalErrCnt);
-		metaData.markEndTime();
-		metaData.saveInitStats();
-		metaData.sendMetrix();
-		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
-		// Journal level info. Don't do it here.
-
-		if (totalSynCnt < 0) {
-			metaData.setCurrentState(7); // broken - suspended
-			rtc=false;
-		} else {
-			metaData.setCurrentState(2); // initialized
-			rtc=true;
-		}
 		
 		return rtc;
 	}
-
 
 	private boolean replicateRowList(DataPointer srcData, String rrns) {
 		boolean success = true;
@@ -550,7 +557,7 @@ class VerticaData extends DataPointer {
 		try {
 			dropStaleRowsOfList(rrns);
 
-			ResultSet rsltSet = srcData.getAuxResultSet(rrns);
+			ResultSet rsltSet = srcData.getSrcResultSet(rrns);
 			copyDataFrom(rsltSet);
 
 			commit();
@@ -609,6 +616,61 @@ class VerticaData extends DataPointer {
 				ovLogger.info("   closed src db conn: " + dbID);
 	}
 
+	public void deleteRowsBatch(ResultSet rs) throws SQLException {
+		String delSQL = metaData.getSQLDelTgt();
+		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
+
+		int[] batchResults = null;
+		int i = 0, curRecCnt = 0;
+
+		PreparedStatement tgtPStmt;
+
+//		((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
+		tgtPStmt = dbConn.prepareStatement(delSQL);
+		try {
+			while (rs.next()) {
+				tgtPStmt.setObject(i, rs.getObject(0));
+				tgtPStmt.addBatch();
+
+				if (curRecCnt == batchSize) {
+					batchResults = tgtPStmt.executeBatch();
+					if (!ckeckBatch(batchResults)) {
+						ovLogger.error("   delete batch has problem.");
+					}
+				curRecCnt = 0;
+				ovLogger.info("   delete batch - " + totalSynCnt);
+			}
+			curRecCnt++;
+		}
+		// the last batch
+		batchResults = tgtPStmt.executeBatch();
+		if (!ckeckBatch(batchResults)) {
+			ovLogger.error("   delete batch has problem.");
+		}
+		commit();
+		} catch (SQLException e) {
+			ovLogger.error(e);
+			try {
+				rollback();
+			} catch (SQLException e1) {
+				e1.printStackTrace();
+			}
+		}
+	}
+	//even if found prblem, keeps going, but report in log 
+	private boolean ckeckBatch(int[] batch) {
+		boolean good=true;
+		totalDelCnt=0;
+		for (int b: batch) { 
+        	if (b>0)
+        		totalDelCnt++;
+        	else {
+        		good=false;
+        		//break;
+        	}
+		}
+ 		return good;
+	}
 	public boolean dropStaleRowsOfList(String rrnList) throws SQLException {
 		int delCnt = 0;
 		String DeleteTargetTable = " delete from " + metaData.getTableDetails().get("tgt_sch").toString() + "." + metaData.getTableDetails().get("tgt_tbl").toString() + " where "

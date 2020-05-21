@@ -21,37 +21,50 @@ class syncTable {
 	private static final Metrix metrix = Metrix.getInstance();
 	private static final MetaData metaData = MetaData.getInstance();
 
-	int tableID;
-	DataPointer srcData;
-	DataPointer tgtData;
-	DataPointer auxData;
+	static int tableID;
+	static DataPointer srcData;
+	static DataPointer tgtData;
+	static DataPointer auxData;
 
-	String jobID = "syncTbl";
+
+	static String jobID = "syncTbl";
 
 	private int totalDelCnt = 0, totalInsCnt = 0, totalErrCnt = 0;
 
 	private int kafkaMaxPollRecords;
 	private int pollWaitMil;
 
-	// setup the source and target
-	private void setup() {
-		ovLogger.info(jobID + " " + tableID );
-		metaData.setupForJob(jobID, tableID);
+	public static void main(String[] args) {
+		System.out.println(args.length);
+
+		if (args.length != 2) {
+			System.out.println("Usage:   syncTable <tbl|pool> id");
+			//return -1;
+		}
+
+		String parmCat = args[0];
+		int parmId = Integer.parseInt(args[1]);
 		
-		JSONObject tblDetail = metaData.getTableDetails();
-		   
-	   srcData = DataPointer.dataPtrCreater(tblDetail.get("srcDBID").toString());
-	   tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgtDBID").toString());
+		if(parmCat.contentEquals("pool"))
+			syncByPool(parmId);
+		else if(parmCat.contentEquals("tbl"))
+			syncTable(parmId);
+		else 
+			System.out.println("Usage:   syncTable <tbl|pool> id");
+			
+	}
+	static void syncByPool(int pID) {
+		List<Integer> tblList = metaData.getTblsByPoolID(pID);
+		for (int i : tblList) {
+            syncTable(i);
+        }
+	}
+	static void syncTable(int tID) {
+		setup(tID);
+		metaData.markStartTime();
 
-	   if( tblDetail.get("auxType") != null)
-		   auxData = DataPointer.dataPtrCreater(tblDetail.get("auxDBID").toString());
-   }
-
-	public boolean refreshTable(int tblID) throws Exception {
-		tableID = tblID;
-		setup();
+		//only run if in the right state
 		if (metaData.getCurrState() == 2 || metaData.getCurrState() == 5) {
-			setup();
 			metaData.markStartTime();
 
 			if (auxData == null)
@@ -65,9 +78,43 @@ class syncTable {
 				auxData.close();
 
 			ovLogger.info(jobID + " - " + metaData.getTableDetails().get("src_table"));
-			return true;
+			//return true;
 		} else
 		   ovLogger.info("Not in sync mode: " + tableID + " - " + metaData.getTableDetails().get("src_tbl") + ".");
-			return false;
+			//return false;
+		
+		metaData.saveStats();
+		metaData.sendMetrix();
+		tearDown();
 	}
+
+
+	
+	// setup the source and target
+	private static void setup(int tblID) {
+		tableID=tblID;
+		metaData.setupTableJob(jobID, tableID);
+		ovLogger.info(jobID + " " + tableID + ":" + metaData.getTableDetails().get("src_table").toString());
+
+		JSONObject tblDetail = metaData.getTableDetails();
+
+		srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString());
+		srcData.miscPrep();
+		ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+
+		tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString());
+		tgtData.miscPrep();
+		tgtData.setupSinkData();
+		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
+
+   }
+	private static void tearDown() {
+		srcData.close();
+		tgtData.close();
+		metaData.close();
+		ovLogger.info("Completed "+jobID+": " +  metaData.getTableID());
+	}
+
+	
+	
 }
