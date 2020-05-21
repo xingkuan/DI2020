@@ -115,9 +115,9 @@ class KafkaData extends DataPointer {
 	        String srcTbl;
 		    //ProducerRecord<Long, String> aMsg;
 
-	        List<String> tblList = metaData.getDB2TablesOfJournal(dbID, metaData.getJournalName());     
+	        List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), metaData.getJournalName());     
 	        
-	        ((DB2Data400)srcData).crtSrcAuxResultSet();  
+	        srcData.crtSrcAuxResultSet();  
 	        ResultSet srcRset = ((DB2Data400)srcData).getSrcResultSet();
         try {
 			while (srcRset.next()) {
@@ -159,6 +159,14 @@ class KafkaData extends DataPointer {
 			rtc=false;
 		}*/
 }
+	
+	protected boolean miscPrep() {
+		super.miscPrep();
+		return true;
+	}
+	public void setupSinkData() {
+		super.setupSinkData();
+	}
 	
 	public void close() {
 		consumer.close();

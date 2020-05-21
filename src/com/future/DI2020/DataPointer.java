@@ -68,6 +68,9 @@ public class DataPointer {
 					case "VERTICA":
 						db = new VerticaData(dbid);
 						break;
+					case "KAFKA":
+						db = new KafkaData(dbid);
+						break;
 				}
 			} catch (SQLException e) {
 				// TODO Auto-generated catch block
@@ -115,6 +118,10 @@ public class DataPointer {
 	
 	protected void initDataFrom(DataPointer dt) {
 	}
+	protected boolean crtSrcAuxResultSet() {
+		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		return true;
+	}
 
 	protected boolean miscPrep() {
 		totalErrCnt = 0; totalInsCnt = 0; totalDelCnt = 0; totalSynCnt=0;
@@ -137,8 +144,6 @@ public class DataPointer {
 	}
 
 	public void setupSinkData() {
-		// TODO Auto-generated method stub
-		
 	}
 
 	public void syncDataFrom(DataPointer srcData) {

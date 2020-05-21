@@ -156,10 +156,11 @@ class MetaData {
 	}
 	private void initAuxDetails() {
 		try {
-			rRset = repStmt.executeQuery("select src_db_id, tgt_db_id, src_jurl_name, seq_last_ref, last_ref_ts "
-					+ " from meta_aux " + " where src_db_id=" + srcDBid + " and src_jurl_name='"
-					+ tblDetailJSON.get("src_jurl_name") + "'");
-			rRset.next();
+			String sqlStr="select src_db_id, tgt_db_id, src_jurl_name, seq_last_ref, last_ref_ts "
+					+ " from meta_aux " + " where src_db_id='" + srcDBDetail.get("db_id") + "' and src_jurl_name='"
+					+ journalName + "'";
+			rRset = repStmt.executeQuery(sqlStr);
+			//rRset.next();
 			auxDetailJSON = (JSONObject) ResultSetToJsonMapper(rRset).get(0);
 			rRset.close();
 		} catch (SQLException e) {
@@ -532,7 +533,11 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 	}
 
 	public long getAuxSeqLastRefresh() {
-		return Long.valueOf(auxDetailJSON.get("SEQ_LAST_REF").toString());
+		try {
+			return Long.valueOf(auxDetailJSON.get("SEQ_LAST_REF").toString());
+		}catch (NullPointerException e) {
+			return 0;
+		}
 	}
 
 	public int getPoolID() {
@@ -564,13 +569,6 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 //		refreshCnt = i;
 //	}
 
-	public int getSrcDBid() {
-		return srcDBid;
-	}
-
-	public int getTgtDBid() {
-		return tgtDBid;
-	}
 
 	public void close() {
 		try {
@@ -598,8 +596,8 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		Statement lrepStmt = null;
 		ResultSet lrRset;
 
-		strSQL = "select source_schema||'.'||source_table from sync_table where source_db_id = " + dbID
-				+ " and source_log_table='" + journal + "' order by 1";
+		strSQL = "select src_schema||'.'||src_table from meta_table where src_db_id ='" + dbID
+				+ "' and src_jurl_name='" + journal + "' order by 1";
 
 		// This shortterm solution is only for Oracle databases (as the source)
 		try {
@@ -611,7 +609,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 				tList.add(tbl);
 			}
 		} catch (SQLException se) {
-			ovLogger.error("OJDBC driver error has occured" + se);
+			ovLogger.error("OJDBC driver error: " + se);
 		} catch (Exception e) {
 			// Handle errors for Class.forName
 			ovLogger.error(e);

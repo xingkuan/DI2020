@@ -33,7 +33,7 @@ public class RegisterTbl {
 	static String repFldIns = "repoColsDML.sql";
 	static String hadRegister = "hadRegistered.sql";
 	static String kafka = "kafkaTopic.sh";
-	static String db2Journal = "repoJ400row.sql";
+	static String db2Journal = "repoAuxDML.sql";
 
 	static String outPath;
 
@@ -59,7 +59,7 @@ public class RegisterTbl {
 		String tgtDBid = args[4];
 		String tgtSch = args[5];
 		String tgtTbl = args[6];
-		String auxDB = args[7];
+		String auxDBid = args[7];
 		String auxTopic = args[8];
 		outPath = args[9];
 		int poolID = Integer.parseInt(args[10]);
@@ -79,9 +79,9 @@ public class RegisterTbl {
 
 			// make sure tableID is not used
 			if (metaData.isNewTblID(tblID)) {
-				regTbl.genRepTblDML(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
-				regTbl.genRegSQLs(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
-				regTbl.genMisc(srcDBid, srcSch, srcTbl, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genRepTblDML(srcDBid, srcSch, srcTbl, auxDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genRegSQLs(srcDBid, srcSch, srcTbl, auxDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genMisc(srcDBid, srcSch, srcTbl, auxDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
 
 			} else {
 				System.out.println("TableID " + tblID + " has been used already!");
@@ -91,7 +91,7 @@ public class RegisterTbl {
 		}
 	}
 
-	private boolean genRepTblDML(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
+	private boolean genRepTblDML(String srcDBid, String srcSch, String srcTbl, String auxDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
 		FileWriter repoInsTbl;
 
 		String sqlRepoDML1 = "insert into META_TABLE \n" 
@@ -107,7 +107,7 @@ public class RegisterTbl {
 				+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
 				+ " 0, null, null, \n"
 				+ " 0, \n" 
-				+ "'KAFKA', 'Ext Java', \n" 
+				+ "'" + auxDBid + "', 'Ext Java', \n" 
 				+ "'" + journal + "', 'Java', 'topic', \n"
 				+ "CURRENT_TIMESTAMP, null, null) \n;";
 		try {
@@ -122,7 +122,7 @@ public class RegisterTbl {
 		return true;
 	}
 
-	private boolean genRegSQLs(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
+	private boolean genRegSQLs(String srcDBid, String srcSch, String srcTbl, String auxDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
 		FileWriter verticaDDL;
 		FileWriter repoInsCols;
 
@@ -149,7 +149,7 @@ public class RegisterTbl {
 		return true;
 	}
 
-	private boolean genMisc(String srcDBid, String srcSch, String srcTbl, String journal, String tgtDBid, String tgtSch,
+	private boolean genMisc(String srcDBid, String srcSch, String srcTbl, String auxDBid, String journal, String tgtDBid, String tgtSch,
 			String tgtTbl, int poolID) {
 		FileWriter hadRegistered;
 		FileWriter kafkaTopic;
@@ -172,9 +172,9 @@ public class RegisterTbl {
 			kafkaTopic.write(strText);
 			kafkaTopic.close();
 			FileWriter repoJournalRow = new FileWriter(new File(outPath + db2Journal));
-			String jRow = "insert into META_EXT_PRG \n"
+			String jRow = "insert into META_AUX \n"
 					+ "values \n"
-					+ "(0, '" + srcDBid + "', '" + journal + "', null, null) \n"
+					+ "(0, '" + srcDBid + "', '" + auxDBid +  "', '" + journal + "', null, null) \n"
 					+ "on conflict do nothing;";
 			repoJournalRow.write(jRow);
 			repoJournalRow.close();
