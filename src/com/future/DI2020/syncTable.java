@@ -104,7 +104,7 @@ class syncTable {
 
 		tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString());
 		tgtData.miscPrep();
-		tgtData.setupSinkData();
+		tgtData.setupSink();
 		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
 
    }

@@ -103,32 +103,36 @@ public class DataPointer {
 	}
 		
 	}
-	//where clause compose of the parameter
-	protected ResultSet getSrcResultSet(String qry) {
-		return null;
-	}
-	protected ResultSet getSrcResultSet() {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	//where clause is to be build from catalog
-	protected void crtSrcResultSet(String str) {
-	}
-	
-	protected void initDataFrom(DataPointer dt) {
-	}
 	protected boolean crtSrcAuxResultSet() {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return true;
 	}
-
+	//where clause is to be build from catalog
+	protected void crtSrcResultSet(String str) {
+		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+	}
+	//where clause compose of the parameter
+	protected ResultSet getSrcResultSet(String qry) {
+		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		return null;
+	}
+	protected ResultSet getSrcResultSet() {
+		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		return null;
+	}
+	protected void releaseRSandSTMT() {
+		ovLogger.info("   empty releaseRSandSTMT() in DataPointer.");
+	}
+	
+	protected void initDataFrom(DataPointer dt) {
+	}
 	protected boolean miscPrep() {
 		totalErrCnt = 0; totalInsCnt = 0; totalDelCnt = 0; totalSynCnt=0;
-
 		return true;
 	}
-
+	protected void setupSink() {
+		ovLogger.info("   An empty setupSink() in DataPointer.");
+	}
 	protected boolean ready() {
 		// TODO Auto-generated method stub
 		return false;
@@ -141,9 +145,6 @@ public class DataPointer {
 	protected int getRecordCount() {
 		// TODO Auto-generated method stub
 		return 0;
-	}
-
-	public void setupSinkData() {
 	}
 
 	public void syncDataFrom(DataPointer srcData) {

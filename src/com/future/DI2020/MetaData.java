@@ -451,6 +451,16 @@ public ArrayList<String> getFldNames() {
 		String lName = res[0];
 		String jName = res[1];
 
+		long lasAuxSeq = getAuxSeqLastRefresh();
+		if(lasAuxSeq <= 0)
+			relaxed = true;
+		
+		Object thisAuxSeq = miscValues.get("thisJournalSeq");
+		String extWhere="";
+		if (thisAuxSeq !=null) {
+			extWhere = " and SEQUENCE_NUMBER <=" + thisAuxSeq.toString(); 
+		}
+		
 		String currStr;
 		if(fast)
 			currStr="";
@@ -465,21 +475,22 @@ public ArrayList<String> getFldNames() {
 					+ "   'R', " 
 					+ "   ''," + "   '', '', '*QDDS', ''," 
 					+ "   '', '', ''"
-					+ ") ) as x where SEQUENCE_NUMBER > " + getAuxSeqLastRefresh() + " and SEQUENCE_NUMBER <="
-					+ miscValues.get("thisJournalSeq") + " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
+					+ ") ) as x where SEQUENCE_NUMBER > " + lasAuxSeq 
+					+ extWhere 
+					+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
 														// number seems not takining effect
 		else
 			return " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
 					+ " FROM table (Display_Journal('" + lName + "', '" + jName + "', " + "   '', '"
 					+ currStr + "', "
 					+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
-					+ "   cast(" + getAuxSeqLastRefresh() + " as decimal(21,0)), " // starting SEQ #
+					+ "   cast(" + lasAuxSeq + " as decimal(21,0)), " // starting SEQ #
 					+ "   'R', " // JOURNAL CODE: record operation
 					+ "   ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
 					+ "   '', '', '*QDDS', ''," // Object library, Object name, Object type, Object member
 					+ "   '', '', ''" // User, Job, Program
-					+ ") ) as x where SEQUENCE_NUMBER > " + getAuxSeqLastRefresh() 
-					+ " and SEQUENCE_NUMBER <=" + miscValues.get("thisJournalSeq")
+					+ ") ) as x where SEQUENCE_NUMBER > " + lasAuxSeq 
+					+ extWhere
 					+ " order by 2 asc";
 	}
 public String getSrcAuxThisSeqSQL(boolean fast) {
@@ -536,7 +547,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		try {
 			return Long.valueOf(auxDetailJSON.get("SEQ_LAST_REF").toString());
 		}catch (NullPointerException e) {
-			return 0;
+			return -1;
 		}
 	}
 
@@ -594,7 +605,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		List<String> tList = new ArrayList<String>();
 		String strSQL;
 		Statement lrepStmt = null;
-		ResultSet lrRset;
+		ResultSet lrRset=null;
 
 		strSQL = "select src_schema||'.'||src_table from meta_table where src_db_id ='" + dbID
 				+ "' and src_jurl_name='" + journal + "' order by 1";
@@ -616,14 +627,9 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		} finally {
 			// make sure the resources are closed:
 			try {
-				if (lrepStmt != null)
-					lrepStmt.close();
+				lrRset.close();
+				lrepStmt.close();
 			} catch (SQLException se2) {
-			}
-			try {
-				if (repConn != null)
-					repConn.close();
-			} catch (SQLException se) {
 			}
 		}
 

@@ -37,9 +37,9 @@ class KafkaData extends DataPointer {
 	private KafkaProducer<Long, String> producer;
 
 	//public KafkaData(String url, String cls, String user, String pwd) {
-	public KafkaData(String dID) {
+	public KafkaData(String dID) throws SQLException {
 		// super(dbid, url, cls, user, pwd);
-		dbID=dID;
+		super(dID);
 	}
 
 	public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
@@ -75,7 +75,7 @@ class KafkaData extends DataPointer {
 		return consumer.poll(Duration.ofMillis(pollWaitMil));
 	}
 
-	private KafkaProducer<Long, String> createKafkaProducer(String topic) {
+	private KafkaProducer<Long, String> createKafkaProducer() {
 		String cientID = metaData.getJobID() + "_" + metaData.getAuxPoolID();
 
 		String strVal = conf.getConf("kafkaMaxBlockMS");
@@ -118,7 +118,7 @@ class KafkaData extends DataPointer {
 	        List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), metaData.getJournalName());     
 	        
 	        srcData.crtSrcAuxResultSet();  
-	        ResultSet srcRset = ((DB2Data400)srcData).getSrcResultSet();
+	        ResultSet srcRset = srcData.getSrcResultSet();
         try {
 			while (srcRset.next()) {
 				rrn=srcRset.getInt("RRN");
@@ -151,21 +151,17 @@ class KafkaData extends DataPointer {
 		} catch (SQLException e) {
 			ovLogger.error("   failed to retrieve from DB2: " + e);
 			rtc=true;   // ignore this one, and move on to the next one.
-		} /*catch (InterruptedException e) {
-			ovLogger.error("   failed to write to kafka: " + e);
-			rtc=false;
-		} catch (ExecutionException e) {
-			ovLogger.error("   failed to write to kafka: " + e);
-			rtc=false;
-		}*/
+		} finally {
+			srcData.releaseRSandSTMT();
+		}
 }
 	
 	protected boolean miscPrep() {
 		super.miscPrep();
 		return true;
 	}
-	public void setupSinkData() {
-		super.setupSinkData();
+	public void setupSink() {
+		createKafkaProducer();
 	}
 	
 	public void close() {

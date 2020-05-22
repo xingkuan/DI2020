@@ -17,11 +17,11 @@ interface FunctionalTry {
 
 class DB2Data400 extends DataPointer {
 //	private int tableID=0;
-	private Statement sqlStmt;
-	private ResultSet sqlRset = null;
-
 	private String jName=null;
 
+	private Statement srcSQLStmt = null;
+	private ResultSet srcRS = null;
+	
 	private long seqThisFresh = 0;
 
 	private static final Logger ovLogger = LogManager.getLogger();
@@ -29,8 +29,8 @@ class DB2Data400 extends DataPointer {
 	public DB2Data400(String dbid) throws SQLException {
 		super(dbid);
 	}
-
 	protected void initializeFrom(DataPointer dt) {
+		ovLogger.info("   not needed yet");
 	}
 
 	public boolean miscPrep() {
@@ -42,20 +42,21 @@ class DB2Data400 extends DataPointer {
 	}
 
 	public ResultSet getSrcResultSet() {
-		return sqlRset;
+		return srcRS;
 	}
+
 	public boolean crtSrcAuxResultSet() {
 		boolean rtv=false;
 		String strLastSeq;
 		String strReceiver;
 
-		String StrSQLRRN = metaData.getSrcAuxSQL(false, false);
 		try {
 			// String strTS = new
 			// SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(tblMeta.getLastRefresh());
-			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			sqlRset = sqlStmt.executeQuery(StrSQLRRN);
-			if (sqlRset.isBeforeFirst()) {// this check can throw exception, and do the needed below.
+			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			String StrSQL = metaData.getSrcAuxSQL(false, false);
+			srcRS = srcSQLStmt.executeQuery(StrSQL);
+			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
 				ovLogger.info("   opened src jrnl recordset: ");
 				rtv=true;
 			}
@@ -72,9 +73,9 @@ class DB2Data400 extends DataPointer {
 					"Posssible data loss! needed journal " + jName + " must have been deleted.");
 			ovLogger.warn("  try differently of " + jName + ":");
 			try {
-				sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-				String StrSQLx = metaData.getSrcAuxSQL(false, true);
-				sqlRset = sqlStmt.executeQuery(StrSQLx);
+				srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+				String StrSQL = metaData.getSrcAuxSQL(false, true);
+				srcRS = srcSQLStmt.executeQuery(StrSQL);
 				rtv=true;
 				ovLogger.info("   opened src jrnl recordset on ultimate try: ");
 			} catch (SQLException ex) {
@@ -83,6 +84,16 @@ class DB2Data400 extends DataPointer {
 			}
 		}
 		return rtv;
+	}
+	
+	public void releaseRSandSTMT() {
+		try {
+			srcSQLStmt.close();
+			srcRS.close();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 /*
