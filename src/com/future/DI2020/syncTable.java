@@ -83,8 +83,7 @@ class syncTable {
 		   ovLogger.info("Not in sync mode: " + tableID + " - " + metaData.getTableDetails().get("src_tbl") + ".");
 			//return false;
 		
-		metaData.saveStats();
-		metaData.sendMetrix();
+		metaData.saveTblStats();
 		tearDown();
 	}
 

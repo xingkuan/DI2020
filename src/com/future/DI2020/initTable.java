@@ -51,8 +51,8 @@ class initTable {
 	
 			((VerticaData) tgtData).initDataFrom(srcData);
 	
-			metaData.saveStats();
-			metaData.sendMetrix();
+			metaData.saveTblStats();
+			//metaData.sendMetrix();
 			tearDown();
 			return true;
 		}else {

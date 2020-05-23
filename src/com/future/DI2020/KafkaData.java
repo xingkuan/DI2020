@@ -115,7 +115,8 @@ class KafkaData extends DataPointer {
 	        String srcTbl;
 		    //ProducerRecord<Long, String> aMsg;
 
-	        List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), metaData.getJournalName());     
+	        List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), 
+	        		(String) metaData.getTableDetails().get("SRC_TABLE")+"."+(String) metaData.getTableDetails().get("SRC_TABLE"));     
 	        
 	        srcData.crtSrcAuxResultSet();  
 	        ResultSet srcRset = srcData.getSrcResultSet();
@@ -147,7 +148,7 @@ class KafkaData extends DataPointer {
 			}
 			rtc=true;
 			ovLogger.info("   last Journal Seq #: " + seq);
-			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getJournalName()+" value=" + seq + "\n");
+			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getTableDetails().get("SRC_TABLE")+" value=" + seq + "\n");
 		} catch (SQLException e) {
 			ovLogger.error("   failed to retrieve from DB2: " + e);
 			rtc=true;   // ignore this one, and move on to the next one.

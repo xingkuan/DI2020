@@ -97,7 +97,8 @@ class VerticaData extends DataPointer {
 //		metaData.setRefreshSeqThis(srcData.getThisJournalSeqNum());
 		//to be called from driver pgm
 		//metaData.saveInitStats();
-		metaData.sendMetrix();
+//should not be here!!!		
+		metaData.saveTblStats();
 		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
 		// Journal level info. Don't do it here.
 
@@ -168,7 +169,8 @@ class VerticaData extends DataPointer {
 		metaData.setTotalDelCnt(totalDelCnt);
 		metaData.setTotalDelCnt(totalErrCnt);
 		metaData.setTotalDelCnt(totalInsCnt);
-		metaData.sendMetrix();
+//should not be here
+		metaData.saveTblStats();
 
 		//smetaData.setRefreshSeqThis(lastJournalSeqNum);
 		//to be called from driver 
@@ -437,7 +439,8 @@ class VerticaData extends DataPointer {
 		metaData.markEndTime();
 		//to be called from driver pgm
 		//metaData.saveInitStats();
-		metaData.sendMetrix();
+//should not be here.		
+		metaData.saveTblStats();
 		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
 		// Journal level info. Don't do it here.
 

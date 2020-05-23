@@ -171,11 +171,28 @@ public class RegisterTbl {
 					+ srcSch + "." + srcTbl + " \n";
 			kafkaTopic.write(strText);
 			kafkaTopic.close();
+			
 			FileWriter repoJournalRow = new FileWriter(new File(outPath + db2Journal));
-			String jRow = "insert into META_AUX \n"
-					+ "values \n"
-					+ "(0, '" + srcDBid + "', '" + auxDBid +  "', '" + journal + "', null, null) \n"
-					+ "on conflict do nothing;";
+			String[] res = journal.split("[.]", 0);
+			String lName = res[0];
+			String jName = res[1];
+			String jRow = "insert into META_TABLE \n"
+					+ "(TBL_ID, TBL_PK, \n"
+					+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
+					+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
+					+ "POOL_ID, INIT_DT, INIT_DURATION, \n" 
+					+ "CURR_STATE, \n" 
+					+ "AUX_DB_ID, AUX_PRG_TYPE, \n"
+					+ "SRC_JURL_NAME, AUX_PRG_NAME, AUX_CHG_TOPIC, \n" 
+					+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" + "values \n"
+					+ "(" + (tblID+1) + ", null, '"	+ srcDBid + "', '" + lName + "', '" + jName + "', \n" 
+					+ "'" + auxDBid + "', '*', '*', \n"
+					+ " -1, null, null, \n"
+					+ " 0, \n" 
+					+ "'', '', \n" 
+					+ "'', 'Java', 'topic', \n"
+					+ "CURRENT_TIMESTAMP, null, null) \n"
+					+ "on conflict (src_db_id, src_schema, src_table) do nothing;";
 			repoJournalRow.write(jRow);
 			repoJournalRow.close();
 		} catch (IOException e) {

@@ -51,10 +51,10 @@ class MetaData {
 
 	private String srcTblAb7;
 
-	private String journalName;
+	private String lName, jName;
 
 	private Timestamp tsThisRefresh;
-//	private long seqThisRef;
+	private long seqThisRef;
 
 	private static final Logger ovLogger = LogManager.getLogger();
 
@@ -75,7 +75,7 @@ class MetaData {
 	ArrayList<Integer> fldType = new ArrayList<Integer>();
 	ArrayList<String> fldNames = new ArrayList<String>();
 	
-	int totalDelCnt, totalInsCnt, totalErrCnt;
+	int totalDelCnt, totalInsCnt, totalErrCnt, totalMsgCnt;
 	
 	private static MetaData instance = null; // use lazy instantiation ;
 
@@ -105,7 +105,7 @@ class MetaData {
 			repConn.setAutoCommit(false);
 			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
 		} catch (SQLException e) {
-			ovLogger.error(e.getMessage());
+			ovLogger.error(e);
 		}
 	}
 
@@ -119,7 +119,8 @@ class MetaData {
 		auxDBDetail=null;
 		miscValues=null;
 
-		journalName=null;
+		lName=null;
+		jName=null;
 		
 		initTableDetails();
 		initFieldMetaData();
@@ -135,9 +136,10 @@ class MetaData {
 		}
 	}
 
-	public void setupAuxJob(String jID, String srcDB, String jName, String tgtDB) {
+	public void setupAuxJob(String jID, String srcDB, String l, String j, String tgtDB) {
 		jobID = jID;
-		journalName = jName;
+		lName=l;
+		jName=j;
 		
 		auxDetailJSON=null;
 		
@@ -150,15 +152,15 @@ class MetaData {
 			srcDBDetail = readDBDetails(srcDB);
 			auxDBDetail = readDBDetails(tgtDB);
 		} catch (SQLException e) {
-			e.printStackTrace();
+			ovLogger.error(e);
 		}
 		initAuxDetails();
 	}
 	private void initAuxDetails() {
 		try {
-			String sqlStr="select src_db_id, tgt_db_id, src_jurl_name, seq_last_ref, last_ref_ts "
-					+ " from meta_aux " + " where src_db_id='" + srcDBDetail.get("db_id") + "' and src_jurl_name='"
-					+ journalName + "'";
+			String sqlStr="select src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref "
+					+ " from meta_table " + " where src_db_id='" + srcDBDetail.get("db_id") + "' and src_schema='"
+					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 			rRset = repStmt.executeQuery(sqlStr);
 			//rRset.next();
 			auxDetailJSON = (JSONObject) ResultSetToJsonMapper(rRset).get(0);
@@ -305,10 +307,10 @@ class MetaData {
 		endMS = cal.getTimeInMillis();
 	}
 
-	public void saveStats() {
+	public void saveTblStats() {
 		markEndTime();
 		int duration = (int) (endMS - startMS) / 1000;
-		ovLogger.info(jobID + " duration: " + duration + " seconds");
+		ovLogger.info(jobID + " duration: " + duration + " sec");
 
 		// report to InfluxDB:
 		metrix.sendMX(
@@ -332,6 +334,43 @@ class MetaData {
 				+ " ts_last_ref = " + ts
 				+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
 				+ " where tbl_id = " + tableID;
+
+		try {
+			stmt = repConn.createStatement();
+			rset = stmt.executeQuery(sqlStmt);
+		} catch (SQLException e) {
+			ovLogger.error(e);
+		} finally {
+			try {
+				rset.close();
+				stmt.close();
+				repConn.commit();
+			} catch (SQLException e) {
+				ovLogger.error(e);
+			}
+		}
+	}
+	public void saveAuxStats() {
+		markEndTime();
+		int duration = (int) (endMS - startMS) / 1000;
+		ovLogger.info(jobID + " duration: " + duration + " sec");
+
+		// report to InfluxDB:
+		metrix.sendMX(
+				"duration,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + duration + "\n");
+		metrix.sendMX(
+				"insCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalMsgCnt + "\n");
+		metrix.sendMX(
+				"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+
+		// Save to MetaRep:
+		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt = null;
+		ResultSet rset = null;
+		String sqlStmt = "update meta_table set LAST_REF_TS = CURRENT_TIMESTAMP," 
+				+ " SEQ_LAST_REF = " + seqThisRef  
+				+ " where SRC_SCHEMA = '" + lName + "' and SRC_TABLE='" + jName + "' "
+				+ " and SRC_DB_ID = '" + srcDBid + "' and TGT_SCHEMA='*'";
 
 		try {
 			stmt = repConn.createStatement();
@@ -447,14 +486,10 @@ public ArrayList<String> getFldNames() {
 //	return sqlWhereClause;
 //}
 	public String getSrcAuxSQL(boolean fast, boolean relaxed) {
-		String[] res = journalName.split("[.]", 0);
-		String lName = res[0];
-		String jName = res[1];
-
 		long lasAuxSeq = getAuxSeqLastRefresh();
-		if(lasAuxSeq <= 0)
-			relaxed = true;
-		
+		if(lasAuxSeq == -1)
+			return "";   // this is the first time run on this Journal, simply set META_AUX.SEQ_LAST_REF
+		else {
 		Object thisAuxSeq = miscValues.get("thisJournalSeq");
 		String extWhere="";
 		if (thisAuxSeq !=null) {
@@ -492,12 +527,9 @@ public ArrayList<String> getFldNames() {
 					+ ") ) as x where SEQUENCE_NUMBER > " + lasAuxSeq 
 					+ extWhere
 					+ " order by 2 asc";
+		}
 	}
 public String getSrcAuxThisSeqSQL(boolean fast) {
-	String[] res = journalName.split("[.]", 0);
-	String lName = res[0];
-	String jName = res[1];
-
 	String currStr;
 	if(fast)
 		currStr="";
@@ -516,16 +548,14 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 	public void setRefreshTS(Timestamp thisRefreshHostTS) {
 		tsThisRefresh = thisRefreshHostTS;
 	}
-/* try to remove it. leave it in DB2Data400
-	public void setRefreshSeqThis(long thisRefreshSeq) {
-		if (thisRefreshSeq > 0) {
-			seqThisRef = thisRefreshSeq;
-		} else {   //if not able to retrieve the current log seg for what ever reason:
-			seqThisRef = seqLastRef;
-			ovLogger.info("... can't retrieve Journal ifno: " + tblDetailJSON.get("src_table") + ". The last one: " + seqLastRef);
+	public void setRefreshSeqThis(long seq) {
+		if (seq > 0) {  
+			seqThisRef = seq;
+		} else {   //should never happen. no?
+			seqThisRef = (long) miscValues.get("thisJournalSeq");
+			ovLogger.info("... need to see why can't retrieve Journal Seq!!!");
 		}
 	}
-*/
 
 	public String getJobID() {
 		return jobID;
@@ -596,10 +626,6 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		return jobID;
 	}
 
-	public String getJournalName() {
-		return journalName;
-	}
-
 	//// from OVSdb.java
 	public List<String> getDB2TablesOfJournal(String dbID, String journal) {
 		List<String> tList = new ArrayList<String>();
@@ -608,7 +634,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		ResultSet lrRset=null;
 
 		strSQL = "select src_schema||'.'||src_table from meta_table where src_db_id ='" + dbID
-				+ "' and src_jurl_name='" + journal + "' order by 1";
+				+ "' and src_jurl_name='" + journal + "' and tgt_schema !='*' order by 1";
 
 		// This shortterm solution is only for Oracle databases (as the source)
 		try {
@@ -685,7 +711,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		Statement lrepStmt = null;
 		ResultSet lrRset;
 		String strSQL;
-		strSQL = "select src_db_id, tgt_db_id, src_jurl_name from meta_aux where pool_id = " + poolID;
+		strSQL = "select src_db_id, tgt_db_id, src_jurl_name from meta_table where pool_id = " + poolID;
 
 		// This shortterm solution is only for Oracle databases (as the source)
 		try {
@@ -726,15 +752,6 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 // ... move to MetaData ?
 	public void setThisRefreshHostTS() {
 		tsThisRefesh = new Timestamp(System.currentTimeMillis());
-	}
-
-	public void sendMetrix() {
-		metrix.sendMX("delCnt,metaData.getJobID()=" + jobID + ",tblID=" + srcTblAb7 + "~" + tableID + " value="
-				+ totalDelCnt + "\n");
-		metrix.sendMX("insCnt,metaData.getJobID()=" + jobID + ",tblID=" + srcTblAb7 + "~" + tableID + " value="
-				+ totalInsCnt + "\n");
-		metrix.sendMX("errCnt,metaData.getJobID()=" + jobID + ",tblID=" + srcTblAb7 + "~" + tableID + " value="
-				+ totalErrCnt + "\n");
 	}
 
 	public void setTotalDelCnt(int v) {

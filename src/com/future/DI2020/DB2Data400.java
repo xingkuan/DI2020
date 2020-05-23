@@ -50,12 +50,15 @@ class DB2Data400 extends DataPointer {
 		String strLastSeq;
 		String strReceiver;
 
+		String strSQL = metaData.getSrcAuxSQL(false, false);
+		if (strSQL == null) {
+			return false;
+		}else {
 		try {
 			// String strTS = new
 			// SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(tblMeta.getLastRefresh());
 			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			String StrSQL = metaData.getSrcAuxSQL(false, false);
-			srcRS = srcSQLStmt.executeQuery(StrSQL);
+			srcRS = srcSQLStmt.executeQuery(strSQL);
 			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
 				ovLogger.info("   opened src jrnl recordset: ");
 				rtv=true;
@@ -84,6 +87,7 @@ class DB2Data400 extends DataPointer {
 			}
 		}
 		return rtv;
+		}
 	}
 	
 	public void releaseRSandSTMT() {
@@ -230,7 +234,7 @@ class DB2Data400 extends DataPointer {
 			// note: could be empty, perhaps when DB2 just switched log file, which will land us in exception
 			if (lrRset.next()) {
 				seqThisFresh = lrRset.getLong(1);
-				//metaData.setRefreshSeqThis(seqThisFresh);
+				metaData.setRefreshSeqThis(seqThisFresh);
 				rtv=true;
 			}
 			lrRset.close();
