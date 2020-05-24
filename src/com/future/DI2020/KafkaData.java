@@ -82,6 +82,7 @@ class KafkaData extends DataPointer {
 		String kafkaACKS = conf.getConf("kafkaACKS");
 		String kafkaINDEM = conf.getConf("kafkaINDEM");
 		int kafkaMaxBlockMS = Integer.parseInt(strVal);
+		int kafkaRetry = Integer.parseInt(conf.getConf("kafkaRetry"));
 
 		Properties props = new Properties();
 		props.put("bootstrap.servers", URL);
@@ -89,7 +90,7 @@ class KafkaData extends DataPointer {
 	    props.put("acks", kafkaACKS);
 	    props.put("enable.idempotence", kafkaINDEM);
 	    //props.put("message.send.max.retries", kafkaSendTries);
-	//    props.put("retries", kafkaSendTries);
+	   // props.put(ProducerConfig.RETRIES_CONFIG, kafkaRetry);  //? default 2147483647
 	    props.put("batch.size", 1638400);
 
 		props.put("linger.ms", 1);
@@ -104,6 +105,8 @@ class KafkaData extends DataPointer {
 		props.put(ProducerConfig.CLIENT_ID_CONFIG, cientID);
 
 		producer = new KafkaProducer<Long, String>(props);
+		//Note: If the brokers are down, it will keep trying forever ... seems no way for
+		//      checking and handling . Weird !!!
 
 		return producer;
 	}
@@ -166,8 +169,12 @@ class KafkaData extends DataPointer {
 	}
 	
 	public void close() {
+		try {
 		consumer.close();
 		producer.close();
+		}catch(NullPointerException e) {
+			ovLogger.info("      nothing to close.");
+		}
 	}
 	/*
 	 * public boolean tblRefreshTry() { KafkaConsumer<Long, String> consumerx =

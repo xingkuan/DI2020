@@ -46,9 +46,6 @@ class MetaData {
 	private long startMS;
 	private long endMS;
 
-	private int srcDBid;
-	private int tgtDBid;
-
 	private String srcTblAb7;
 
 	private String lName, jName;
@@ -62,7 +59,6 @@ class MetaData {
 
 	// encapsulate the details into tblDetailJSON;
 	private JSONObject tblDetailJSON;
-	private JSONObject auxDetailJSON;
 	private JSONObject srcDBDetail;
 	private JSONObject tgtDBDetail;
 	private JSONObject auxDBDetail;
@@ -141,7 +137,7 @@ class MetaData {
 		lName=l;
 		jName=j;
 		
-		auxDetailJSON=null;
+		tblDetailJSON=null;
 		
 		srcDBDetail=null;
 		auxDBDetail=null;
@@ -163,7 +159,7 @@ class MetaData {
 					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 			rRset = repStmt.executeQuery(sqlStr);
 			//rRset.next();
-			auxDetailJSON = (JSONObject) ResultSetToJsonMapper(rRset).get(0);
+			tblDetailJSON = (JSONObject) ResultSetToJsonMapper(rRset).get(0);
 			rRset.close();
 		} catch (SQLException e) {
 			ovLogger.error(e.getMessage());
@@ -271,9 +267,6 @@ class MetaData {
 	public JSONObject getTableDetails() {
 		return tblDetailJSON;
 	}
-	public JSONObject getAuxDetails() {
-		return auxDetailJSON;
-	}
 	public JSONObject getSrcDBinfo() {
 		return srcDBDetail;
 	}
@@ -286,7 +279,7 @@ class MetaData {
 	public boolean tblReadyForInit() {
 		boolean rtv=false;
 		try {
-		if ( Timestamp.valueOf(auxDetailJSON.get("LAST_REF_TS").toString()).before(
+		if ( Timestamp.valueOf(tblDetailJSON.get("LAST_REF_TS").toString()).before(
 		Timestamp.valueOf(tblDetailJSON.get("TS_REGIST").toString())) ) {
 			rtv=true;
 		}
@@ -366,20 +359,18 @@ class MetaData {
 		// Save to MetaRep:
 		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
 		Statement stmt = null;
-		ResultSet rset = null;
-		String sqlStmt = "update meta_table set LAST_REF_TS = CURRENT_TIMESTAMP," 
+		String sqlStmt = "update meta_table set TS_LAST_REF = CURRENT_TIMESTAMP," 
 				+ " SEQ_LAST_REF = " + seqThisRef  
 				+ " where SRC_SCHEMA = '" + lName + "' and SRC_TABLE='" + jName + "' "
-				+ " and SRC_DB_ID = '" + srcDBid + "' and TGT_SCHEMA='*'";
+				+ " and SRC_DB_ID = '" + tblDetailJSON.get("src_db_id") + "' and TGT_SCHEMA='*'";
 
 		try {
 			stmt = repConn.createStatement();
-			rset = stmt.executeQuery(sqlStmt);
+			int rslt = stmt.executeUpdate(sqlStmt);
 		} catch (SQLException e) {
 			ovLogger.error(e);
 		} finally {
 			try {
-				rset.close();
 				stmt.close();
 				repConn.commit();
 			} catch (SQLException e) {
@@ -488,7 +479,7 @@ public ArrayList<String> getFldNames() {
 	public String getSrcAuxSQL(boolean fast, boolean relaxed) {
 		long lasAuxSeq = getAuxSeqLastRefresh();
 		if(lasAuxSeq == -1)
-			return "";   // this is the first time run on this Journal, simply set META_AUX.SEQ_LAST_REF
+			return null;   // this is the first time run on this Journal, simply set META_AUX.SEQ_LAST_REF
 		else {
 		Object thisAuxSeq = miscValues.get("thisJournalSeq");
 		String extWhere="";
@@ -536,7 +527,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 	else
 		currStr="*CURCHAIN";
 	return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + lName + "', '" + jName
-			+ "', '" + currStr + "', '', " // it looks like possible the journal can be switched and this SQL return no rows
+			+ "', '', '" + currStr + "', " // it looks like possible the journal can be switched and this SQL return no rows
 			+ " cast(null as TIMESTAMP), " // pass-in the start timestamp;
 			+ " cast(null as decimal(21,0)), " // starting SEQ #
 			+ " 'R', " // JOURNAL cat: record operations
@@ -575,7 +566,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 
 	public long getAuxSeqLastRefresh() {
 		try {
-			return Long.valueOf(auxDetailJSON.get("SEQ_LAST_REF").toString());
+			return Long.valueOf(tblDetailJSON.get("SEQ_LAST_REF").toString());
 		}catch (NullPointerException e) {
 			return -1;
 		}
@@ -822,6 +813,13 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		}
 
 		return rslt;
+	}
+
+	public boolean isAuxJob() {
+		if (jName != null)
+			return true;
+		else
+			return false;
 	}
 
 }

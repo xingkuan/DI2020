@@ -17,7 +17,6 @@ interface FunctionalTry {
 
 class DB2Data400 extends DataPointer {
 //	private int tableID=0;
-	private String jName=null;
 
 	private Statement srcSQLStmt = null;
 	private ResultSet srcRS = null;
@@ -35,7 +34,7 @@ class DB2Data400 extends DataPointer {
 
 	public boolean miscPrep() {
 		super.miscPrep();
-		if(jName != null) { //when jName is set, it must be for sync RRN to Kafka
+		if(metaData.isAuxJob()) { //when jName is set, it must be for sync RRN to Kafka
 			initThisRefreshSeq();
 		}
 		return true;
@@ -51,7 +50,7 @@ class DB2Data400 extends DataPointer {
 		String strReceiver;
 
 		String strSQL = metaData.getSrcAuxSQL(false, false);
-		if (strSQL == null) {
+		if (strSQL == null) {  //To indicate no need for this step.
 			return false;
 		}else {
 		try {
@@ -73,8 +72,8 @@ class DB2Data400 extends DataPointer {
 			// The code do it here in the hope of doing good thing. But the user should be
 			// the one to see if that is appropreate.
 			ovLogger.warn(
-					"Posssible data loss! needed journal " + jName + " must have been deleted.");
-			ovLogger.warn("  try differently of " + jName + ":");
+					"Posssible data loss! needed journal " + metaData.getTableDetails().get("SRC_TABLE") + " must have been deleted.");
+			ovLogger.warn("  try differently of " + metaData.getTableDetails().get("SRC_TABLE") + ":");
 			try {
 				srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 				String StrSQL = metaData.getSrcAuxSQL(false, true);
@@ -82,7 +81,7 @@ class DB2Data400 extends DataPointer {
 				rtv=true;
 				ovLogger.info("   opened src jrnl recordset on ultimate try: ");
 			} catch (SQLException ex) {
-				ovLogger.error("   ultimate failure: " + jName + " !");
+				ovLogger.error("   ultimate failure: " + metaData.getTableDetails().get("SRC_TABLE") + " !");
 				ovLogger.error("   initSrcLogQuery() failure: " + ex);
 			}
 		}
@@ -234,8 +233,13 @@ class DB2Data400 extends DataPointer {
 			// note: could be empty, perhaps when DB2 just switched log file, which will land us in exception
 			if (lrRset.next()) {
 				seqThisFresh = lrRset.getLong(1);
+				if(seqThisFresh==0) {
+					ovLogger.info("   not able to get current Journal seq. Try the expensive way. " );
+					rtv=false;
+				}else {
 				metaData.setRefreshSeqThis(seqThisFresh);
 				rtv=true;
+				}
 			}
 			lrRset.close();
 			sqlStmt.close();
