@@ -111,18 +111,18 @@ class KafkaData extends DataPointer {
 		return producer;
 	}
 
-	public void syncDataFrom(DataPointer srcData) {
-		boolean rtc = false;
-	     int rrn=0;
-	        long seq=0l;
-	        String srcTbl;
-		    //ProducerRecord<Long, String> aMsg;
+	public int syncDataFrom(DataPointer srcData) {
+		int rtc=2;
+	    int rrn=0;
+	    long seq=0l;
+	    String srcTbl;
+		//ProducerRecord<Long, String> aMsg;
 
-	        List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), 
+	    List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), 
 	        		(String) metaData.getTableDetails().get("SRC_TABLE")+"."+(String) metaData.getTableDetails().get("SRC_TABLE"));     
 	        
-	        srcData.crtSrcAuxResultSet();  
-	        ResultSet srcRset = srcData.getSrcResultSet();
+	    srcData.crtSrcAuxResultSet();  
+	    ResultSet srcRset = srcData.getSrcResultSet();
         try {
 			while (srcRset.next()) {
 				rrn=srcRset.getInt("RRN");
@@ -143,21 +143,22 @@ class KafkaData extends DataPointer {
 	    						//set the aMsg.key and exit. Question: will the loop stop when encounter this exception?
 	    						//metaData.setRefreshSeqThis(aMsg.key());
 	    						metaData.getMiscValues().put("thisJournalSeq", aMsg.key());
+	    						//rtc = -1;  //TODO: how to detect and handle errors here?
 	                        }
 	                    }
 	                });
-					
 				}
 			}
-			rtc=true;
+			rtc=0;
 			ovLogger.info("   last Journal Seq #: " + seq);
 			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getTableDetails().get("SRC_TABLE")+" value=" + seq + "\n");
 		} catch (SQLException e) {
 			ovLogger.error("   failed to retrieve from DB2: " + e);
-			rtc=true;   // ignore this one, and move on to the next one.
+			rtc=0;   // ignore this one, and move on to the next one.
 		} finally {
 			srcData.releaseRSandSTMT();
 		}
+        return rtc;
 }
 	
 	protected boolean miscPrep() {

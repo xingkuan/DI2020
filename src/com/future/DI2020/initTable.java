@@ -24,7 +24,7 @@ class initTable {
 	private static String jobID = "initTbl";
 
 	private static final Logger ovLogger = LogManager.getLogger();
-	private static final Metrix metrix = Metrix.getInstance();
+//	private static final Metrix metrix = Metrix.getInstance();
 	private static final MetaData metaData = MetaData.getInstance();
 
 //	private int totalDelCnt = 0, totalInsCnt = 0, totalErrCnt = 0;
@@ -46,18 +46,22 @@ class initTable {
 	}
 
 	private static boolean initializeTgtFromSrc(int tId) {
-		if(setup(tId)) {
-			metaData.markStartTime();
-	
-			((VerticaData) tgtData).initDataFrom(srcData);
-	
-			metaData.saveTblStats();
-			//metaData.sendMetrix();
+		setup(tId);
+
+		ovLogger.info("    START...");
+		int ok = metaData.begin(0);
+		if(ok == 1) {
+			srcData.crtSrcResultSet("");
+			int state = tgtData.initDataFrom(srcData);
+			metaData.end(state);
+			metaData.saveInitStats();
 			tearDown();
-			return true;
 		}else {
-			return false;
+			ovLogger.info("    Table not in the right state.");
 		}
+		ovLogger.info("    COMPLETE.");
+
+		return true;
 	}
 
 
@@ -71,7 +75,6 @@ class initTable {
 	
 			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString());
 			srcData.miscPrep();
-			srcData.crtSrcResultSet("");
 			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 	
 			tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString());

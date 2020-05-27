@@ -60,31 +60,30 @@ class syncTable {
         }
 	}
 	static void syncTable(int tID) {
+		int syncSt=2;
 		setup(tID);
-		metaData.markStartTime();
 
-		//only run if in the right state
-		if (metaData.getCurrState() == 2 || metaData.getCurrState() == 5) {
-			metaData.markStartTime();
-
+		ovLogger.info("    START...");
+		int ok = metaData.begin(2);
+		if(ok == 1) {
 			if (auxData == null)
-				tgtData.syncDataFrom(srcData);
+				syncSt = tgtData.syncDataFrom(srcData);
 			else
-				tgtData.syncDataVia(srcData, auxData);
+				syncSt = tgtData.syncDataVia(srcData, auxData);
 
 			srcData.close();
 			tgtData.close();
 			if (auxData != null)
 				auxData.close();
 
-			ovLogger.info(jobID + " - " + metaData.getTableDetails().get("src_table"));
-			//return true;
-		} else
-		   ovLogger.info("Not in sync mode: " + tableID + " - " + metaData.getTableDetails().get("src_tbl") + ".");
+			metaData.end(syncSt);
+			metaData.saveSyncStats();
+			tearDown();
+		} else {
+		   ovLogger.info("Table not in sync mode: " + tableID + " - " + metaData.getTableDetails().get("src_tbl") + ".");
 			//return false;
-		
-		metaData.saveTblStats();
-		tearDown();
+		}
+		ovLogger.info("    COMPLETE.");
 	}
 
 

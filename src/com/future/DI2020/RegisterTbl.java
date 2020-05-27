@@ -188,7 +188,7 @@ public class RegisterTbl {
 					+ "(" + (tblID+1) + ", null, '"	+ srcDBid + "', '" + lName + "', '" + jName + "', \n" 
 					+ "'" + auxDBid + "', '*', '*', \n"
 					+ " -1, null, null, \n"
-					+ " 0, \n" 
+					+ " 2, \n"     //For aux entry, no state of 0. 
 					+ "'', '', \n" 
 					+ "'', 'Java', 'topic', \n"
 					+ "CURRENT_TIMESTAMP, null, null) \n"

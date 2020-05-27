@@ -26,13 +26,12 @@ class MetaData {
 
 	private Connection repConn;
 	private Statement repStmt;
+	private ResultSet rRset;
 
 	// for now, auxilary is Kafka when replicating from DB2 to Vertica.
 	private String auxSchema;
 	private String auxTable;
 
-	//
-	private ResultSet rRset;
 	private int tableID;
 	private int currState = 0;
 
@@ -40,7 +39,7 @@ class MetaData {
 
 	private Timestamp tsLastAudit;
 	private int auditExp;
-	private Timestamp tsLastRefresh;
+//	private Timestamp tsLastRef;
 
 	private int poolID;
 	private long startMS;
@@ -50,7 +49,7 @@ class MetaData {
 
 	private String lName, jName;
 
-	private Timestamp tsThisRefresh;
+	private Timestamp tsThisRef;
 	private long seqThisRef;
 
 	private static final Logger ovLogger = LogManager.getLogger();
@@ -59,6 +58,7 @@ class MetaData {
 
 	// encapsulate the details into tblDetailJSON;
 	private JSONObject tblDetailJSON;
+	private JSONObject auxDetailJSON;
 	private JSONObject srcDBDetail;
 	private JSONObject tgtDBDetail;
 	private JSONObject auxDBDetail;
@@ -110,6 +110,7 @@ class MetaData {
 		tableID = tblID;
 		
 		tblDetailJSON=null;
+		auxDetailJSON=null;
 		srcDBDetail=null;
 		tgtDBDetail=null;
 		auxDBDetail=null;
@@ -121,14 +122,12 @@ class MetaData {
 		initTableDetails();
 		initFieldMetaData();
 
-		try {
-			srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
-			tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
-			if(jID.equals("syncTbl")) {
-				auxDBDetail = readDBDetails(tblDetailJSON.get("aux_dbid").toString());
-			}
-		} catch (SQLException e) {
-			e.printStackTrace();
+		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
+		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
+		
+		if(tblDetailJSON.get("aux_prg_type").toString().equals("Ext Java")) {
+			auxDBDetail = readDBDetails(tblDetailJSON.get("aux_db_id").toString());
+			initAuxDetails();
 		}
 	}
 
@@ -138,129 +137,119 @@ class MetaData {
 		jName=j;
 		
 		tblDetailJSON=null;
+		auxDetailJSON=null;
 		
 		srcDBDetail=null;
 		auxDBDetail=null;
 		//miscValues=null;
 
 		//initFieldMetaData();
-		try {
-			srcDBDetail = readDBDetails(srcDB);
-			auxDBDetail = readDBDetails(tgtDB);
-		} catch (SQLException e) {
-			ovLogger.error(e);
-		}
+		srcDBDetail = readDBDetails(srcDB);
+		auxDBDetail = readDBDetails(tgtDB);
 		initAuxDetails();
+		tableID=Integer.valueOf(tblDetailJSON.get("tbl_id").toString());
 	}
 	private void initAuxDetails() {
-		try {
-			String sqlStr="select src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref "
+		String sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
 					+ " from meta_table " + " where src_db_id='" + srcDBDetail.get("db_id") + "' and src_schema='"
 					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-			rRset = repStmt.executeQuery(sqlStr);
-			//rRset.next();
-			tblDetailJSON = (JSONObject) ResultSetToJsonMapper(rRset).get(0);
-			rRset.close();
-		} catch (SQLException e) {
-			ovLogger.error(e.getMessage());
-		}
+		auxDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
 	}
 
 	// return db details as a simpleJSON object, (instead of a Java object, which is
 	// too cumbersome).
-	public JSONObject readDBDetails(String dbid) throws SQLException {
-
-		JSONObject jo = new JSONObject();
-		Statement stmt = null;
-		ResultSet rset = null;
-
-		try {
-			stmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-			rset = stmt.executeQuery("select db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd "
-					+ " from meta_db " + " where db_id='" + dbid + "'");
-			jo = (JSONObject) ResultSetToJsonMapper(rset).get(0);
-		} catch (SQLException e) {
-			ovLogger.error(e);
-		} finally {
-			try {
-				rset.close();
-				stmt.close();
-			} catch (SQLException e) {
-				ovLogger.error(e);
-			}
-		}
-
+	public JSONObject readDBDetails(String dbid) {
+		String sql= "select db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd "
+					+ " from meta_db " + " where db_id='" + dbid + "'";
+		
+		JSONObject jo=null;
+		jo = (JSONObject) SQLtoJSONArray(sql).get(0);
 		return jo;
 	}
 
 	// return Table details as a simpleJSON object, (instead of a Java object, which
 	// is too cumbersome).
 	private void initTableDetails() {
-		try {
-			rRset = repStmt.executeQuery(
-					"select tbl_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
+		String sql = "select tbl_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
 					"pool_id, init_dt, init_duration, curr_state, aux_db_id, aux_prg_type,  src_jurl_name, \n" + 
 					"aux_prg_name, aux_chg_topic, ts_regist, ts_last_ref, seq_last_ref "
-							+ " from meta_table " + " where tbl_id=" + tableID);
-			tblDetailJSON = (JSONObject) ResultSetToJsonMapper(rRset).get(0);
-			srcTblAb7=tblDetailJSON.get("src_table").toString().substring(0,6);
+							+ " from meta_table " + " where tbl_id=" + tableID;
+		tblDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
+		
+		Object auxDBIDObj = tblDetailJSON.get("aux_db_id");
+		if(auxDBIDObj != null) {
+			String journalName=tblDetailJSON.get("src_jurl_name").toString();
+			String[] temp = journalName.split("\\.");
+			lName=temp[0]; jName=temp[1];
+		sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
+				+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
+				+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
+		auxDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
+		}
+	}
+
+	private JSONArray SQLtoJSONArray(String sql) {
+		JSONArray jArray = new JSONArray();
+		JSONObject jsonObject = null;
+
+		JSONObject jo = new JSONObject();
+		Statement stmt = null;
+		ResultSet rset = null;
+		String column;
+		Object value;
+		try {
+			stmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+			rset = stmt.executeQuery(sql);
+
+			ResultSetMetaData rsmd = rset.getMetaData();
+			int columnCount = rsmd.getColumnCount();
+
+			while (rset.next()){
+				jsonObject = new JSONObject();
+				for (int index = 1; index <= columnCount; index++) {
+					column = rsmd.getColumnName(index);
+					value = rset.getObject(column);
+					if (value == null) {
+						jsonObject.put(column, "");
+					} else if (value instanceof Integer) {
+						jsonObject.put(column, (Integer) value);
+					} else if (value instanceof String) {
+						jsonObject.put(column, (String) value);
+					} else if (value instanceof Boolean) {
+						jsonObject.put(column, (Boolean) value);
+					} else if (value instanceof Date) {
+						jsonObject.put(column, ((Date) value).getTime());
+					} else if (value instanceof Long) {
+						jsonObject.put(column, (Long) value);
+					} else if (value instanceof Double) {
+						jsonObject.put(column, (Double) value);
+					} else if (value instanceof Float) {
+						jsonObject.put(column, (Float) value);
+					} else if (value instanceof BigDecimal) {
+						jsonObject.put(column, (BigDecimal) value);
+					} else if (value instanceof Timestamp) {
+						jsonObject.put(column, (Timestamp) value);
+					} else if (value instanceof Byte) {
+						jsonObject.put(column, (Byte) value);
+					} else if (value instanceof byte[]) {
+						jsonObject.put(column, (byte[]) value);
+					} else {
+						throw new IllegalArgumentException("Unmappable object type: " + value.getClass());
+					}	
+				}
+				jArray.add(jsonObject);
+			}
 		} catch (SQLException e) {
 			ovLogger.error(e);
-		}finally {
+		} finally {
 			try {
-				rRset.close();
-				repStmt.close();
+			rset.close();
+				stmt.close();
 			} catch (SQLException e) {
 				ovLogger.error(e);
 			}
 		}
-	}
 
-
-	private JSONArray ResultSetToJsonMapper(ResultSet rs) throws SQLException {
-		JSONArray jArray = new JSONArray();
-		JSONObject jsonObject = null;
-
-		ResultSetMetaData rsmd = rs.getMetaData();
-		int columnCount = rsmd.getColumnCount();
-
-		while (rs.next()){
-		jsonObject = new JSONObject();
-		for (int index = 1; index <= columnCount; index++) {
-			String column = rsmd.getColumnName(index);
-			Object value = rs.getObject(column);
-			if (value == null) {
-				jsonObject.put(column, "");
-			} else if (value instanceof Integer) {
-				jsonObject.put(column, (Integer) value);
-			} else if (value instanceof String) {
-				jsonObject.put(column, (String) value);
-			} else if (value instanceof Boolean) {
-				jsonObject.put(column, (Boolean) value);
-			} else if (value instanceof Date) {
-				jsonObject.put(column, ((Date) value).getTime());
-			} else if (value instanceof Long) {
-				jsonObject.put(column, (Long) value);
-			} else if (value instanceof Double) {
-				jsonObject.put(column, (Double) value);
-			} else if (value instanceof Float) {
-				jsonObject.put(column, (Float) value);
-			} else if (value instanceof BigDecimal) {
-				jsonObject.put(column, (BigDecimal) value);
-			} else if (value instanceof Timestamp) {
-				jsonObject.put(column, (Timestamp) value);
-			} else if (value instanceof Byte) {
-				jsonObject.put(column, (Byte) value);
-			} else if (value instanceof byte[]) {
-				jsonObject.put(column, (byte[]) value);
-			} else {
-				throw new IllegalArgumentException("Unmappable object type: " + value.getClass());
-			}
-		}
-		jArray.add(jsonObject);
-	}
-
-		//return jsonObject;
 		return jArray;
 	}
 
@@ -278,30 +267,77 @@ class MetaData {
 	}
 	public boolean tblReadyForInit() {
 		boolean rtv=false;
-		try {
-		if ( Timestamp.valueOf(tblDetailJSON.get("LAST_REF_TS").toString()).before(
-		Timestamp.valueOf(tblDetailJSON.get("TS_REGIST").toString())) ) {
+		
+		String srcDBt=srcDBDetail.get("db_type").toString();
+		if(srcDBt.equals("DB2/AS400")) {
+			try {
+				if ( Timestamp.valueOf(auxDetailJSON.get("ts_last_ref").toString()).after(
+				Timestamp.valueOf(tblDetailJSON.get("ts_regist").toString())) ) {
+					rtv=true;
+				}
+			}catch (NullPointerException e) {
+				rtv=false;
+				ovLogger.error(e);
+			}
+		}else if( srcDBt.equals("ORACLE")){
 			rtv=true;
-		}
-		}catch (NullPointerException e) {
+		}else if( srcDBt.equals("VERTICA") 
+				||srcDBt.equals("KAFKA")){
+			rtv=true;
+		}else {
 			rtv=false;
-			ovLogger.error(e);
+			ovLogger.error("Incorrect source.");
 		}
+		
 		return rtv;
 	}
-	public void markStartTime() {
-		Calendar cal = Calendar.getInstance();
-		startMS = cal.getTimeInMillis();
+	public int begin(int w) {
+		int rtc=1;
+		//w=0: means to initialize a table
+		//w=2: means to sync
+		//for aux, no such distinction, though. So, set their  curr_state to 2 on registration.
+		int tblState = Integer.valueOf(tblDetailJSON.get("curr_state").toString());
+		// a table can be worked when:
+		// 0: when it is in need of initializing
+		// 2: is is in normal sync cycle.
+		switch(w) {
+			case 0:
+				if(tblState != 0) {
+					rtc=-1;
+				};
+				break;
+			case 2:
+				if(tblState != 2) {
+					rtc=-1;
+				};
+				break;
+			default:
+				ovLogger.warn("not supported request!");
+				break;
+		}
+		if(rtc ==1){  
+			Calendar cal = Calendar.getInstance();
+			startMS = cal.getTimeInMillis();
+			updateCurrState(1);  //indicating table is being worked on
+		}
 
+		return rtc;
 	}
 
-	public void markEndTime() {
+	public void end(int state) {
 		Calendar cal = Calendar.getInstance();
 		endMS = cal.getTimeInMillis();
+		
+		updateCurrState(state);
 	}
 
-	public void saveTblStats() {
-		markEndTime();
+	private void updateCurrState(int st) {
+		String sql = "update meta_table set curr_state = " + st 
+				+ " where tbl_id = " + tableID;
+		runUpdateSQL(sql);
+	}
+	public void saveInitStats() {
+		//markEndTime();
 		int duration = (int) (endMS - startMS) / 1000;
 		ovLogger.info(jobID + " duration: " + duration + " sec");
 
@@ -315,36 +351,21 @@ class MetaData {
 		metrix.sendMX(
 				"errCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
 		metrix.sendMX(
-				"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+				//"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+				"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
 
 		// Save to MetaRep:
-		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		Statement stmt = null;
-		ResultSet rset = null;
-		String sqlStmt = "update meta_table set init_dt = " + ts 
-				+ " init_duration = " + duration 
-				+ " curr_sate = " + currState
-				+ " ts_last_ref = " + ts
-				+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		String sql = "update meta_table set init_dt = now() "
+				+ ", init_duration = " + duration 
+				+ ", curr_state = " + currState
+				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
+				+ ", seq_last_seq = " + seqThisRef
 				+ " where tbl_id = " + tableID;
-
-		try {
-			stmt = repConn.createStatement();
-			rset = stmt.executeQuery(sqlStmt);
-		} catch (SQLException e) {
-			ovLogger.error(e);
-		} finally {
-			try {
-				rset.close();
-				stmt.close();
-				repConn.commit();
-			} catch (SQLException e) {
-				ovLogger.error(e);
-			}
-		}
+		runUpdateSQL(sql);
 	}
-	public void saveAuxStats() {
-		markEndTime();
+	public void saveSyncStats() {
+		//markEndTime();
 		int duration = (int) (endMS - startMS) / 1000;
 		ovLogger.info(jobID + " duration: " + duration + " sec");
 
@@ -352,21 +373,58 @@ class MetaData {
 		metrix.sendMX(
 				"duration,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + duration + "\n");
 		metrix.sendMX(
-				"insCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalMsgCnt + "\n");
+				"insCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalInsCnt + "\n");
 		metrix.sendMX(
-				"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+				"delCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalDelCnt + "\n");
+		metrix.sendMX(
+				"errCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
+		metrix.sendMX(
+				//"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+				"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
 
 		// Save to MetaRep:
-		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		Statement stmt = null;
-		String sqlStmt = "update meta_table set TS_LAST_REF = CURRENT_TIMESTAMP," 
-				+ " SEQ_LAST_REF = " + seqThisRef  
-				+ " where SRC_SCHEMA = '" + lName + "' and SRC_TABLE='" + jName + "' "
-				+ " and SRC_DB_ID = '" + tblDetailJSON.get("src_db_id") + "' and TGT_SCHEMA='*'";
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		String sql = "update meta_table set"
+				+ " curr_sate = " + currState
+				+ " ts_last_ref = now()"
+				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
+				+ " seq_last_seq = " + seqThisRef
+				+ " where tbl_id = " + tableID;
+		runUpdateSQL(sql);
+	}
+	public void saveTblInitStats() {
+		int duration = (int) (endMS - startMS) / 1000;
+		ovLogger.info(jobID + " duration: " + duration + " sec");
 
+		// report to InfluxDB:
+		metrix.sendMX(
+				"duration,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + duration + "\n");
+		metrix.sendMX(
+				"insCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalInsCnt + "\n");
+		metrix.sendMX(
+				"delCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalDelCnt + "\n");
+		metrix.sendMX(
+				"errCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
+		metrix.sendMX(
+				//"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+		"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
+
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		String sql = "update meta_table set init_dt = now()" 
+				+ " init_duration = " + duration 
+				+ " where tbl_id = " + tableID;
+		runUpdateSQL(sql);
+	}
+
+
+	private boolean runUpdateSQL(String sql) {
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt=null; 
 		try {
 			stmt = repConn.createStatement();
-			int rslt = stmt.executeUpdate(sqlStmt);
+			int rslt = stmt.executeUpdate(sql);
 		} catch (SQLException e) {
 			ovLogger.error(e);
 		} finally {
@@ -377,8 +435,9 @@ class MetaData {
 				ovLogger.error(e);
 			}
 		}
+		
+		return true;
 	}
-
 
 	public void saveAudit(int srcRC, int tgtRC) {
 		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
@@ -478,13 +537,13 @@ public ArrayList<String> getFldNames() {
 //}
 	public String getSrcAuxSQL(boolean fast, boolean relaxed) {
 		long lasAuxSeq = getAuxSeqLastRefresh();
-		if(lasAuxSeq == -1)
-			return null;   // this is the first time run on this Journal, simply set META_AUX.SEQ_LAST_REF
-		else {
-		Object thisAuxSeq = miscValues.get("thisJournalSeq");
 		String extWhere="";
-		if (thisAuxSeq !=null) {
-			extWhere = " and SEQUENCE_NUMBER <=" + thisAuxSeq.toString(); 
+		
+		if((lasAuxSeq == -1)||(seqThisRef <= lasAuxSeq))
+			return null;   // this is the first time or no data, simply set META_AUX.SEQ_LAST_REF
+
+		if (seqThisRef > lasAuxSeq ) {
+			extWhere = " and SEQUENCE_NUMBER <=" + seqThisRef; 
 		}
 		
 		String currStr;
@@ -518,7 +577,6 @@ public ArrayList<String> getFldNames() {
 					+ ") ) as x where SEQUENCE_NUMBER > " + lasAuxSeq 
 					+ extWhere
 					+ " order by 2 asc";
-		}
 	}
 public String getSrcAuxThisSeqSQL(boolean fast) {
 	String currStr;
@@ -537,13 +595,14 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 }
 	
 	public void setRefreshTS(Timestamp thisRefreshHostTS) {
-		tsThisRefresh = thisRefreshHostTS;
+		tsThisRef = thisRefreshHostTS;
 	}
 	public void setRefreshSeqThis(long seq) {
 		if (seq > 0) {  
 			seqThisRef = seq;
 		} else {   //should never happen. no?
-			seqThisRef = (long) miscValues.get("thisJournalSeq");
+			//seqThisRef = (long) miscValues.get("thisJournalSeq");
+			seqThisRef = Long.valueOf( (auxDetailJSON.get("seq_last_ref").toString()));
 			ovLogger.info("... need to see why can't retrieve Journal Seq!!!");
 		}
 	}
@@ -560,13 +619,13 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		return tsLastAudit;
 	}
 
-	public Timestamp getLastRefresh() {
-		return tsLastRefresh;
-	}
+//	public Timestamp getLastRefresh() {
+//		return tsLastRef;
+//	}
 
 	public long getAuxSeqLastRefresh() {
 		try {
-			return Long.valueOf(tblDetailJSON.get("SEQ_LAST_REF").toString());
+			return Long.valueOf(tblDetailJSON.get("seq_last_ref").toString());
 		}catch (NullPointerException e) {
 			return -1;
 		}
@@ -607,8 +666,8 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 			rRset.close();
 			repStmt.close();
 			repConn.close();
-		} catch (SQLException e) {
-			ovLogger.error(jobID + e.getMessage());
+		} catch (Exception e) {
+			ovLogger.error("TODO: closed already." + e);
 		}
 
 	}
@@ -698,46 +757,10 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 	}
 
 	public JSONArray getAuxsByPoolID(int poolID) {
-		JSONArray jRslt=null;
-		Statement lrepStmt = null;
-		ResultSet lrRset;
-		String strSQL;
-		strSQL = "select src_db_id, tgt_db_id, src_jurl_name from meta_table where pool_id = " + poolID;
+		String sql = "select src_db_id, tgt_db_id, src_jurl_name from meta_table where pool_id = " + poolID;
 
-		// This shortterm solution is only for Oracle databases (as the source)
-		try {
-			lrRset = repStmt.executeQuery(strSQL);
-			jRslt = ResultSetToJsonMapper(lrRset);
-		} catch (SQLException se) {
-			ovLogger.error("OJDBC driver error has occured" + se);
-		} catch (Exception e) {
-			// Handle errors for Class.forName
-			ovLogger.error(e);
-		} finally {
-			// make sure the resources are closed:
-			try {
-				if (lrepStmt != null)
-					lrepStmt.close();
-			} catch (SQLException se2) {
-			}
-		}
-
+		JSONArray jRslt = SQLtoJSONArray(sql);
 		return jRslt;
-	}
-
-	public void saveReplicateDB2() {
-		int duration = (int) (int) ((endMS - startMS) / 1000);
-		try {
-			rRset.updateTimestamp("TS_LAST_REF400", tsThisRefresh);
-			rRset.updateLong("SEQ_LAST_REF", (long) miscValues.get("thisJournalSeq"));
-
-			rRset.updateRow();
-			repConn.commit();
-		} catch (SQLException e) {
-			System.out.println(e.getMessage());
-		}
-		metrix.sendMX("duration,jobId=" + jobID + " value=" + duration + "\n");
-		metrix.sendMX("Seq#,jobId=" + jobID + " value=" + miscValues.get("thisJournalSeq") + "\n");
 	}
 
 // ... move to MetaData ?

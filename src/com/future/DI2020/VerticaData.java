@@ -42,8 +42,9 @@ class VerticaData extends DataPointer {
 	}
 
 	// no where clause for initializing
-	public void initDataFrom(DataPointer srcData) {
+	public int initDataFrom(DataPointer srcData) {
 		ovLogger.info("    START...");
+		int rtc=0;
 		ResultSet rsltSet = srcData.getSrcResultSet();
 		//copyDataFrom(rsltSet);
 		copyDataFromV2(rsltSet);
@@ -53,9 +54,9 @@ class VerticaData extends DataPointer {
 		metaData.setTotalInsCnt(totalSynCnt);
 		metaData.setTotalErrCnt(totalErrCnt);
 		metaData.setTotalDelCnt(totalDelCnt);
-		metaData.markEndTime();
-		//metaData.setRefreshSeqThis(srcData.getThisJournalSeqNum());
-		metaData.getMiscValues().put("thisJournalSeq", ((DB2Data400) srcData).getThisRefreshSeq());
+
+//		metaData.getMiscValues().put("thisJournalSeq", srcData.getThisRefreshSeq());
+		//metaData.setRefreshSeqThis(seq);  done in the setup?!
 		//to be called from driver pgm
 		//metaData.saveInitStats();
 		//metaData.sendMetrix();
@@ -64,63 +65,64 @@ class VerticaData extends DataPointer {
 
 		if (totalSynCnt < 0) {
 			metaData.setCurrentState(7); // broken - suspended
+			rtc = -1;
 		} else {
-			metaData.setCurrentState(2); // initialized
+			rtc = 2;
 		}
-
 		
+		return rtc;
 	}
 
 	// when log table is inserted from trigger
-	public void syncDataFrom(DataPointer srcData) {
-		ovLogger.info("    START...");
+	public int syncDataFrom(DataPointer srcData) {
+		int rtc=0;
 
-		// where clause is to be composed from log table
 		ResultSet rsltSet = srcData.getSrcResultSet();
 		try {
 			dropStaleRowsViaResultSet(rsltSet);
+
+			// where clause is to be composed from log table
+			rsltSet = srcData.getSrcResultSet();
+			rtc = copyDataFromV2(rsltSet);
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
+			rtc=-1;
 		}
-
-		// where clause is to be composed from log table
-		rsltSet = srcData.getSrcResultSet();
-		copyDataFrom(rsltSet);
 
 		// TODO: and clear src log tables...
 		
 		metaData.setTotalInsCnt(totalSynCnt);
 		metaData.setTotalErrCnt(totalErrCnt);
 		metaData.setTotalDelCnt(totalDelCnt);
-		metaData.markEndTime();
+		metaData.end(rtc);
 //		metaData.setRefreshSeqThis(srcData.getThisJournalSeqNum());
 		//to be called from driver pgm
 		//metaData.saveInitStats();
 //should not be here!!!		
-		metaData.saveTblStats();
+		metaData.saveInitStats();
 		// db2KafkaMeta.saveReplicateKafka(); Initialize table has nothing to do with
 		// Journal level info. Don't do it here.
 
 		if (totalSynCnt < 0) {
-			metaData.setCurrentState(7); // broken - suspended
+			rtc=-1;
 		} else {
-			metaData.setCurrentState(2); // initialized
+			rtc=2;
 		}
 
-		ovLogger.info("    COMPLETE.");
 		srcData.close();
 		close();
+		
+		return rtc;
 	}
 
 	// when log table is from kafka
-	public void syncDataVia(DataPointer srcData, KafkaData auxData) {
-		ovLogger.info("    START...");
-
+	public int syncDataVia(DataPointer srcData, KafkaData auxData) {
 		int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
 
 		int noRecordsCount = 0, cntRRN = 0;
-		boolean firstItem = true, success = false;
+		boolean firstItem = true; 
+		int rtc = 2;
 		String rrnList = "";
 		long lastJournalSeqNum = 0l;
 
@@ -154,23 +156,21 @@ class VerticaData extends DataPointer {
 				cntRRN++;
 			}
 			ovLogger.info("    processing to: " + cntRRN);
-			success = replicateRowList(srcData, rrnList);
-			if (!success)
-				break;
+		//	rtc = replicateRowList(srcData, rrnList);
+		//	if (!success)
+		//		break;
 			// in case there are more in Kafka broker, start the next cycle:
 			rrnList = "";
 			noRecordsCount = 0;
 			firstItem = true;
 		}
 
-		ovLogger.info("    COMPLETE!");
-
-		metaData.markEndTime();
+		metaData.end(rtc);
 		metaData.setTotalDelCnt(totalDelCnt);
 		metaData.setTotalDelCnt(totalErrCnt);
 		metaData.setTotalDelCnt(totalInsCnt);
 //should not be here
-		metaData.saveTblStats();
+	//	metaData.saveTblStats();
 
 		//smetaData.setRefreshSeqThis(lastJournalSeqNum);
 		//to be called from driver 
@@ -179,18 +179,9 @@ class VerticaData extends DataPointer {
 		ovLogger.info("tblID: " + metaData.getTableID() + ", " + " - " + metaData.getTableDetails().get("src_sch") + "."
 				+ metaData.getTableDetails().get("src_tbl").toString() + " commited");
 
-		if (!success) {
-			metaData.setCurrentState(7); // broken - suspended
-			ovLogger.info("metaData.getJobID(): " + metaData.getJobID() + ", tblID: " + metaData.getTableID()
-					+ "refresh not succesfull");
-		} else {
-			metaData.setCurrentState(5); // initialized
-			ovLogger.info("metaData.getJobID(): " + metaData.getJobID() + ", tblID: " + metaData.getTableID()
-					+ " <<<<<  refresh successfull");
-		}
-	
+return rtc;	
 	}
-
+/*
 	private boolean copyDataFrom(ResultSet rsltSet) {
 		boolean rtc = true;
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
@@ -454,9 +445,9 @@ class VerticaData extends DataPointer {
 		
 		return rtc;
 	}
-	
-	private boolean copyDataFromV2(ResultSet rsltSet) {
-		boolean rtc = true;
+*/	
+	private int copyDataFromV2(ResultSet rsltSet) {
+		int rtc = 2;
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 
 		int[] batchResults = null;
@@ -491,7 +482,7 @@ class VerticaData extends DataPointer {
 					ovLogger.error("    ****************************");
 					ovLogger.error("    rowid: " + srcRset.getString(metaData.getPK()));
 					ovLogger.error("    fieldno: " + i + "  " + fldNames.get(i));
-					// return -1;
+					rtc = -1;
 				}
 				
 				// insert batch into target table
@@ -540,8 +531,10 @@ class VerticaData extends DataPointer {
 			}
 
 			commit();
+			rtc = 2;
 		} catch (SQLException e) {
 			try {
+				rtc = -1;
 				rollback();
 			} catch (SQLException e1) {
 				// TODO Auto-generated catch block
@@ -550,10 +543,9 @@ class VerticaData extends DataPointer {
 			ovLogger.error(e.getMessage());
 		}
 
-		
 		return rtc;
 	}
-
+/*
 	private boolean replicateRowList(DataPointer srcData, String rrns) {
 		boolean success = true;
 
@@ -570,7 +562,7 @@ class VerticaData extends DataPointer {
 
 		return success;
 	}
-
+*/
 	public int getRecordCount() {
 		int rtv = 0;
 
@@ -609,14 +601,13 @@ class VerticaData extends DataPointer {
 	}
 
 	public void close() {
-				try {
-					sqlStmt.close();
-					dbConn.close();
-				} catch (SQLException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
-				}
-				ovLogger.info("   closed src db conn: " + dbID);
+		try {
+			sqlStmt.close();
+			dbConn.close();
+		} catch (Exception e) {
+			ovLogger.info("   TODO: nothing to close for " + dbID);
+		}
+		ovLogger.info("   closed src db conn: " + dbID);
 	}
 
 	public void deleteRowsBatch(ResultSet rs) throws SQLException {

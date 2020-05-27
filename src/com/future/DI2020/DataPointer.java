@@ -124,7 +124,8 @@ public class DataPointer {
 		ovLogger.info("   empty releaseRSandSTMT() in DataPointer.");
 	}
 	
-	protected void initDataFrom(DataPointer dt) {
+	protected int initDataFrom(DataPointer dt) {
+		return 0;
 	}
 	protected boolean miscPrep() {
 		totalErrCnt = 0; totalInsCnt = 0; totalDelCnt = 0; totalSynCnt=0;
@@ -147,13 +148,13 @@ public class DataPointer {
 		return 0;
 	}
 
-	public void syncDataFrom(DataPointer srcData) {
+	public int syncDataFrom(DataPointer srcData) {
 		// TODO Auto-generated method stub
-		
+		return 0;
 	}
-	public void syncDataVia(DataPointer srcData, DataPointer auxData) {
+	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
 		// TODO Auto-generated method stub
-		
+		return 0;
 	}
 	
 	public ResultSet getFieldMeta(String srcSch, String srcTbl, String journal){
@@ -161,6 +162,11 @@ public class DataPointer {
 	}
 	protected boolean regTblMisc(String srcSch, String srcTbl, String srcLog) {
 		return false;
+	}
+	public long getThisRefreshSeq() {
+		ovLogger.info("   An empty method in DataPointer: getThisRefreshSeq()");
+		// TODO Auto-generated method stub
+		return 0;
 	}
 
 	

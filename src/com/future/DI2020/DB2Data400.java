@@ -33,17 +33,26 @@ class DB2Data400 extends DataPointer {
 	}
 
 	public boolean miscPrep() {
+		boolean rtc=false;
 		super.miscPrep();
 		if(metaData.isAuxJob()) { //when jName is set, it must be for sync RRN to Kafka
-			initThisRefreshSeq();
+			rtc=initThisRefreshSeq();
 		}
-		return true;
+		return rtc;
 	}
 
 	public ResultSet getSrcResultSet() {
 		return srcRS;
 	}
 
+	protected void crtSrcResultSet(String str) {
+		if(str.equals("")) {
+			String sql = metaData.getSQLSelSrc();
+			SQLtoResultSet(sql);
+		}else {
+			//TODO
+		}
+	}
 	public boolean crtSrcAuxResultSet() {
 		boolean rtv=false;
 		String strLastSeq;
@@ -88,7 +97,20 @@ class DB2Data400 extends DataPointer {
 		return rtv;
 		}
 	}
-	
+
+	private void SQLtoResultSet(String sql) {
+		try {
+			// String strTS = new
+			// SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(tblMeta.getLastRefresh());
+			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			srcRS = srcSQLStmt.executeQuery(sql);
+			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
+				ovLogger.info("   opened src recordset: ");
+			}
+		} catch (SQLException e) {
+			ovLogger.error("   " + e);
+		}
+	}
 	public void releaseRSandSTMT() {
 		try {
 			srcSQLStmt.close();
@@ -130,20 +152,6 @@ class DB2Data400 extends DataPointer {
 		return seqThisFresh;
 	}
 
-
-	public boolean ready() {
-		boolean isReady = true;
-
-		if (metaData.getAuxSeqLastRefresh() == 0) {
-			ovLogger.error("   Journal is not replicated to Kafka yet!");
-			isReady = false;
-		}
-
-		metaData.setCurrentState(1); // set current state to initializing
-		metaData.markStartTime();
-
-		return isReady;
-	}
 
 	/*
 //TODO: used only by DB2toKafka. move to KafkaData ?
