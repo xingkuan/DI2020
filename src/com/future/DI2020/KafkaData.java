@@ -42,7 +42,8 @@ class KafkaData extends DataPointer {
 		super(dID);
 	}
 
-	public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
+	//public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
+	public void createKafkaConsumer(String topic) {
 		String consumerGrp = metaData.getJobID() + metaData.getTableID();
 		String cientID = metaData.getJobID();
 
@@ -62,11 +63,11 @@ class KafkaData extends DataPointer {
 		props.put("key.deserializer", "org.apache.kafka.common.serialization.LongDeserializer");
 		props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 
-		KafkaConsumer<Long, String> consumer = new KafkaConsumer<Long, String>(props);
+		consumer = new KafkaConsumer<Long, String>(props);
 		// consumerx.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
 		consumer.subscribe(Arrays.asList(topic));
 
-		return consumer;
+		//return consumer;
 	}
 
 	public ConsumerRecords<Long, String> readMessages() {
@@ -162,7 +163,10 @@ class KafkaData extends DataPointer {
 }
 	
 	protected boolean miscPrep() {
+		String topic = metaData.getTableDetails().get("src_schema")+"."
+				+metaData.getTableDetails().get("src_table");
 		super.miscPrep();
+		createKafkaConsumer(topic);
 		return true;
 	}
 	public void setupSink() {

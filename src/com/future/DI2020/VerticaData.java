@@ -43,13 +43,10 @@ class VerticaData extends DataPointer {
 
 	// no where clause for initializing
 	public int initDataFrom(DataPointer srcData) {
-		ovLogger.info("    START...");
 		int rtc=0;
 		ResultSet rsltSet = srcData.getSrcResultSet();
 		//copyDataFrom(rsltSet);
 		copyDataFromV2(rsltSet);
-		ovLogger.info("    COMPLETE.");
-		
 		
 		metaData.setTotalInsCnt(totalSynCnt);
 		metaData.setTotalErrCnt(totalErrCnt);
@@ -117,7 +114,7 @@ class VerticaData extends DataPointer {
 	}
 
 	// when log table is from kafka
-	public int syncDataVia(DataPointer srcData, KafkaData auxData) {
+	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
 		int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
 
 		int noRecordsCount = 0, cntRRN = 0;
@@ -128,7 +125,8 @@ class VerticaData extends DataPointer {
 
 		while (true) {
 			// blocking call:
-			ConsumerRecords<Long, String> records = auxData.readMessages();
+			//TODO: not pretty!!!
+			ConsumerRecords<Long, String> records = ((KafkaData)auxData).readMessages();
 			// ConsumerRecords<Long, String> records = consumerx.poll(0);
 			if (records.count() == 0) {
 				noRecordsCount++;
@@ -169,17 +167,8 @@ class VerticaData extends DataPointer {
 		metaData.setTotalDelCnt(totalDelCnt);
 		metaData.setTotalDelCnt(totalErrCnt);
 		metaData.setTotalDelCnt(totalInsCnt);
-//should not be here
-	//	metaData.saveTblStats();
 
-		//smetaData.setRefreshSeqThis(lastJournalSeqNum);
-		//to be called from driver 
-		//metaData.saveRefreshStats(metaData.getJobID());
-
-		ovLogger.info("tblID: " + metaData.getTableID() + ", " + " - " + metaData.getTableDetails().get("src_sch") + "."
-				+ metaData.getTableDetails().get("src_tbl").toString() + " commited");
-
-return rtc;	
+		return rtc;	
 	}
 /*
 	private boolean copyDataFrom(ResultSet rsltSet) {

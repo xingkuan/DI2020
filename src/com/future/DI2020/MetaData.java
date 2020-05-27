@@ -28,6 +28,8 @@ class MetaData {
 	private Statement repStmt;
 	private ResultSet rRset;
 
+	private boolean auxJob;
+	
 	// for now, auxilary is Kafka when replicating from DB2 to Vertica.
 	private String auxSchema;
 	private String auxTable;
@@ -180,6 +182,7 @@ class MetaData {
 		if(auxDBIDObj != null) {
 			String journalName=tblDetailJSON.get("src_jurl_name").toString();
 			String[] temp = journalName.split("\\.");
+			
 			lName=temp[0]; jName=temp[1];
 		sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
 				+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
@@ -358,9 +361,9 @@ class MetaData {
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
 		String sql = "update meta_table set init_dt = now() "
 				+ ", init_duration = " + duration 
-				+ ", curr_state = " + currState
+				//+ ", curr_state = " + currState
 				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
-				+ ", seq_last_seq = " + seqThisRef
+				+ ", seq_last_ref = " + seqThisRef
 				+ " where tbl_id = " + tableID;
 		runUpdateSQL(sql);
 	}
@@ -385,7 +388,7 @@ class MetaData {
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
 		String sql = "update meta_table set"
-				+ " curr_sate = " + currState
+				//+ " curr_sate = " + currState
 				+ " ts_last_ref = now()"
 				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
 				+ " seq_last_seq = " + seqThisRef

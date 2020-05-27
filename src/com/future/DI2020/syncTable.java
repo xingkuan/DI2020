@@ -96,6 +96,7 @@ class syncTable {
 
 		JSONObject tblDetail = metaData.getTableDetails();
 
+		//TODO: no need to access JOURNAL! modify to avoid reading max journal seq num!!!
 		srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString());
 		srcData.miscPrep();
 		ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
@@ -104,6 +105,13 @@ class syncTable {
 		tgtData.miscPrep();
 		tgtData.setupSink();
 		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
+		
+		String auxDBstr = tblDetail.get("aux_db_id").toString();
+		if(!auxDBstr.isBlank()) {
+			auxData = DataPointer.dataPtrCreater(auxDBstr);
+			auxData.miscPrep();
+			ovLogger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
+		}
 
    }
 	private static void tearDown() {
