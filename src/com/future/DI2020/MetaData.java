@@ -771,6 +771,9 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		tsThisRefesh = new Timestamp(System.currentTimeMillis());
 	}
 
+	public void setTotalMsgCnt(int v) {
+		totalMsgCnt = v;
+	}
 	public void setTotalDelCnt(int v) {
 		totalDelCnt = v;
 	}

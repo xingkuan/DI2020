@@ -113,7 +113,20 @@ class VerticaData extends DataPointer {
 		return rtc;
 	}
 
+	public int syncDataViaV2(DataPointer srcData, DataPointer auxData) {
+		int rtc = 2;
+		List<String> keys = auxData.getSrcResultList();
+		
+		//Thread 1: Ask srdData to select data from the list
+		
+		//main thread: batch delete the records in this target
+		
+		//wait till thread 1 and do batch insert:
+		
+		return rtc;
+	}
 	// when log table is from kafka
+	// TODO: move the logic into Kafka, at where, messages are read into list and deduplicated.
 	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
 		int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
 

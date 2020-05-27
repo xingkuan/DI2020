@@ -68,9 +68,11 @@ class syncTable {
 		if(ok == 1) {
 			if (auxData == null)
 				syncSt = tgtData.syncDataFrom(srcData);
-			else
-				syncSt = tgtData.syncDataVia(srcData, auxData);
-
+			else {
+				auxData.crtdListOfAux();
+				//syncSt = tgtData.syncDataViaV2(srcData, auxData);
+				syncSt = tgtData.syncDataViaV2(srcData, auxData);
+			}
 			srcData.close();
 			tgtData.close();
 			if (auxData != null)

@@ -3,6 +3,7 @@ package com.future.DI2020;
 import java.io.*;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
+import java.util.stream.Collectors;
 import java.text.*;
 import java.time.Duration;
 import java.sql.*;
@@ -36,6 +37,9 @@ class KafkaData extends DataPointer {
 	private KafkaConsumer<Long, String> consumer;
 	private KafkaProducer<Long, String> producer;
 
+	//TODO: Int can be more efficient. But about String, like Oracle ROWID?
+	private List<String> msgKeyList=new ArrayList<String>();
+	
 	//public KafkaData(String url, String cls, String user, String pwd) {
 	public KafkaData(String dID) throws SQLException {
 		// super(dbid, url, cls, user, pwd);
@@ -169,6 +173,50 @@ class KafkaData extends DataPointer {
 		createKafkaConsumer(topic);
 		return true;
 	}
+	
+	public void crtdListOfAux() {
+		int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
+		int maxMsgConsumption = Integer.parseInt(conf.getConf("kafkaMaxMsgConsumption"));
+
+		List<String> msgKeyListT=new ArrayList<String>();
+
+		int noRecordsCount = 0, cntRRN = 0;
+
+		while (true) {
+			ConsumerRecords<Long, String> records = consumer.poll(Duration.ofMillis(pollWaitMil));
+			// ConsumerRecords<Long, String> records = consumerx.poll(0);
+			if (records.count() == 0) {  //no record? try again, after consective "giveUp" times.
+				noRecordsCount++;
+				ovLogger.info("    consumer poll cnt: " + noRecordsCount);
+				if (noRecordsCount > giveUp)
+					break; // no more records. exit
+				else
+					continue;
+			}
+
+			for (ConsumerRecord<Long, String> record : records) {
+				//lastJournalSeqNum = record.key();
+				msgKeyListT.add(record.value());
+				cntRRN++;
+				if(cntRRN>maxMsgConsumption) { //consume only maximum of "maxMsgConsumption" msgs.
+					break;
+				}
+			}
+			ovLogger.info("    read total msg: " + (cntRRN-1));
+		}
+		consumer.close();
+
+		msgKeyList = msgKeyListT.stream()
+	     .distinct()
+	     .collect(Collectors.toList());
+	    
+		//metaData.end(rtc);
+		metaData.setTotalMsgCnt(cntRRN-1);
+	}
+	protected List<String> getSrcResultList(){
+		return msgKeyList;
+	}
+
 	public void setupSink() {
 		createKafkaProducer();
 	}

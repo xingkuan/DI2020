@@ -6,6 +6,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -101,7 +102,8 @@ public class DataPointer {
 	}else {
 		ovLogger.info("   not applicable for non-Relational.");
 	}
-		
+	}
+	public void crtdListOfAux() {
 	}
 	protected boolean crtSrcAuxResultSet() {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
@@ -118,6 +120,10 @@ public class DataPointer {
 	}
 	protected ResultSet getSrcResultSet() {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		return null;
+	}
+	protected List<String> getSrcResultList(){
+		ovLogger.info("   empty getSrcResultList() in DataPointer.");
 		return null;
 	}
 	protected void releaseRSandSTMT() {
@@ -153,6 +159,10 @@ public class DataPointer {
 		return 0;
 	}
 	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+	public int syncDataViaV2(DataPointer srcData, DataPointer auxData) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
