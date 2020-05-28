@@ -118,47 +118,50 @@ class VerticaData extends DataPointer {
 		int rtc = 2;
 		List<String> keys = auxData.getSrcResultList();
 		
-		//Thread 1: Ask srdData to select data from the list
-		Runnable task2 = () -> { 
-			for(int i=0;i<20; i++) {
+		if(keys.size()>0) {
+			//Thread 1: Ask srdData to select data from the list
+			Runnable task2 = () -> { 
+				srcData.crtSrcResultSet(keys);
+			/*	for(int i=0;i<20; i++) {
+					try {
+						TimeUnit.SECONDS.sleep(1);
+					} catch (InterruptedException e) {
+						// TODO Auto-generated catch block
+						e.printStackTrace();
+					}
+						System.out.println("Task #2 is running");
+						srcData.crtSrcResultSet(keys);
+					}
+			*/
+				};
+				Thread thread1=new Thread(task2);
+				thread1.start();
+			
+			//main thread: batch delete the records in this target
+			dropStaleRowsOfList(keys);
+		/*	for(int i=0;i<10; i++) {
 				try {
 					TimeUnit.SECONDS.sleep(1);
 				} catch (InterruptedException e) {
 					// TODO Auto-generated catch block
 					e.printStackTrace();
 				}
-					System.out.println("Task #2 is running");
-					srcData.crtSrcResultSet(keys);
+					System.out.println("This is the main thread");
 				}
-			};
-			Thread thread1=new Thread(task2);
-			thread1.start();
-		
-		//main thread: batch delete the records in this target
-		dropStaleRowsOfList(keys);
-		for(int i=0;i<10; i++) {
+			*/
+			//wait till thread 1 and do batch insert:
 			try {
-				TimeUnit.SECONDS.sleep(1);
+				thread1.join();
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-				System.out.println("This is the main thread");
-				srcData.crtSrcResultSet(keys);
-			}
-		
-		//wait till thread 1 and do batch insert:
-		try {
-			thread1.join();
-		} catch (InterruptedException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+			//now the source is ready, the tgt is cleaned:
+			ResultSet rsltSet = srcData.getSrcResultSet();
+			rtc = copyDataFromV2(rsltSet);
+		}else {
+			ovLogger.info("   No changes!");
 		}
-
-		
-		ResultSet rsltSet = srcData.getSrcResultSet();
-		rtc = copyDataFromV2(rsltSet);
-
 		
 		return rtc;
 	}
