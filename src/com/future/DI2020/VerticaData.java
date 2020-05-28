@@ -2,6 +2,7 @@ package com.future.DI2020;
 
 import java.io.*;
 import java.util.*;
+import java.util.concurrent.TimeUnit;
 import java.text.*;
 import java.time.Duration;
 import java.sql.*;
@@ -119,15 +120,32 @@ class VerticaData extends DataPointer {
 		
 		//Thread 1: Ask srdData to select data from the list
 		Runnable task2 = () -> { 
-				System.out.println("Task #2 is running");
-				srcData.crtSrcResultSet(keys);
+			for(int i=0;i<20; i++) {
+				try {
+					TimeUnit.SECONDS.sleep(1);
+				} catch (InterruptedException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+					System.out.println("Task #2 is running");
+					srcData.crtSrcResultSet(keys);
+				}
 			};
 			Thread thread1=new Thread(task2);
 			thread1.start();
 		
 		//main thread: batch delete the records in this target
 		dropStaleRowsOfList(keys);
-		System.out.println("Task #1 is still running");
+		for(int i=0;i<10; i++) {
+			try {
+				TimeUnit.SECONDS.sleep(1);
+			} catch (InterruptedException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+				System.out.println("This is the main thread");
+				srcData.crtSrcResultSet(keys);
+			}
 		
 		//wait till thread 1 and do batch insert:
 		try {
