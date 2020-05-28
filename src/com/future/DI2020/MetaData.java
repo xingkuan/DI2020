@@ -36,7 +36,12 @@ class MetaData {
 
 	private int tableID;
 	private int currState = 0;
+	private String keyFeildType;
 
+	private String sqlSelectSource;
+	private String sqlInsertTarget;
+	private String sqlDeleteTarget;
+	
 	private int fldCnt;
 
 	private Timestamp tsLastAudit;
@@ -448,9 +453,6 @@ class MetaData {
 		}
 	}
 	
-	private String sqlSelectSource;
-	private String sqlInsertTarget;
-	private String sqlDeleteTarget;
 //	private String sqlWhereClause;
 	// creates select and insert strings
 	private void initFieldMetaData() {
@@ -463,7 +465,7 @@ class MetaData {
 
 		i = 0;
 		lrRset = lrepStmt.executeQuery(
-			  "select tgt_field, src_field, java_type from meta_table_field "
+			  "select tgt_field, src_field, java_type, src_field_type from meta_table_field "
 			+ " where tbl_id=" + tableID + " order by field_id");
 		//first line
 		if (lrRset.next()) {
@@ -474,6 +476,7 @@ class MetaData {
 			//fldNames[i] = lrRset.getString("src_field");
 			fldType.add(lrRset.getInt("java_type"));
 			fldNames.add(lrRset.getString("src_field"));
+			keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 			i++;
 		}
 		//rest line
@@ -509,6 +512,13 @@ class MetaData {
 		}
 
 	}
+	public String getGDTTDDL() {
+	return"DECLARE GLOBAL TEMPORARY TABLE tmp"+tableID + "(" + tblDetailJSON.get("tbl_pk") + " " + keyFeildType + ") " 
+	+" NOT LOGGED";
+}
+	public String getGDTTIns() {
+	return "INSERT INTO tmp" + tableID + " VALUES (?)";
+	}
 //may not needed later on.
 public ArrayList<Integer> getFldJavaType() {
 	return fldType;
@@ -521,6 +531,10 @@ public ArrayList<String> getFldNames() {
 	}
 	public String getSQLSelSrc() {
 		return sqlSelectSource;
+	}
+	public String getSQLSelSrcViaGDTT() {
+		return sqlSelectSource + " where " + tblDetailJSON.get("tbl_pk") 
+			+ " (select " + tblDetailJSON.get("tbl_pk") + " from tmp"+tableID +")";
 	}
 	public String getSQLDelTgt() {
 		return sqlDeleteTarget;

@@ -53,10 +53,15 @@ class DB2Data400 extends DataPointer {
 			//TODO
 		}
 	}
+	protected void crtSrcResultSetViaDGTT() {
+		String sql = metaData.getSQLSelSrcViaGDTT();
+		SQLtoResultSet(sql);
+	}
 	public void crtSrcResultSet(List<String> keys) {
 		int tempTblThresh = Integer.parseInt(conf.getConf("tempTblThresh"));
+		//Two different ways of create the resultset:
 		if(keys.size() < tempTblThresh) {
-			//simply pass the key in "in (par, par, ...)" where clause.
+			//1: simply pass the key as "in (par, par, ...)" clause.
 			String ins="(";
 			for (int i=0; i< keys.size()-1; i++) {
 				ins = ins + "'" + keys.get(i) + "', ";
@@ -64,7 +69,31 @@ class DB2Data400 extends DataPointer {
 			ins = ins + "'" + keys.get(keys.size()-1) + "')";
 			crtSrcResultSet(ins);
 		}else {
-			//use temp table in source DB
+			//2: use temp table in source DB
+			//Firstly: declare a DGTT
+			String gdttDDL=metaData.getGDTTDDL();
+			String gdttIns=metaData.getGDTTIns();
+
+			try {
+				dbConn.setAutoCommit(false);
+		    Statement stmt = dbConn.createStatement();
+		    stmt.execute(gdttDDL);
+		    dbConn.commit();
+			//insert into DGTT
+			PreparedStatement prepStmt = dbConn.prepareStatement( gdttIns);
+			long lKey;
+			for (String key:keys){
+				lKey = Long.valueOf(key);
+				prepStmt.setLong(1,lKey);
+				prepStmt.addBatch();
+			}
+			int [] numUpdates=prepStmt.executeBatch(); 
+			} catch (SQLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			//Join the DGTT --> crtSr Resultset
+			crtSrcResultSetViaDGTT();
 		}
 	}
 	public void dropStaleRowsOfList(List<String> keys) {
