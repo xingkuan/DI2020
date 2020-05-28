@@ -126,7 +126,7 @@ class MetaData {
 
 		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
 		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
-		
+		//if auxData is not from src, eg. Kafka, initialize it here.
 		if(tblDetailJSON.get("aux_prg_type").toString().equals("Ext Java")) {
 			auxDBDetail = readDBDetails(tblDetailJSON.get("aux_db_id").toString());
 			initAuxDetails();
@@ -182,8 +182,8 @@ class MetaData {
 		if(auxDBIDObj != null) {
 			String journalName=tblDetailJSON.get("src_jurl_name").toString();
 			String[] temp = journalName.split("\\.");
-			
 			lName=temp[0]; jName=temp[1];
+			
 		sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
 				+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
 				+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
@@ -269,29 +269,19 @@ class MetaData {
 		return miscValues;
 	}
 	public boolean tblReadyForInit() {
-		boolean rtv=false;
+		boolean rtv=true;
 		
 		String srcDBt=srcDBDetail.get("db_type").toString();
-		if(srcDBt.equals("DB2/AS400")) {
+		if(auxDetailJSON != null) {
 			try {
-				if ( Timestamp.valueOf(auxDetailJSON.get("ts_last_ref").toString()).after(
+			if ( Timestamp.valueOf(auxDetailJSON.get("ts_last_ref").toString()).before(
 				Timestamp.valueOf(tblDetailJSON.get("ts_regist").toString())) ) {
-					rtv=true;
+					rtv=false;
 				}
-			}catch (NullPointerException e) {
-				rtv=false;
-				ovLogger.error(e);
+			}catch(Exception e) {
+				ovLogger.error(e);  //in case of null objects	
 			}
-		}else if( srcDBt.equals("ORACLE")){
-			rtv=true;
-		}else if( srcDBt.equals("VERTICA") 
-				||srcDBt.equals("KAFKA")){
-			rtv=true;
-		}else {
-			rtv=false;
-			ovLogger.error("Incorrect source.");
-		}
-		
+		}	
 		return rtv;
 	}
 	public int begin(int w) {
@@ -389,9 +379,9 @@ class MetaData {
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
 		String sql = "update meta_table set"
 				//+ " curr_sate = " + currState
-				+ " ts_last_ref = now()"
+				+ " ts_last_ref = now(),"
 				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
-				+ " seq_last_seq = " + seqThisRef
+				+ " seq_last_ref = " + seqThisRef
 				+ " where tbl_id = " + tableID;
 		runUpdateSQL(sql);
 	}
@@ -845,7 +835,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 	}
 
 	public boolean isAuxJob() {
-		if (jName != null)
+		if (tblDetailJSON.get("tgt_schema").toString().equals("*"))
 			return true;
 		else
 			return false;

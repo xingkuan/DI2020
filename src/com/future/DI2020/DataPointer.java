@@ -103,7 +103,12 @@ public class DataPointer {
 		ovLogger.info("   not applicable for non-Relational.");
 	}
 	}
-	public void crtdListOfAux() {
+	protected void crtSrcResultSet(List<String >keys) {
+	}
+	protected void dropStaleRowsOfList(List<String> keys) {
+	}
+
+	public void crtAuxSrcAsList() {
 	}
 	protected boolean crtSrcAuxResultSet() {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");

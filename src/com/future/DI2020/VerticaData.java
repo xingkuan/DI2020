@@ -118,10 +118,29 @@ class VerticaData extends DataPointer {
 		List<String> keys = auxData.getSrcResultList();
 		
 		//Thread 1: Ask srdData to select data from the list
+		Runnable task2 = () -> { 
+				System.out.println("Task #2 is running");
+				srcData.crtSrcResultSet(keys);
+			};
+			Thread thread1=new Thread(task2);
+			thread1.start();
 		
 		//main thread: batch delete the records in this target
+		dropStaleRowsOfList(keys);
+		System.out.println("Task #1 is still running");
 		
 		//wait till thread 1 and do batch insert:
+		try {
+			thread1.join();
+		} catch (InterruptedException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		
+		ResultSet rsltSet = srcData.getSrcResultSet();
+		rtc = copyDataFromV2(rsltSet);
+
 		
 		return rtc;
 	}

@@ -53,6 +53,13 @@ class DB2Data400 extends DataPointer {
 			//TODO
 		}
 	}
+	public void crtSrcResultSet(List<String >keys) {
+		//TODO
+	}
+	public void dropStaleRowsOfList(List<String> keys) {
+		//DODO
+	}
+
 	public boolean crtSrcAuxResultSet() {
 		boolean rtv=false;
 		String strLastSeq;

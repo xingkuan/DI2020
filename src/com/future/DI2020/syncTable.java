@@ -69,7 +69,7 @@ class syncTable {
 			if (auxData == null)
 				syncSt = tgtData.syncDataFrom(srcData);
 			else {
-				auxData.crtdListOfAux();
+				auxData.crtAuxSrcAsList();
 				//syncSt = tgtData.syncDataViaV2(srcData, auxData);
 				syncSt = tgtData.syncDataViaV2(srcData, auxData);
 			}
@@ -88,9 +88,6 @@ class syncTable {
 		ovLogger.info("    COMPLETE.");
 	}
 
-
-	
-	// setup the source and target
 	private static void setup(int tblID) {
 		tableID=tblID;
 		metaData.setupTableJob(jobID, tableID);

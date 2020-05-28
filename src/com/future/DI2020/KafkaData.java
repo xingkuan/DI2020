@@ -174,7 +174,7 @@ class KafkaData extends DataPointer {
 		return true;
 	}
 	
-	public void crtdListOfAux() {
+	public void crtAuxSrcAsList() {
 		int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
 		int maxMsgConsumption = Integer.parseInt(conf.getConf("kafkaMaxMsgConsumption"));
 
