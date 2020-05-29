@@ -33,36 +33,38 @@ public class RegisterTbl {
 	static String repFldIns = "repoColsDML.sql";
 	static String hadRegister = "hadRegistered.sql";
 	static String kafka = "kafkaTopic.sh";
-	static String db2Journal = "repoAuxDML.sql";
+	static String db2Journal = "repodccDML.sql";
 
 	static String outPath;
 
 	public static void main(String[] args) throws IOException {
 		System.out.println(args.length);
 
-		if (args.length == 11) {
+		if (args.length == 12) {
 			tblID = 0; // have to be set later.
-		} else if (args.length == 12) {
-			tblID = Integer.parseInt(args[11]);
+		} else if (args.length == 13) {
+			tblID = Integer.parseInt(args[12]);
 		} else {
 			System.out.println(
 					"Usage:   RegisterTbl DB2D JOHNLEE2 TEST1 journal VERTX Tsch TEST1 kafka1 topic c:/users/johnlee 0 99");
 			System.out.println(
-					"   or:   RegisterTbl sdbID ssch stbl jrnl tdbid tsch ttbl auxDB topic opath poolID tblID");
+					"   or:   RegisterTbl sdbID ssch stbl jrnl tdbid tsch ttbl dccDB topic opath poolID tblID");
 			return;
 		}
-
-		String srcDBid = args[0];
-		String srcSch = args[1];
-		String srcTbl = args[2];
-		String jrnlName = args[3];
-		String tgtDBid = args[4];
-		String tgtSch = args[5];
-		String tgtTbl = args[6];
-		String auxDBid = args[7];
-		String auxTopic = args[8];
-		outPath = args[9];
-		int poolID = Integer.parseInt(args[10]);
+//		DB2RRN DB2D JOHNLEE2 TESTTBL2 JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
+		String strPK = args[0];
+		String srcDBid = args[1];
+		String srcSch = args[2];
+		String srcTbl = args[3];
+		String jrnlName = args[4];
+		String tgtDBid = args[5];
+		String tgtSch = args[6];
+		String tgtTbl = args[7];
+		String dccDBid = args[8];
+		String dccTopic = args[9];
+		outPath = args[10];
+		int poolID = Integer.parseInt(args[11]);
+		//Note: should have table poolID and DCC poolID. For now, DCC poolID is set to -1. 
 
 		System.out.println(Arrays.toString(args));
 		System.out.println(outPath);
@@ -79,9 +81,9 @@ public class RegisterTbl {
 
 			// make sure tableID is not used
 			if (metaData.isNewTblID(tblID)) {
-				regTbl.genRepTblDML(srcDBid, srcSch, srcTbl, auxDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
-				regTbl.genRegSQLs(srcDBid, srcSch, srcTbl, auxDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
-				regTbl.genMisc(srcDBid, srcSch, srcTbl, auxDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genRepTblDML(strPK, srcDBid, srcSch, srcTbl, dccDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genRegSQLs(srcDBid, srcSch, srcTbl, dccDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				regTbl.genMisc(strPK, srcDBid, srcSch, srcTbl, dccDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
 
 			} else {
 				System.out.println("TableID " + tblID + " has been used already!");
@@ -91,25 +93,25 @@ public class RegisterTbl {
 		}
 	}
 
-	private boolean genRepTblDML(String srcDBid, String srcSch, String srcTbl, String auxDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
+	private boolean genRepTblDML(String strPK, String srcDBid, String srcSch, String srcTbl, String dccDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
 		FileWriter repoInsTbl;
 
 		String sqlRepoDML1 = "insert into META_TABLE \n" 
-				+ "(TBL_ID, TBL_PK, \n"
+				+ "(TBL_ID, TBL_PK, JOB_TYPE, \n"
 				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
 				+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
-				+ "POOL_ID, INIT_DT, INIT_DURATION, \n" 
-				+ "CURR_STATE, \n" 
-				+ "AUX_DB_ID, AUX_PRG_TYPE, \n"
-				+ "SRC_JURL_NAME, AUX_PRG_NAME, AUX_CHG_TOPIC, \n" 
-				+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" + "values \n"
-				+ "(" + tblID + ", 'DB2RRN', '" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
+				+ "POOL_ID, INIT_DT, INIT_DURATION, CURR_STATE, \n" 
+				+ "SRC_DCC, DCC_PGM, DCC_PGM_TYPE, \n"
+				+ "DCC_DB_ID, DCC_STORE, \n" 
+				+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" 
+				+ "values \n"
+				+ "(" + tblID + ", '" + strPK + "', 'SYNC', \n" 
+				+ "'" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
 				+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
-				+ " 0, null, null, \n"
-				+ " 0, \n" 
-				+ "'" + auxDBid + "', 'Ext Java', \n" 
-				+ "'" + journal + "', 'Java', 'topic', \n"
-				+ "CURRENT_TIMESTAMP, null, null) \n;";
+				+ poolID + ", null, null, 0, \n"
+				+ "'" + journal + "', 'Java xxx', 'EXT', \n" 
+				+ "'" + dccDBid + "', '" + srcSch + "." + srcTbl + "', \n"
+				+ "now(), null, null) \n;";
 		try {
 			repoInsTbl = new FileWriter(new File(outPath + repTblIns));
 			repoInsTbl.write(sqlRepoDML1);
@@ -122,7 +124,7 @@ public class RegisterTbl {
 		return true;
 	}
 
-	private boolean genRegSQLs(String srcDBid, String srcSch, String srcTbl, String auxDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
+	private boolean genRegSQLs(String srcDBid, String srcSch, String srcTbl, String dccDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
 		FileWriter verticaDDL;
 		FileWriter repoInsCols;
 
@@ -149,7 +151,7 @@ public class RegisterTbl {
 		return true;
 	}
 
-	private boolean genMisc(String srcDBid, String srcSch, String srcTbl, String auxDBid, String journal, String tgtDBid, String tgtSch,
+	private boolean genMisc(String strPK, String srcDBid, String srcSch, String srcTbl, String dccDBid, String journal, String tgtDBid, String tgtSch,
 			String tgtTbl, int poolID) {
 		FileWriter hadRegistered;
 		FileWriter kafkaTopic;
@@ -176,22 +178,19 @@ public class RegisterTbl {
 			String[] res = journal.split("[.]", 0);
 			String lName = res[0];
 			String jName = res[1];
+
 			String jRow = "insert into META_TABLE \n"
-					+ "(TBL_ID, TBL_PK, \n"
+					+ "(TBL_ID, TBL_PK, JOB_TYPE, \n"
 					+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
 					+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
-					+ "POOL_ID, INIT_DT, INIT_DURATION, \n" 
-					+ "CURR_STATE, \n" 
-					+ "AUX_DB_ID, AUX_PRG_TYPE, \n"
-					+ "SRC_JURL_NAME, AUX_PRG_NAME, AUX_CHG_TOPIC, \n" 
-					+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" + "values \n"
-					+ "(" + (tblID+1) + ", null, '"	+ srcDBid + "', '" + lName + "', '" + jName + "', \n" 
-					+ "'" + auxDBid + "', '*', '*', \n"
-					+ " -1, null, null, \n"
-					+ " 2, \n"     //For aux entry, no state of 0. 
-					+ "'', '', \n" 
-					+ "'', 'Java', 'topic', \n"
-					+ "CURRENT_TIMESTAMP, null, null) \n"
+					+ "POOL_ID, INIT_DT, INIT_DURATION, CURR_STATE, \n" 
+					+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" 
+					+ "values \n"
+					+ "(" + (tblID+1) + ", '" + strPK + "', 'DCC', \n"	
+					+"'" +  srcDBid + "', '" + lName + "', '" + jName + "', \n" 
+					+ "'" + dccDBid + "', '*', '*', \n"
+					+ " -1, null, null, 2, \n"     //For dcc entry, no state of 0. 
+					+ "now(), null, null)\n"
 					+ "on conflict (src_db_id, src_schema, src_table) do nothing;";
 			repoJournalRow.write(jRow);
 			repoJournalRow.close();

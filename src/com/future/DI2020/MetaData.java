@@ -28,14 +28,7 @@ class MetaData {
 	private Statement repStmt;
 	private ResultSet rRset;
 
-	private boolean auxJob;
-	
-	// for now, auxilary is Kafka when replicating from DB2 to Vertica.
-	private String auxSchema;
-	private String auxTable;
-
 	private int tableID;
-	private int currState = 0;
 	private String keyFeildType;
 
 	private String sqlSelectSource;
@@ -45,7 +38,6 @@ class MetaData {
 	private int fldCnt;
 
 	private Timestamp tsLastAudit;
-	private int auditExp;
 //	private Timestamp tsLastRef;
 
 	private int poolID;
@@ -65,10 +57,10 @@ class MetaData {
 
 	// encapsulate the details into tblDetailJSON;
 	private JSONObject tblDetailJSON;
-	private JSONObject auxDetailJSON;
+	private JSONObject dccDetailJSON;
 	private JSONObject srcDBDetail;
 	private JSONObject tgtDBDetail;
-	private JSONObject auxDBDetail;
+	private JSONObject dccDBDetail;
 	private JSONObject miscValues=new JSONObject();
 	
 	//may not needed
@@ -117,10 +109,10 @@ class MetaData {
 		tableID = tblID;
 		
 		tblDetailJSON=null;
-		auxDetailJSON=null;
+		dccDetailJSON=null;
 		srcDBDetail=null;
 		tgtDBDetail=null;
-		auxDBDetail=null;
+		dccDBDetail=null;
 		miscValues=null;
 
 		lName=null;
@@ -131,36 +123,37 @@ class MetaData {
 
 		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
 		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
-		//if auxData is not from src, eg. Kafka, initialize it here.
-		if(tblDetailJSON.get("aux_prg_type").toString().equals("Ext Java")) {
-			auxDBDetail = readDBDetails(tblDetailJSON.get("aux_db_id").toString());
-			initAuxDetails();
+		//if dccData is not from src, eg. Kafka, initialize it here.
+		if(tblDetailJSON.get("dcc_prg_type").toString().equals("Ext Java")) {
+			dccDBDetail = readDBDetails(tblDetailJSON.get("dcc_db_id").toString());
+			initDCCDetails();
 		}
 	}
 
-	public void setupAuxJob(String jID, String srcDB, String l, String j, String tgtDB) {
+	public void setupDCCJob(String jID, String srcDB, String l, String j, String tgtDB) {
 		jobID = jID;
 		lName=l;
 		jName=j;
 		
 		tblDetailJSON=null;
-		auxDetailJSON=null;
+		dccDetailJSON=null;
 		
 		srcDBDetail=null;
-		auxDBDetail=null;
+		dccDBDetail=null;  //not applicable for sync to dcc. The target is dcc, that is Kafka
+		tgtDBDetail=null;
 		//miscValues=null;
 
 		//initFieldMetaData();
 		srcDBDetail = readDBDetails(srcDB);
-		auxDBDetail = readDBDetails(tgtDB);
-		initAuxDetails();
+		tgtDBDetail = readDBDetails(tgtDB);
+		initDCCDetails();
 		tableID=Integer.valueOf(tblDetailJSON.get("tbl_id").toString());
 	}
-	private void initAuxDetails() {
+	private void initDCCDetails() {
 		String sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
 					+ " from meta_table " + " where src_db_id='" + srcDBDetail.get("db_id") + "' and src_schema='"
 					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-		auxDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
+		tblDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
 	}
 
 	// return db details as a simpleJSON object, (instead of a Java object, which is
@@ -177,14 +170,14 @@ class MetaData {
 	// return Table details as a simpleJSON object, (instead of a Java object, which
 	// is too cumbersome).
 	private void initTableDetails() {
-		String sql = "select tbl_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
-					"pool_id, init_dt, init_duration, curr_state, aux_db_id, aux_prg_type,  src_jurl_name, \n" + 
-					"aux_prg_name, aux_chg_topic, ts_regist, ts_last_ref, seq_last_ref "
+		String sql = "select tbl_id, tbl_pk, job_type, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
+					"pool_id, init_dt, init_duration, curr_state, src_dcc, dcc_pgm, dcc_prg_type, dcc_db_id, \n" + 
+					"dcc_store, ts_regist, ts_last_ref, seq_last_ref "
 							+ " from meta_table " + " where tbl_id=" + tableID;
 		tblDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
 		
-		Object auxDBIDObj = tblDetailJSON.get("aux_db_id");
-		if(auxDBIDObj != null) {
+		Object dccDBIDObj = tblDetailJSON.get("dcc_db_id");
+		if(dccDBIDObj != null) {
 			String journalName=tblDetailJSON.get("src_jurl_name").toString();
 			String[] temp = journalName.split("\\.");
 			lName=temp[0]; jName=temp[1];
@@ -192,7 +185,7 @@ class MetaData {
 		sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
 				+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
 				+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-		auxDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
+		dccDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
 		}
 	}
 
@@ -277,9 +270,9 @@ class MetaData {
 		boolean rtv=true;
 		
 		String srcDBt=srcDBDetail.get("db_type").toString();
-		if(auxDetailJSON != null) {
+		if(dccDetailJSON != null) {
 			try {
-			if ( Timestamp.valueOf(auxDetailJSON.get("ts_last_ref").toString()).before(
+			if ( Timestamp.valueOf(dccDetailJSON.get("ts_last_ref").toString()).before(
 				Timestamp.valueOf(tblDetailJSON.get("ts_regist").toString())) ) {
 					rtv=false;
 				}
@@ -293,7 +286,7 @@ class MetaData {
 		int rtc=1;
 		//w=0: means to initialize a table
 		//w=2: means to sync
-		//for aux, no such distinction, though. So, set their  curr_state to 2 on registration.
+		//for dcc, no such distinction, though. So, set their  curr_state to 2 on registration.
 		int tblState = Integer.valueOf(tblDetailJSON.get("curr_state").toString());
 		// a table can be worked when:
 		// 0: when it is in need of initializing
@@ -542,14 +535,14 @@ public ArrayList<String> getFldNames() {
 //	public String getSQLWhereClause() {
 //	return sqlWhereClause;
 //}
-	public String getSrcAuxSQL(boolean fast, boolean relaxed) {
-		long lasAuxSeq = getAuxSeqLastRefresh();
+	public String getSrcDCCSQL(boolean fast, boolean relaxed) {
+		long lasDCCSeq = getDCCSeqLastRefresh();
 		String extWhere="";
 		
-		if((lasAuxSeq == -1)||(seqThisRef <= lasAuxSeq))
+		if((lasDCCSeq == -1)||(seqThisRef <= lasDCCSeq))
 			return null;   // this is the first time or no data, simply set META_AUX.SEQ_LAST_REF
 
-		if (seqThisRef > lasAuxSeq ) {
+		if (seqThisRef > lasDCCSeq ) {
 			extWhere = " and SEQUENCE_NUMBER <=" + seqThisRef; 
 		}
 		
@@ -567,7 +560,7 @@ public ArrayList<String> getFldNames() {
 					+ "   'R', " 
 					+ "   ''," + "   '', '', '*QDDS', ''," 
 					+ "   '', '', ''"
-					+ ") ) as x where SEQUENCE_NUMBER > " + lasAuxSeq 
+					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
 					+ extWhere 
 					+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
 														// number seems not takining effect
@@ -576,16 +569,16 @@ public ArrayList<String> getFldNames() {
 					+ " FROM table (Display_Journal('" + lName + "', '" + jName + "', " + "   '', '"
 					+ currStr + "', "
 					+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
-					+ "   cast(" + lasAuxSeq + " as decimal(21,0)), " // starting SEQ #
+					+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
 					+ "   'R', " // JOURNAL CODE: record operation
 					+ "   ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
 					+ "   '', '', '*QDDS', ''," // Object library, Object name, Object type, Object member
 					+ "   '', '', ''" // User, Job, Program
-					+ ") ) as x where SEQUENCE_NUMBER > " + lasAuxSeq 
+					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
 					+ extWhere
 					+ " order by 2 asc";
 	}
-public String getSrcAuxThisSeqSQL(boolean fast) {
+public String getSrcDCCThisSeqSQL(boolean fast) {
 	String currStr;
 	if(fast)
 		currStr="";
@@ -609,7 +602,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 			seqThisRef = seq;
 		} else {   //should never happen. no?
 			//seqThisRef = (long) miscValues.get("thisJournalSeq");
-			seqThisRef = Long.valueOf( (auxDetailJSON.get("seq_last_ref").toString()));
+			seqThisRef = Long.valueOf( (dccDetailJSON.get("seq_last_ref").toString()));
 			ovLogger.info("... need to see why can't retrieve Journal Seq!!!");
 		}
 	}
@@ -630,7 +623,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 //		return tsLastRef;
 //	}
 
-	public long getAuxSeqLastRefresh() {
+	public long getDCCSeqLastRefresh() {
 		try {
 			return Long.valueOf(tblDetailJSON.get("seq_last_ref").toString());
 		}catch (NullPointerException e) {
@@ -653,10 +646,6 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 
 	public int getCurrState() {
 		return (int) tblDetailJSON.get("curr_state");
-	}
-
-	public void setCurrentState(int cs) {
-		currState = cs;
 	}
 
 	public int getTableID() {
@@ -763,7 +752,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		return getTblsByPoolID(-1);
 	}
 
-	public JSONArray getAuxsByPoolID(int poolID) {
+	public JSONArray getDCCsByPoolID(int poolID) {
 		String sql = "select src_db_id, tgt_db_id, src_jurl_name from meta_table where pool_id = " + poolID;
 
 		JSONArray jRslt = SQLtoJSONArray(sql);
@@ -790,7 +779,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		totalErrCnt = v;
 	}
 
-	public String getAuxPoolID() {
+	public String getDCCPoolID() {
 		// TODO Auto-generated method stub
 		return null;
 	}
@@ -848,7 +837,7 @@ public String getSrcAuxThisSeqSQL(boolean fast) {
 		return rslt;
 	}
 
-	public boolean isAuxJob() {
+	public boolean isDCCJob() {
 		if (tblDetailJSON.get("tgt_schema").toString().equals("*"))
 			return true;
 		else
