@@ -149,6 +149,10 @@ public class DataPointer {
 		// TODO Auto-generated method stub
 		return false;
 	}
+	protected boolean enableDCC(){
+		ovLogger.info("   should be implemented in child class.");
+		return false;
+	}
 
 	protected void close() {
 		
@@ -184,5 +188,10 @@ public class DataPointer {
 		return 0;
 	}
 
+	
+	// ......
+	protected JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String jurl, String tgtSch, String tgtTbl, String dccDBid){
+		return null;
+	}
 	
 }

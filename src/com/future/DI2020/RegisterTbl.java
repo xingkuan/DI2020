@@ -28,12 +28,13 @@ public class RegisterTbl {
 
 	static DataPointer srcDB;
 
-	static String crtTblSQL = "verticaDDL.sql";
-	static String repTblIns = "repoTblDML.sql";
-	static String repFldIns = "repoColsDML.sql";
+	static String crtTblSQL = "tgtTblDDL.sql";
+	static String repTblIns = "metaTblDML.sql";
+	static String repFldIns = "metaFldDML.sql";
+	static String dccDML = "metaDCCDML.sql";
 	static String hadRegister = "hadRegistered.sql";
 	static String kafka = "kafkaTopic.sh";
-	static String db2Journal = "repodccDML.sql";
+	static String db2Journal = "metaDCCDML.sql";
 
 	static String outPath;
 
@@ -72,134 +73,84 @@ public class RegisterTbl {
 
 		srcDB = DataPointer.dataPtrCreater(srcDBid);
 
-		// check if the Journal can be accessed
+		// TODO: appliable only to DB2/AS400. ... check if the Journal can be accessed
 		boolean isJournalOK = srcDB.regTblMisc(srcSch, srcTbl, jrnlName);
 		if (isJournalOK) {
 			if (tblID == 0) {
 				tblID = regTbl.getNextTblID();
 			}
 
+			String sqlStr;
+			FileWriter fWriter;
+
 			// make sure tableID is not used
 			if (metaData.isNewTblID(tblID)) {
-				regTbl.genRepTblDML(strPK, srcDBid, srcSch, srcTbl, dccDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
-				regTbl.genRegSQLs(srcDBid, srcSch, srcTbl, dccDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
-				regTbl.genMisc(strPK, srcDBid, srcSch, srcTbl, dccDBid, jrnlName, tgtDBid, tgtSch, tgtTbl, poolID);
+				try {
+					sqlStr = "select 'exit already!!!', tbl_id from meta_table where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
+							+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
+					fWriter = new FileWriter(new File(outPath + hadRegister));
+					fWriter.write(sqlStr);
+					fWriter.close();
+					
+					sqlStr = "insert into META_TABLE \n" 
+							+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
+							+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
+							+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
+							+ "POOL_ID, CURR_STATE, \n" 
+							+ "SRC_DCC_PGM, SRC_DCC_TBL, \n"
+							+ "DCC_DB_ID, DCC_STORE, \n" 
+							+ "TS_REGIST) \n" 
+							+ "values \n"
+							+ "(" + tblID + ", 'D2V', '" + strPK + "', \n" 
+							+ "'" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
+							+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
+							+ poolID + ", 0, \n"
+							+ "'EXT', '" + jrnlName + "', \n" 
+							+ "'" + dccDBid + "', '" + srcSch + "." + srcTbl + "', \n"
+							+ "now()) \n;";
+					fWriter = new FileWriter(new File(outPath + repTblIns));
+					fWriter.write(sqlStr);
+					fWriter.close();
 
+					JSONObject json = srcDB.genRegSQLs(tblID, "DB2RRN", srcSch, srcTbl, jrnlName, tgtSch, tgtTbl, dccDBid);
+					// ...
+					sqlStr = json.get("fldSQL").toString();
+					fWriter = new FileWriter(new File(outPath + repFldIns));
+					fWriter.write(sqlStr);
+					fWriter.close();
+					sqlStr = json.get("crtTbl").toString();
+					fWriter = new FileWriter(new File(outPath + crtTblSQL));
+					fWriter.write(sqlStr);
+					fWriter.close();
+					sqlStr = json.get("repDCCTbl").toString();
+					fWriter = new FileWriter(new File(outPath + crtTblSQL));
+					fWriter.write(sqlStr);
+					fWriter.close();
+					//
+					fWriter = new FileWriter(new File(outPath + dccDML));
+					sqlStr = json.get("repDCCTbl").toString();
+					fWriter.write(sqlStr);
+					sqlStr = json.get("repDCCTblFld").toString();
+					fWriter.write(sqlStr);
+					fWriter.close();
+
+					sqlStr = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " + srcSch + "_"
+							+ srcTbl + "\n\n" + "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
+							+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " + "--topic "
+							+ srcSch + "." + srcTbl + " \n";
+					fWriter = new FileWriter(new File(outPath + kafka));
+					fWriter.write(sqlStr);
+					fWriter.close();
+
+				}catch(IOException e) {
+					e.printStackTrace();
+				}
 			} else {
 				System.out.println("TableID " + tblID + " has been used already!");
 			}
 		} else {
 			System.out.println("Is the journal for " + srcSch + "." + srcTbl + ": " + jrnlName + " right?");
 		}
-	}
-
-	private boolean genRepTblDML(String strPK, String srcDBid, String srcSch, String srcTbl, String dccDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
-		FileWriter repoInsTbl;
-
-		String sqlRepoDML1 = "insert into META_TABLE \n" 
-				+ "(TBL_ID, TBL_PK, JOB_TYPE, \n"
-				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
-				+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
-				+ "POOL_ID, INIT_DT, INIT_DURATION, CURR_STATE, \n" 
-				+ "SRC_DCC, DCC_PGM, DCC_PGM_TYPE, \n"
-				+ "DCC_DB_ID, DCC_STORE, \n" 
-				+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" 
-				+ "values \n"
-				+ "(" + tblID + ", '" + strPK + "', 'SYNC', \n" 
-				+ "'" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
-				+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
-				+ poolID + ", null, null, 0, \n"
-				+ "'" + journal + "', 'Java xxx', 'EXT', \n" 
-				+ "'" + dccDBid + "', '" + srcSch + "." + srcTbl + "', \n"
-				+ "now(), null, null) \n;";
-		try {
-			repoInsTbl = new FileWriter(new File(outPath + repTblIns));
-			repoInsTbl.write(sqlRepoDML1);
-			repoInsTbl.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-			return false;
-		}
-
-		return true;
-	}
-
-	private boolean genRegSQLs(String srcDBid, String srcSch, String srcTbl, String dccDBid, String journal, String tgtDBid, String tgtSch, String tgtTbl, int poolID) {
-		FileWriter verticaDDL;
-		FileWriter repoInsCols;
-
-		JSONObject json = ((DB2Data400) srcDB).genRegSQLs(tblID, srcSch, srcTbl, tgtSch, tgtTbl);
-		String sqlStr;
-
-		try {
-			verticaDDL = new FileWriter(new File(outPath + crtTblSQL));
-			repoInsCols = new FileWriter(new File(outPath + repFldIns));
-
-			sqlStr = json.get("crtTbl").toString();
-			verticaDDL.write(sqlStr);
-			verticaDDL.close();
-			
-			sqlStr = json.get("fldSQL").toString();
-			repoInsCols.write(sqlStr);
-			repoInsCols.close();
-			
-		} catch (IOException e) {
-			e.printStackTrace();
-			return false;
-		}
-
-		return true;
-	}
-
-	private boolean genMisc(String strPK, String srcDBid, String srcSch, String srcTbl, String dccDBid, String journal, String tgtDBid, String tgtSch,
-			String tgtTbl, int poolID) {
-		FileWriter hadRegistered;
-		FileWriter kafkaTopic;
-
-		
-		try {
-			String strText;
-			hadRegistered = new FileWriter(new File(outPath + hadRegister));
-			strText = "select 'exit already!!!', tbl_id from meta_table where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
-					+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
-			hadRegistered.write(strText);
-			hadRegistered.close();
-
-			// generate command for create kafka topic
-			kafkaTopic = new FileWriter(new File(outPath + kafka));
-			strText = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " + srcSch + "."
-					+ srcTbl + "\n\n" + "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
-					+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " + "--topic "
-					+ srcSch + "." + srcTbl + " \n";
-			kafkaTopic.write(strText);
-			kafkaTopic.close();
-			
-			FileWriter repoJournalRow = new FileWriter(new File(outPath + db2Journal));
-			String[] res = journal.split("[.]", 0);
-			String lName = res[0];
-			String jName = res[1];
-
-			String jRow = "insert into META_TABLE \n"
-					+ "(TBL_ID, TBL_PK, JOB_TYPE, \n"
-					+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
-					+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
-					+ "POOL_ID, INIT_DT, INIT_DURATION, CURR_STATE, \n" 
-					+ "TS_REGIST, TS_LAST_REF, SEQ_LAST_REF) \n" 
-					+ "values \n"
-					+ "(" + (tblID+1) + ", '" + strPK + "', 'DCC', \n"	
-					+"'" +  srcDBid + "', '" + lName + "', '" + jName + "', \n" 
-					+ "'" + dccDBid + "', '*', '*', \n"
-					+ " -1, null, null, 2, \n"     //For dcc entry, no state of 0. 
-					+ "now(), null, null)\n"
-					+ "on conflict (src_db_id, src_schema, src_table) do nothing;";
-			repoJournalRow.write(jRow);
-			repoJournalRow.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-			return false;
-		}
-
-		return true;
 	}
 
 	private int getNextTblID() {

@@ -7,6 +7,8 @@ import java.sql.*;
 
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.apache.logging.log4j.LogManager;
 
 
@@ -35,7 +37,7 @@ class DB2Data400 extends DataPointer {
 	public boolean miscPrep() {
 		boolean rtc=false;
 		super.miscPrep();
-		if(metaData.isAuxJob()) { //when jName is set, it must be for sync RRN to Kafka
+		if(metaData.isDCCJob()) { //when jName is set, it must be for sync RRN to Kafka
 			rtc=initThisRefreshSeq();
 		}
 		return rtc;
@@ -100,12 +102,12 @@ class DB2Data400 extends DataPointer {
 		//DODO
 	}
 
-	public boolean crtSrcAuxResultSet() {
+	public boolean crtSrcDCCResultSet() {
 		boolean rtv=false;
 		String strLastSeq;
 		String strReceiver;
 
-		String strSQL = metaData.getSrcAuxSQL(false, false);
+		String strSQL = metaData.getSrcDCCSQL(false, false);
 		if (strSQL == null) {  //To indicate no need for this step.
 			return false;
 		}else {
@@ -132,7 +134,7 @@ class DB2Data400 extends DataPointer {
 			ovLogger.warn("  try differently of " + metaData.getTableDetails().get("SRC_TABLE") + ":");
 			try {
 				srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-				String StrSQL = metaData.getSrcAuxSQL(false, true);
+				String StrSQL = metaData.getSrcDCCSQL(false, true);
 				srcRS = srcSQLStmt.executeQuery(StrSQL);
 				rtv=true;
 				ovLogger.info("   opened src jrnl recordset on ultimate try: ");
@@ -207,14 +209,14 @@ class DB2Data400 extends DataPointer {
 		jName = metaData.getJournalName();
 
 		initThisRefreshSeq();
-		if (metaData.getAuxSeqLastRefresh() == 0) { // this means the Journal is to be first replicated. INIT run!
+		if (metaData.getDCCSeqLastRefresh() == 0) { // this means the Journal is to be first replicated. INIT run!
 			if ((seqThisFresh == 0)) // .. display_journal did not return, perhaps the journal is archived.
 				setThisRefreshSeqInitExt(); // try the one with *CURCHAIN
 
 			metaData.getMiscValues().put("thisJournalSeq", seqThisFresh);
 			//metaData.setRefreshSeqLast(seqThisFresh); // and this too
 		}
-		if (seqThisFresh > metaData.getAuxSeqLastRefresh())
+		if (seqThisFresh > metaData.getDCCSeqLastRefresh())
 			proceed = true;
 
 		return proceed;
@@ -283,7 +285,7 @@ class DB2Data400 extends DataPointer {
 
 		try {
 			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			strSQL = metaData.getSrcAuxThisSeqSQL(fast);
+			strSQL = metaData.getSrcDCCThisSeqSQL(fast);
 			lrRset = sqlStmt.executeQuery(strSQL);
 			// note: could be empty, perhaps when DB2 just switched log file, which will land us in exception
 			if (lrRset.next()) {
@@ -310,15 +312,22 @@ class DB2Data400 extends DataPointer {
 
 
 // methods for registration
-	public JSONObject genRegSQLs(int tblID, String srcSch, String srcTbl, String tgtSch, String tgtTbl) {
+	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		Statement stmt;
 		ResultSet rset = null;
 		JSONObject json = new JSONObject();
 
+		String[] res = jurl.split("[.]", 0);
+		String lName = res[0];
+		String jName = res[1];
+
 		String sqlFields = "insert into META_TABLE_FIELD \n"
-				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, TGT_FIELD, TGT_FIELD_TYPE, JAVA_TYPE) \n"  
+				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, TGT_FIELD, TGT_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
 				+ " values \n";
 		String sqlCrtTbl = "create table " + tgtSch + "." + tgtTbl + "\n ( ";
+		String sqlFieldsDCC = "insert into META_TABLE_FIELD \n"
+				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
+				+ " values \n";
 
 		try {
 			stmt = dbConn.createStatement();
@@ -337,7 +346,7 @@ class DB2Data400 extends DataPointer {
 			
 			String strDataSpec;
 			int scal;
-			String sDataType, tDataType;
+			String sDataType, tDataType, aDataType;
 			int xType;
 			int fieldCnt = 0;
 			while (rset.next()) {
@@ -347,33 +356,34 @@ class DB2Data400 extends DataPointer {
 
 				if (sDataType.equals("VARCHAR")) {
 					strDataSpec = "VARCHAR2(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
-
 					xType = 1;
+					aDataType = "string";
 				} else if (sDataType.equals("DATE")) {
 					strDataSpec = "DATE";
 					xType = 7;
+					aDataType = "date";
 				} else if (sDataType.equals("TIMESTMP")) {
 					strDataSpec = "TIMESTAMP";
 					xType = 6;
+					aDataType = "timestamp_micros";
 				} else if (sDataType.equals("NUMERIC")) {
 					scal = rset.getInt("numeric_scale");
 					if (scal > 0) {
 						strDataSpec = "NUMBER(" + rset.getInt("length") + ", " + rset.getInt("numeric_scale") + ")";
-
 						xType = 4; // was 5; but let's make them all DOUBLE
 					} else {
 						strDataSpec = "NUMBER(" + rset.getInt("length") + ")";
-
 						xType = 1; // or 2
 					}
+					aDataType = "dbl";
 				} else if (sDataType.equals("CHAR")) {
 					strDataSpec = "CHAR(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
-
 					xType = 1;
+					aDataType = "string";
 				} else {
 					strDataSpec = sDataType;
-
 					xType = 1;
+					aDataType = "string";
 				}
 				sqlCrtTbl = sqlCrtTbl + "\"" + rset.getString("column_name") + "\" " + strDataSpec + ",\n";  //""" is needed because column name can contain space!
 
@@ -381,24 +391,47 @@ class DB2Data400 extends DataPointer {
 						+ "(" + tblID + ", " + rset.getInt("ordinal_position") + ", '"  
 						+ rset.getString("column_name") + "', '" + sDataType + "', '"
 						+ rset.getString("column_name") + "', '" + strDataSpec + "', "
-						+ xType + "),\n";
+						+ xType + ", '" + aDataType + "'),\n";
 			}
-			sqlCrtTbl = sqlCrtTbl + " DB2RRN int ) \n;";
+			sqlCrtTbl = sqlCrtTbl + " DB2RRN long ) \n;";
 
 			fieldCnt++;
 			sqlFields = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'RRN(a) as DB2RRN', 'bigint', "
 					+ "'DB2RRN', 'bigint', "
-					+ "1) \n;";
+					+ "1, dbl) \n;";
+			
 			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+	
+		String repDCCTbl = "insert into META_TABLE \n"
+				+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
+				+ "POOL_ID, \n" 
+				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
+				+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
+				+ "TS_REGIST) \n" 
+				+ "values \n"
+				+ "(" + (tblID+1) + ", 'DJ2K', '" + PK + "', \n"	
+				+ " -1, \n"      
+				+"'" +  dbID + "', '" + lName + "', '" + jName + "', \n" 
+				+ "'" + dccDBid + "', '*', '*', \n"
+				+ "now())\n"
+				+ "on conflict (src_db_id, src_schema, src_table) do nothing\""
+				+ ";\n\n";
+
+		String repDCCTblFld = sqlFields
+				+ "("+ (tblID+1) +", " + 1 + ", " 
+				+ "DB2RRN, 'bigint', "
+				+ "1, dbl) \n;";
 		
 		json.put("crtTbl", sqlCrtTbl);
 		json.put("fldSQL", sqlFields);
+		json.put("repDCCTbl", repDCCTbl);
+		json.put("repDCCTblFld", repDCCTblFld);
 
 		return json;
 	}

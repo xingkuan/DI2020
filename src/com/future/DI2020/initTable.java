@@ -41,13 +41,13 @@ class initTable {
 		}
 
 		int tId = Integer.parseInt(args[0]);
-		initializeTgtFromSrc(tId);
+		initializeTgtFromSrc(tId, 0);  //0 is for initializing
 		//return 0;
 	}
 
-	private static boolean initializeTgtFromSrc(int tId) {
-		setup(tId);
-
+	private static boolean initializeTgtFromSrc(int tId, int subId) {
+		setup(tId, subId);
+		//with subId, get, from meta_template, the steps to be performed.
 		ovLogger.info("    START...");
 		int ok = metaData.begin(0);
 		if(ok == 1) {
@@ -66,8 +66,8 @@ class initTable {
 
 
 	// setup metaData, source and target
-	private static boolean setup(int tID) {
-		metaData.setupTableJob(jobID, tID);
+	private static boolean setup(int tID, int subId) {
+		metaData.setupTableJob(jobID, tID, subId);
 		if(metaData.tblReadyForInit()){
 			ovLogger.info(jobID + " " + tID + ":" + metaData.getTableDetails().get("src_table").toString());
 	

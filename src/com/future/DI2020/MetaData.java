@@ -22,6 +22,7 @@ import java.sql.Date;
 class MetaData {
 
 	private String jobID;
+	private int actID;
 	Timestamp tsThisRefesh;
 
 	private Connection repConn;
@@ -57,11 +58,14 @@ class MetaData {
 
 	// encapsulate the details into tblDetailJSON;
 	private JSONObject tblDetailJSON;
+	private JSONObject actDetailJSON;
 	private JSONObject dccDetailJSON;
 	private JSONObject srcDBDetail;
 	private JSONObject tgtDBDetail;
 	private JSONObject dccDBDetail;
 	private JSONObject miscValues=new JSONObject();
+	
+	private String avroSchema;
 	
 	//may not needed
 	//private Map<Integer, Integer> fldType = new HashMap<>();
@@ -104,9 +108,10 @@ class MetaData {
 		}
 	}
 
-	public void setupTableJob(String jID, int tblID) {
+	public void setupTableJob(String jID, int tblID, int jSub) {
 		jobID = jID;
 		tableID = tblID;
+		actID = jSub;
 		
 		tblDetailJSON=null;
 		dccDetailJSON=null;
@@ -119,8 +124,9 @@ class MetaData {
 		jName=null;
 		
 		initTableDetails();
+		// actDetailJSON is included in initTableDetails(); 
 		initFieldMetaData();
-
+		
 		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
 		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
 		//if dccData is not from src, eg. Kafka, initialize it here.
@@ -130,6 +136,7 @@ class MetaData {
 		}
 	}
 
+	//should be removed!
 	public void setupDCCJob(String jID, String srcDB, String l, String j, String tgtDB) {
 		jobID = jID;
 		lName=l;
@@ -161,17 +168,15 @@ class MetaData {
 	public JSONObject readDBDetails(String dbid) {
 		String sql= "select db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd "
 					+ " from meta_db " + " where db_id='" + dbid + "'";
-		
-		JSONObject jo=null;
-		jo = (JSONObject) SQLtoJSONArray(sql).get(0);
+		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
 		return jo;
 	}
 
 	// return Table details as a simpleJSON object, (instead of a Java object, which
 	// is too cumbersome).
 	private void initTableDetails() {
-		String sql = "select tbl_id, tbl_pk, job_type, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
-					"pool_id, init_dt, init_duration, curr_state, src_dcc, dcc_pgm, dcc_prg_type, dcc_db_id, \n" + 
+		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
+					"pool_id, init_dt, init_duration, curr_state, src_dcc_pgm, src_dcc_tbl, dcc_db_id, \n" + 
 					"dcc_store, ts_regist, ts_last_ref, seq_last_ref "
 							+ " from meta_table " + " where tbl_id=" + tableID;
 		tblDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
@@ -186,6 +191,10 @@ class MetaData {
 				+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
 				+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 		dccDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
+		
+		sql= "select desc, stmts from meta_template where temp_id='" 
+					+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
+		actDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
 		}
 	}
 
@@ -257,6 +266,9 @@ class MetaData {
 	public JSONObject getTableDetails() {
 		return tblDetailJSON;
 	}
+	public JSONObject getActDetails() {
+		return actDetailJSON;
+	}
 	public JSONObject getSrcDBinfo() {
 		return srcDBDetail;
 	}
@@ -282,37 +294,11 @@ class MetaData {
 		}	
 		return rtv;
 	}
-	public int begin(int w) {
-		int rtc=1;
-		//w=0: means to initialize a table
-		//w=2: means to sync
-		//for dcc, no such distinction, though. So, set their  curr_state to 2 on registration.
-		int tblState = Integer.valueOf(tblDetailJSON.get("curr_state").toString());
-		// a table can be worked when:
-		// 0: when it is in need of initializing
-		// 2: is is in normal sync cycle.
-		switch(w) {
-			case 0:
-				if(tblState != 0) {
-					rtc=-1;
-				};
-				break;
-			case 2:
-				if(tblState != 2) {
-					rtc=-1;
-				};
-				break;
-			default:
-				ovLogger.warn("not supported request!");
-				break;
-		}
-		if(rtc ==1){  
-			Calendar cal = Calendar.getInstance();
-			startMS = cal.getTimeInMillis();
-			updateCurrState(1);  //indicating table is being worked on
-		}
-
-		return rtc;
+	public int begin() {
+		Calendar cal = Calendar.getInstance();
+		startMS = cal.getTimeInMillis();
+		updateCurrState(1);  //indicating table is being worked on
+		return 0;
 	}
 
 	public void end(int state) {
@@ -453,6 +439,11 @@ class MetaData {
 		ResultSet lrRset;
 		int i;
 
+		avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
+				    + "\"type\": \"record\", \n" 
+				    + "\"name\": \"" + tblDetailJSON.get("src_scheama")+"-"+ tblDetailJSON.get("src_table") + "\", \n" 
+				    + "\"fields\": [ \n" ;
+		
 		try {
 			lrepStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 
@@ -460,6 +451,7 @@ class MetaData {
 		lrRset = lrepStmt.executeQuery(
 			  "select tgt_field, src_field, java_type, src_field_type from meta_table_field "
 			+ " where tbl_id=" + tableID + " order by field_id");
+
 		//first line
 		if (lrRset.next()) {
 			sqlSelectSource = "select " + lrRset.getString("src_field");
@@ -470,6 +462,9 @@ class MetaData {
 			fldType.add(lrRset.getInt("java_type"));
 			fldNames.add(lrRset.getString("src_field"));
 			keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
+
+			avroSchema = avroSchema 
+					+ "{\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
 			i++;
 		}
 		//rest line
@@ -480,6 +475,10 @@ class MetaData {
 			//fldNames[i] = lrRset.getString("src_field");
 			fldType.add(lrRset.getInt("java_type"));
 			fldNames.add(lrRset.getString("src_field"));
+
+			avroSchema = avroSchema 
+					+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
+
 			i++;
 			// System.out.println(i);
 		}
@@ -498,7 +497,11 @@ class MetaData {
 		}
 		sqlInsertTarget += ") ";
 		sqlDeleteTarget = "delete " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table") 
-				+ " where " + tblDetailJSON.get("tbl_pk") + "=?"; 
+				+ " where " + tblDetailJSON.get("tbl_pk") + "=?";
+		
+		avroSchema = avroSchema 
+				+ "] }";
+
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -523,6 +526,17 @@ public ArrayList<String> getFldNames() {
 		return sqlInsertTarget;
 	}
 	public String getSQLSelSrc() {
+		//The kind of SQLs are:
+		// - all data in a table
+		// - DCC from a log table
+		// - DCC from a DB2 journal
+		// ... and META_TABLE and META_SRC_TEMPLATE should have enough info to provide
+		//     the right SQL.
+		//Intention:
+		// String strTemplate = "something from META_SRC_TEMPLATE '%(value)' in column # %(column)";
+		// strTemplate = strTemplate.replace("%(value)", x); // 1
+		// strTemplate = strTemplate.replace("%(column)", y); // 2
+		
 		return sqlSelectSource;
 	}
 	public String getSQLSelSrcViaGDTT() {
@@ -843,5 +857,9 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		else
 			return false;
 	}
+
+   public String getAvroSchema(){
+	   return avroSchema;
+	   }
 
 }

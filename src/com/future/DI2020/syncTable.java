@@ -28,6 +28,7 @@ class syncTable {
 
 
 	static String jobID = "syncTbl";
+	static int jobSub=3;
 
 	private int totalDelCnt = 0, totalInsCnt = 0, totalErrCnt = 0;
 
@@ -61,11 +62,18 @@ class syncTable {
 	}
 	static void syncTable(int tID) {
 		int syncSt=2;
-		setup(tID);
+		setup(tID, jobSub);
 
-		ovLogger.info("    START...");
-		int ok = metaData.begin(2);
-		if(ok == 1) {
+		//The idea is to be data driving, but may not useful here ...
+		JSONObject jobDetail = metaData.getJobDetails();
+		//based on jobDetail, do the corresponding...
+case (jobDetail is for replicating DB2/AS400 Key to Vertica):
+case (jobDetail is for replicating Oracle, via trigger&logTbl, to Vertica):
+case (jobDetail is for replicating from DB2/AS400, via KAFKA, to Vertica):		
+		ovLogger.info("    BEGIN.");
+		metaData.begin();
+
+
 			if (auxData == null)
 				syncSt = tgtData.syncDataFrom(srcData);
 			else {
@@ -81,11 +89,8 @@ class syncTable {
 			metaData.end(syncSt);
 			metaData.saveSyncStats();
 			tearDown();
-		} else {
-		   ovLogger.info("Table not in sync mode: " + tableID + " - " + metaData.getTableDetails().get("src_tbl") + ".");
-			//return false;
-		}
-		ovLogger.info("    COMPLETE.");
+
+		ovLogger.info("    END.");
 	}
 
 	private static void setup(int tblID) {
