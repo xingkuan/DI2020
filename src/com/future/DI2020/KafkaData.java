@@ -125,7 +125,7 @@ class KafkaData extends DataPointer {
 		//ProducerRecord<Long, String> aMsg;
 
 	    List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), 
-	        		(String) metaData.getTableDetails().get("SRC_TABLE")+"."+(String) metaData.getTableDetails().get("SRC_TABLE"));     
+	        		(String) metaData.getTableDetails().get("src_schema")+"."+(String) metaData.getTableDetails().get("src_table"));     
 	        
 	    srcData.crtSrcAuxResultSet();  
 	    ResultSet srcRset = srcData.getSrcResultSet();
@@ -167,10 +167,10 @@ class KafkaData extends DataPointer {
         return rtc;
 }
 	
-	protected boolean miscPrep() {
+	protected boolean miscPrep(String jobTempID) {
 		String topic = metaData.getTableDetails().get("src_schema")+"."
 				+metaData.getTableDetails().get("src_table");
-		super.miscPrep();
+		super.miscPrep(jobTempID);
 		createKafkaConsumer(topic);
 		return true;
 	}

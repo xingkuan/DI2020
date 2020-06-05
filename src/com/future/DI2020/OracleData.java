@@ -46,7 +46,7 @@ class OracleData extends DataPointer{
 		   whereClause = " where rrn(a) in (" + rrns + ")";
 	   }
 	   
-      String sqlStr = metaData.getSQLSelSrc() + " " + whereClause;
+      String sqlStr = metaData.getSQLSelSrc(true, true) + " " + whereClause;
       try {
    	   sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
        sqlRset=sqlStmt.executeQuery(sqlStr);

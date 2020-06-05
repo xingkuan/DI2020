@@ -101,7 +101,7 @@ public class RegisterTbl {
 							+ "DCC_DB_ID, DCC_STORE, \n" 
 							+ "TS_REGIST) \n" 
 							+ "values \n"
-							+ "(" + tblID + ", 'D2V', '" + strPK + "', \n" 
+							+ "(" + tblID + ", 'D2V_', '" + strPK + "', \n" 
 							+ "'" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
 							+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
 							+ poolID + ", 0, \n"

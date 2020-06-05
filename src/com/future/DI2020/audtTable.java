@@ -40,7 +40,7 @@ class audtTable {
    //setup the source and target
    private void setup() {
 		ovLogger.info(jobID + " " + tableID);
-		metaData.setupTableJob(jobID, tableID);
+		metaData.setupTableAct(jobID, tableID, 9);  //9: audit
 		ovLogger.info("   " + metaData.getTableDetails().get("src_tbl").toString());
 		
 		JSONObject tblDetail = metaData.getTableDetails();

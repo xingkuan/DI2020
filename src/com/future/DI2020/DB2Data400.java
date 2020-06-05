@@ -25,8 +25,6 @@ class DB2Data400 extends DataPointer {
 	
 	private long seqThisFresh = 0;
 
-	private static final Logger ovLogger = LogManager.getLogger();
-
 	public DB2Data400(String dbid) throws SQLException {
 		super(dbid);
 	}
@@ -34,10 +32,11 @@ class DB2Data400 extends DataPointer {
 		ovLogger.info("   not needed yet");
 	}
 
-	public boolean miscPrep() {
+	public boolean miscPrep(String jTemp) {
 		boolean rtc=false;
-		super.miscPrep();
-		if(metaData.isDCCJob()) { //when jName is set, it must be for sync RRN to Kafka
+		super.miscPrep(jTemp);
+//		if(metaData.isDCCJob()) { 
+		if(jTemp.equals("DJ2K")) { 
 			rtc=initThisRefreshSeq();
 		}
 		return rtc;
@@ -47,13 +46,28 @@ class DB2Data400 extends DataPointer {
 		return srcRS;
 	}
 
-	protected void crtSrcResultSet(String str) {
+	public int crtSrcResultSet(String str) {
 		if(str.equals("")) {
-			String sql = metaData.getSQLSelSrc();
-			SQLtoResultSet(sql);
+			//This complication is to handle both regular SQL and DISPLAY_JOURNAL,
+			//and the the way DISPLAY_JOURNAL could return null unexpectedly.
+			//TODO: move this complexity to DB. ---that is: to be Data Driving!
+			String sql = metaData.getSQLSelSrc(false, false);
+			if((sql==null)||(sql.equals(""))){
+				return -2;
+			}
+			
+			if( !SQLtoResultSet(sql) ) {
+				ovLogger.warn("Failed the 1st trying of initializing src resultset.");
+				sql = metaData.getSQLSelSrc(false, true);
+				if( !SQLtoResultSet(sql) ) {
+					ovLogger.warn("Failed the 2nd time for src resultset. Giveup");
+					return -1;
+				}
+			}
 		}else {
 			//TODO
 		}
+		return 0;
 	}
 	protected void crtSrcResultSetViaDGTT() {
 		String sql = metaData.getSQLSelSrcViaGDTT();
@@ -102,6 +116,7 @@ class DB2Data400 extends DataPointer {
 		//DODO
 	}
 
+	/*
 	public boolean crtSrcDCCResultSet() {
 		boolean rtv=false;
 		String strLastSeq;
@@ -146,8 +161,8 @@ class DB2Data400 extends DataPointer {
 		return rtv;
 		}
 	}
-
-	private void SQLtoResultSet(String sql) {
+*/
+	private boolean SQLtoResultSet(String sql) {
 		try {
 			// String strTS = new
 			// SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(tblMeta.getLastRefresh());
@@ -158,7 +173,9 @@ class DB2Data400 extends DataPointer {
 			}
 		} catch (SQLException e) {
 			ovLogger.error("   " + e);
+			return false;
 		}
+		return true;
 	}
 	public void releaseRSandSTMT() {
 		try {
@@ -400,7 +417,7 @@ class DB2Data400 extends DataPointer {
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'RRN(a) as DB2RRN', 'bigint', "
 					+ "'DB2RRN', 'bigint', "
-					+ "1, dbl) \n;";
+					+ "1, 'dbl') \n;";
 			
 			
 		} catch (SQLException e) {
@@ -420,18 +437,18 @@ class DB2Data400 extends DataPointer {
 				+"'" +  dbID + "', '" + lName + "', '" + jName + "', \n" 
 				+ "'" + dccDBid + "', '*', '*', \n"
 				+ "now())\n"
-				+ "on conflict (src_db_id, src_schema, src_table) do nothing\""
+				+ "on conflict (src_db_id, src_schema, src_table) do nothing"
 				+ ";\n\n";
 
-		String repDCCTblFld = sqlFields
+		sqlFieldsDCC = sqlFieldsDCC
 				+ "("+ (tblID+1) +", " + 1 + ", " 
-				+ "DB2RRN, 'bigint', "
-				+ "1, dbl) \n;";
+				+ "'DB2RRN', 'bigint', "
+				+ "1, 'dbl') \n;";
 		
 		json.put("crtTbl", sqlCrtTbl);
 		json.put("fldSQL", sqlFields);
 		json.put("repDCCTbl", repDCCTbl);
-		json.put("repDCCTblFld", repDCCTblFld);
+		json.put("repDCCTblFld", sqlFieldsDCC);
 
 		return json;
 	}
@@ -483,6 +500,12 @@ class DB2Data400 extends DataPointer {
 
 		return rslt;
 	}
+	
+	public boolean beginDCC(){
+		ovLogger.info("   not applicable to DB2/AS400.");
+		return true;
+	}
+
 	// ..............
 
 	public void commit() throws SQLException {

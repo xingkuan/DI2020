@@ -108,10 +108,10 @@ class MetaData {
 		}
 	}
 
-	public void setupTableJob(String jID, int tblID, int jSub) {
+	public int setupTableAct(String jID, int tblID, int aId) {
 		jobID = jID;
 		tableID = tblID;
-		actID = jSub;
+		actID = aId;
 		
 		tblDetailJSON=null;
 		dccDetailJSON=null;
@@ -123,20 +123,30 @@ class MetaData {
 		lName=null;
 		jName=null;
 		
-		initTableDetails();
-		// actDetailJSON is included in initTableDetails(); 
+		if(initTableDetails() == -1 )
+			return -1;
+		// actDetailJSON is included in initTableDetails();
+		String currState= tblDetailJSON.get("curr_state").toString();
+		if ((currState.equals("")||currState.equals("0") ) &&
+				(aId != 0)) {
+			ovLogger.warn("This table is not enabled yet.");
+			return -1;
+		}
+		if ((!currState.equals("2")) && (aId == 2)) {
+			ovLogger.warn("This table is not enabled yet.");
+			return -1;
+		}
+		
 		initFieldMetaData();
 		
 		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
 		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
 		//if dccData is not from src, eg. Kafka, initialize it here.
-		if(tblDetailJSON.get("dcc_prg_type").toString().equals("Ext Java")) {
-			dccDBDetail = readDBDetails(tblDetailJSON.get("dcc_db_id").toString());
-			initDCCDetails();
-		}
+		return 0;
 	}
 
 	//should be removed!
+	/*
 	public void setupDCCJob(String jID, String srcDB, String l, String j, String tgtDB) {
 		jobID = jID;
 		lName=l;
@@ -162,6 +172,7 @@ class MetaData {
 					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 		tblDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
 	}
+*/
 
 	// return db details as a simpleJSON object, (instead of a Java object, which is
 	// too cumbersome).
@@ -174,28 +185,47 @@ class MetaData {
 
 	// return Table details as a simpleJSON object, (instead of a Java object, which
 	// is too cumbersome).
-	private void initTableDetails() {
+	private int initTableDetails() {
+		JSONArray jo;
 		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
 					"pool_id, init_dt, init_duration, curr_state, src_dcc_pgm, src_dcc_tbl, dcc_db_id, \n" + 
 					"dcc_store, ts_regist, ts_last_ref, seq_last_ref "
 							+ " from meta_table " + " where tbl_id=" + tableID;
-		tblDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
+		jo = SQLtoJSONArray(sql);
+		if(jo.isEmpty()) {
+			ovLogger.error("tableId does not exist.");
+			return -1;
+		}
+		tblDetailJSON = (JSONObject) jo.get(0);
 		
 		Object dccDBIDObj = tblDetailJSON.get("dcc_db_id");
-		if(dccDBIDObj != null) {
-			String journalName=tblDetailJSON.get("src_jurl_name").toString();
+		if(!dccDBIDObj.toString().equals("")) {  //only sync via kafka has it.
+			String journalName=tblDetailJSON.get("src_dcc_tbl").toString();
 			String[] temp = journalName.split("\\.");
 			lName=temp[0]; jName=temp[1];
 			
 		sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
 				+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
 				+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-		dccDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
-		
-		sql= "select desc, stmts from meta_template where temp_id='" 
-					+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
-		actDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
+		jo = SQLtoJSONArray(sql);
+		if(jo.isEmpty()) {
+			ovLogger.error("no log journal.");
+			return -1;
 		}
+		dccDetailJSON = (JSONObject) jo.get(0);
+
+		}
+		
+		sql= "select info, stmts from meta_template where temp_id='" 
+					+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
+		jo = SQLtoJSONArray(sql);
+		if(jo.isEmpty()) {
+			ovLogger.error("action not applicable.");
+			return -1;
+		}
+		actDetailJSON = (JSONObject) jo.get(0);
+
+		return 0;
 	}
 
 	private JSONArray SQLtoJSONArray(String sql) {
@@ -295,10 +325,11 @@ class MetaData {
 		return rtv;
 	}
 	public int begin() {
-		Calendar cal = Calendar.getInstance();
-		startMS = cal.getTimeInMillis();
-		updateCurrState(1);  //indicating table is being worked on
-		return 0;
+			ovLogger.warn(actDetailJSON.get("info").toString());
+			Calendar cal = Calendar.getInstance();
+			startMS = cal.getTimeInMillis();
+			updateCurrState(1);  //indicating table is being worked on
+			return 0;
 	}
 
 	public void end(int state) {
@@ -449,7 +480,7 @@ class MetaData {
 
 		i = 0;
 		lrRset = lrepStmt.executeQuery(
-			  "select tgt_field, src_field, java_type, src_field_type from meta_table_field "
+			  "select src_field, src_field_type, tgt_field, java_type, avro_type from meta_table_field "
 			+ " where tbl_id=" + tableID + " order by field_id");
 
 		//first line
@@ -525,7 +556,7 @@ public ArrayList<String> getFldNames() {
 	public String getSQLInsTgt() {
 		return sqlInsertTarget;
 	}
-	public String getSQLSelSrc() {
+	public String getSQLSelSrc(boolean fast, boolean relaxed) {
 		//The kind of SQLs are:
 		// - all data in a table
 		// - DCC from a log table
@@ -536,8 +567,11 @@ public ArrayList<String> getFldNames() {
 		// String strTemplate = "something from META_SRC_TEMPLATE '%(value)' in column # %(column)";
 		// strTemplate = strTemplate.replace("%(value)", x); // 1
 		// strTemplate = strTemplate.replace("%(column)", y); // 2
-		
-		return sqlSelectSource;
+		if (tblDetailJSON.get("temp_id").toString().equals("DJ2K")) {
+			return getSrcDCCSQL(fast, relaxed); //TODO: move this func database.
+		}else {
+			return sqlSelectSource;
+		}
 	}
 	public String getSQLSelSrcViaGDTT() {
 		return sqlSelectSource + " where " + tblDetailJSON.get("tbl_pk") 
@@ -549,7 +583,7 @@ public ArrayList<String> getFldNames() {
 //	public String getSQLWhereClause() {
 //	return sqlWhereClause;
 //}
-	public String getSrcDCCSQL(boolean fast, boolean relaxed) {
+	private String getSrcDCCSQL(boolean fast, boolean relaxed) {
 		long lasDCCSeq = getDCCSeqLastRefresh();
 		String extWhere="";
 		
@@ -568,7 +602,7 @@ public ArrayList<String> getFldNames() {
 
 		if(relaxed)
 			return " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-					+ " FROM table (Display_Journal('" + lName + "', '" + jName + "', " + "   '', '"
+					+ " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") + "', " + "   '', '"
 					+ currStr + "', " 
 					+ "   cast(null as TIMESTAMP), " + "   cast(null as decimal(21,0)), "
 					+ "   'R', " 
@@ -580,7 +614,7 @@ public ArrayList<String> getFldNames() {
 														// number seems not takining effect
 		else
 			return " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-					+ " FROM table (Display_Journal('" + lName + "', '" + jName + "', " + "   '', '"
+					+ " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") + "', " + "   '', '"
 					+ currStr + "', "
 					+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
 					+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
@@ -598,7 +632,8 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		currStr="";
 	else
 		currStr="*CURCHAIN";
-	return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + lName + "', '" + jName
+	//return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + lName + "', '" + jName
+	return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table")
 			+ "', '', '" + currStr + "', " // it looks like possible the journal can be switched and this SQL return no rows
 			+ " cast(null as TIMESTAMP), " // pass-in the start timestamp;
 			+ " cast(null as decimal(21,0)), " // starting SEQ #
@@ -677,7 +712,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 			repStmt.close();
 			repConn.close();
 		} catch (Exception e) {
-			ovLogger.error("TODO: closed already." + e);
+			ovLogger.warn("TODO: closed already. " + e);
 		}
 
 	}
@@ -694,7 +729,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		ResultSet lrRset=null;
 
 		strSQL = "select src_schema||'.'||src_table from meta_table where src_db_id ='" + dbID
-				+ "' and src_jurl_name='" + journal + "' and tgt_schema !='*' order by 1";
+				+ "' and src_dcc_tbl='" + journal + "' and tgt_schema !='*' order by 1";
 
 		// This shortterm solution is only for Oracle databases (as the source)
 		try {
@@ -850,14 +885,14 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 
 		return rslt;
 	}
-
+/*
 	public boolean isDCCJob() {
 		if (tblDetailJSON.get("tgt_schema").toString().equals("*"))
 			return true;
 		else
 			return false;
 	}
-
+*/
    public String getAvroSchema(){
 	   return avroSchema;
 	   }

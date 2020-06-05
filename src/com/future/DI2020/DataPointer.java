@@ -36,11 +36,12 @@ public class DataPointer {
 	public DataPointer() {
         ovLogger.info("implicit DataPointer constructor.");
 	}
-	public DataPointer(String dbID) throws SQLException {
+	public DataPointer(String dbid) throws SQLException {
 	//protected DataPointer(String url, String cls, String user, String pwd) {
-		JSONObject jo = metaData.readDBDetails(dbID);
-		
-		dbID=jo.get("db_id").toString();
+		JSONObject jo = metaData.readDBDetails(dbid);
+
+		//dbID=jo.get("db_id").toString();
+		this.dbID=dbid;
 		URL=jo.get("db_conn").toString();
 		driver=jo.get("db_driver").toString();
 		userID=jo.get("db_usr").toString();
@@ -115,8 +116,9 @@ public class DataPointer {
 		return true;
 	}
 	//where clause is to be build from catalog
-	protected void crtSrcResultSet(String str) {
+	protected int crtSrcResultSet(String str) {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		return -1;
 	}
 	//where clause compose of the parameter
 	protected ResultSet getSrcResultSet(String qry) {
@@ -138,7 +140,7 @@ public class DataPointer {
 	protected int initDataFrom(DataPointer dt) {
 		return 0;
 	}
-	protected boolean miscPrep() {
+	protected boolean miscPrep(String jobTemplate) {
 		totalErrCnt = 0; totalInsCnt = 0; totalDelCnt = 0; totalSynCnt=0;
 		return true;
 	}
@@ -149,7 +151,7 @@ public class DataPointer {
 		// TODO Auto-generated method stub
 		return false;
 	}
-	protected boolean enableDCC(){
+	protected boolean beginDCC(){
 		ovLogger.info("   should be implemented in child class.");
 		return false;
 	}

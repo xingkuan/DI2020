@@ -37,7 +37,7 @@ class VerticaData extends DataPointer {
 
 	}
 
-	public boolean miscPrep() {
+	public boolean miscPrep(String jobTempId) {
 		// TODO Auto-generated method stub
 		return true;
 	}
@@ -62,7 +62,7 @@ class VerticaData extends DataPointer {
 		// Journal level info. Don't do it here.
 
 		if (totalSynCnt < 0) {
-			metaData.setCurrentState(7); // broken - suspended
+	//		metaData.setCurrentState(7); // broken - suspended
 			rtc = -1;
 		} else {
 			rtc = 2;
