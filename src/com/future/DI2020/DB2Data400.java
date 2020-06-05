@@ -329,7 +329,7 @@ class DB2Data400 extends DataPointer {
 
 
 // methods for registration
-	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		Statement stmt;
 		ResultSet rset = null;
 		JSONObject json = new JSONObject();
@@ -372,7 +372,7 @@ class DB2Data400 extends DataPointer {
 				sDataType = rset.getString("data_type");
 
 				if (sDataType.equals("VARCHAR")) {
-					strDataSpec = "VARCHAR2(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
+					strDataSpec = "VARCHAR(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
 					xType = 1;
 					aDataType = "string";
 				} else if (sDataType.equals("DATE")) {
@@ -410,13 +410,13 @@ class DB2Data400 extends DataPointer {
 						+ rset.getString("column_name") + "', '" + strDataSpec + "', "
 						+ xType + ", '" + aDataType + "'),\n";
 			}
-			sqlCrtTbl = sqlCrtTbl + " DB2RRN long ) \n;";
+			sqlCrtTbl = sqlCrtTbl + " " + PK + " long ) \n;";
 
 			fieldCnt++;
 			sqlFields = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'RRN(a) as DB2RRN', 'bigint', "
-					+ "'DB2RRN', 'bigint', "
+					+ "'"+ PK + "', 'bigint', "
 					+ "1, 'dbl') \n;";
 			
 			
@@ -442,13 +442,13 @@ class DB2Data400 extends DataPointer {
 
 		sqlFieldsDCC = sqlFieldsDCC
 				+ "("+ (tblID+1) +", " + 1 + ", " 
-				+ "'DB2RRN', 'bigint', "
+				+ "'" + PK + "', 'bigint', "
 				+ "1, 'dbl') \n;";
 		
-		json.put("crtTbl", sqlCrtTbl);
-		json.put("fldSQL", sqlFields);
-		json.put("repDCCTbl", repDCCTbl);
-		json.put("repDCCTblFld", sqlFieldsDCC);
+		json.put("tgtTblDDL", sqlCrtTbl);
+		json.put("repTblFldDML", sqlFields);
+		json.put("repDCCDML", repDCCTbl + sqlFieldsDCC);
+		//json.put("repDCCTblFld", sqlFieldsDCC);
 
 		return json;
 	}

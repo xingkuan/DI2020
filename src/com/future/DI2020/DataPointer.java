@@ -73,6 +73,9 @@ public class DataPointer {
 					case "KAFKA":
 						db = new KafkaData(dbid);
 						break;
+					case "ORACLE":
+						db = new OracleData(dbid);
+						break;
 				}
 			} catch (SQLException e) {
 				// TODO Auto-generated catch block
@@ -192,7 +195,7 @@ public class DataPointer {
 
 	
 	// ......
-	protected JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String jurl, String tgtSch, String tgtTbl, String dccDBid){
+	protected JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
 		return null;
 	}
 	

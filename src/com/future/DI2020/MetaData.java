@@ -27,7 +27,7 @@ class MetaData {
 
 	private Connection repConn;
 	private Statement repStmt;
-	private ResultSet rRset;
+	private ResultSet repRSet;
 
 	private int tableID;
 	private String keyFeildType;
@@ -145,46 +145,14 @@ class MetaData {
 		return 0;
 	}
 
-	//should be removed!
-	/*
-	public void setupDCCJob(String jID, String srcDB, String l, String j, String tgtDB) {
-		jobID = jID;
-		lName=l;
-		jName=j;
-		
-		tblDetailJSON=null;
-		dccDetailJSON=null;
-		
-		srcDBDetail=null;
-		dccDBDetail=null;  //not applicable for sync to dcc. The target is dcc, that is Kafka
-		tgtDBDetail=null;
-		//miscValues=null;
-
-		//initFieldMetaData();
-		srcDBDetail = readDBDetails(srcDB);
-		tgtDBDetail = readDBDetails(tgtDB);
-		initDCCDetails();
-		tableID=Integer.valueOf(tblDetailJSON.get("tbl_id").toString());
-	}
-	private void initDCCDetails() {
-		String sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
-					+ " from meta_table " + " where src_db_id='" + srcDBDetail.get("db_id") + "' and src_schema='"
-					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-		tblDetailJSON = (JSONObject) SQLtoJSONArray(sql).get(0);
-	}
-*/
-
-	// return db details as a simpleJSON object, (instead of a Java object, which is
-	// too cumbersome).
+	// return db details as a simpleJSON object, (instead of a cumbersome POJO).
 	public JSONObject readDBDetails(String dbid) {
 		String sql= "select db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd "
 					+ " from meta_db " + " where db_id='" + dbid + "'";
 		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
 		return jo;
 	}
-
-	// return Table details as a simpleJSON object, (instead of a Java object, which
-	// is too cumbersome).
+	// ... and others
 	private int initTableDetails() {
 		JSONArray jo;
 		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
@@ -204,16 +172,15 @@ class MetaData {
 			String[] temp = journalName.split("\\.");
 			lName=temp[0]; jName=temp[1];
 			
-		sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
-				+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
-				+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-		jo = SQLtoJSONArray(sql);
-		if(jo.isEmpty()) {
-			ovLogger.error("no log journal.");
-			return -1;
-		}
-		dccDetailJSON = (JSONObject) jo.get(0);
-
+			sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
+					+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
+					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
+			jo = SQLtoJSONArray(sql);
+			if(jo.isEmpty()) {
+				ovLogger.error("no log journal.");
+				return -1;
+			}
+			dccDetailJSON = (JSONObject) jo.get(0);
 		}
 		
 		sql= "select info, stmts from meta_template where temp_id='" 
@@ -433,36 +400,15 @@ class MetaData {
 		try {
 			stmt = repConn.createStatement();
 			int rslt = stmt.executeUpdate(sql);
+			stmt.close();
+			repConn.commit();
 		} catch (SQLException e) {
 			ovLogger.error(e);
-		} finally {
-			try {
-				stmt.close();
-				repConn.commit();
-			} catch (SQLException e) {
-				ovLogger.error(e);
-			}
-		}
+		} 
 		
 		return true;
 	}
 
-	public void saveAudit(int srcRC, int tgtRC) {
-		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		ovLogger.info(jobID + "source record count: " + srcRC + "     target record count: " + tgtRC);
-//TODO: matrix
-		try {
-			rRset.updateTimestamp("TS_LAST_AUDIT", ts);
-			rRset.updateInt("AUD_SOURCE_RECORD_CNT", srcRC);
-			rRset.updateInt("AUD_TARGET_RECORD_CNT", tgtRC);
-			rRset.updateRow();
-			repConn.commit();
-			// System.out.println("audit info saved");
-		} catch (SQLException e) {
-			ovLogger.error(jobID + e.getMessage());
-		}
-	}
-	
 //	private String sqlWhereClause;
 	// creates select and insert strings
 	private void initFieldMetaData() {
@@ -708,7 +654,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 
 	public void close() {
 		try {
-			rRset.close();
+			repRSet.close();
 			repStmt.close();
 			repConn.close();
 		} catch (Exception e) {
@@ -841,15 +787,14 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 
 		try {
 			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-			rRset = repStmt.executeQuery("select max(table_id) from vertsnap.sync_table ");
+			rRset = repStmt.executeQuery("select max(tbl_id) from meta_table ");
 
 			rRset.next();
 			tblID = rRset.getInt(1);
 			rRset.close();
 			repStmt.close();
-			repConn.close();
 		} catch (SQLException e) {
-			ovLogger.error(e.getMessage());
+			ovLogger.error(e);
 		}
 
 		return tblID + 1;
@@ -869,19 +814,14 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 			if (lrRset.next()) {
 				rslt = false;
 			}
+			lrRset.close();
+			lrepStmt.close();
 		} catch (SQLException se) {
 			ovLogger.error(se);
 		} catch (Exception e) {
 			// Handle errors for Class.forName
 			ovLogger.error(e);
-		} finally {
-			// make sure the resources are closed:
-			try {
-				if (lrepStmt != null)
-					lrepStmt.close();
-			} catch (SQLException se2) {
-			}
-		}
+		} 
 
 		return rslt;
 	}

@@ -121,6 +121,21 @@ values (
 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
 'kafka 1')
 ;
+insert into META_DB (
+  DB_ID,
+  DB_CAT, DB_TYPE,
+  DB_USR, DB_PWD,
+  DB_DRIVER, DB_CONN,
+  DB_INFO)
+values (
+'ORA1', 
+'RDBMS', 'ORACLE',
+'johnlee', 'johnlee213', 
+'oracle.jdbc.OracleDriver',
+'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
+'Oracle Dev')
+;
+--For testing, use schem VERTSNAP.
 
 insert into META_TEMPLATE
 (
