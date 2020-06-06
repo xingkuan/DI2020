@@ -16,8 +16,8 @@ class OracleData extends DataPointer{
 	private ResultSet srcRS = null;
 	
    //public OracleData(String dbID) throws SQLException {
-   public OracleData(JSONObject dbID) throws SQLException {
-		super(dbID);
+   public OracleData(JSONObject dbID, String role) throws SQLException {
+		super(dbID, role);
    }
    protected void initializeFrom(DataPointer dt) {
 		ovLogger.info("   not needed yet");
@@ -72,12 +72,22 @@ class OracleData extends DataPointer{
 	      ResultSet sqlRset;
       int i;
 
+	  String sql;
+      if(dbRole.equals("SRC")) {
+    	  sql="select count(*) from " + metaData.getTableDetails().get("src_schema").toString() 
+		  		+ "." + metaData.getTableDetails().get("src_table").toString();
+      }else if(dbRole.equals("TGT")) {
+    	  sql="select count(*) from " + metaData.getTableDetails().get("tgt_schema").toString() 
+		  		+ "." + metaData.getTableDetails().get("tgt_table").toString();
+      }else {
+    	  ovLogger.error("invalid DB role assignment.");
+    	  return -1;
+      }
+      
       rtv=0;
       try {
     	  sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-
-    	  sqlRset=sqlStmt.executeQuery("select count(*) from " + metaData.getTableDetails().get("src_sch").toString() 
-    			  		+ "." + metaData.getTableDetails().get("src_tbl").toString());
+    	  sqlRset=sqlStmt.executeQuery(sql);
     	  sqlRset.next();
             rtv = Integer.parseInt(sqlRset.getString(1));  
             sqlRset.close();

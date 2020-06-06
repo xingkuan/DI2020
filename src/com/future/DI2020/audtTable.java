@@ -45,10 +45,10 @@ class audtTable {
 		
 		JSONObject tblDetail = metaData.getTableDetails();
 
-		srcData = DataPointer.dataPtrCreater(tblDetail.get("srcDBID").toString());
+		srcData = DataPointer.dataPtrCreater(tblDetail.get("srcDBID").toString(), "SRC");
 		ovLogger.info("   connected to source: " );
 
-		tgtData = DataPointer.dataPtrCreater(tblDetail.get("srcDBID").toString());
+		tgtData = DataPointer.dataPtrCreater(tblDetail.get("srcDBID").toString(), "TGT");
 		ovLogger.info("   connected to target");
    }
 
@@ -65,7 +65,6 @@ class audtTable {
        srcRC=srcData.getRecordCount();
        tgtRC=tgtData.getRecordCount();
 
-       metaData.saveAudit(srcRC, tgtRC);
        rowDiff = srcRC - tgtRC;
 //move to metaData
        /*
@@ -96,8 +95,6 @@ class audtTable {
    }
    */
 
-   
-   
    public void close() {
       ovLogger.info("closing tgt. tblID: " + metaData.getTableID() );
   }

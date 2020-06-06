@@ -25,7 +25,7 @@ class LambdaTry {
 		//try fP
 		//((DB2Data400) srcDB).tryFunctional("aa");
 		//FunctionalTry s = (int x)->x*x ;
-		DataPointer srcDB = DataPointer.dataPtrCreater("DB2D");
+		DataPointer srcDB = DataPointer.dataPtrCreater("DB2D", "SRC");
 		((DB2Data400)srcDB).tryFunctional("srcSch", "srcTbl", "journal" ,(int x)->x*x);
 		
 

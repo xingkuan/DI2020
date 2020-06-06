@@ -43,9 +43,9 @@ class KafkaData extends DataPointer {
 	private List<String> msgKeyList=new ArrayList<String>();
 	
 	//public KafkaData(String dID) throws SQLException {
-	public KafkaData(JSONObject dID) throws SQLException {
+	public KafkaData(JSONObject dID, String role) throws SQLException {
 		// super(dbid, url, cls, user, pwd);
-		super(dID);
+		super(dID, role);
 	}
 
 	//public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {

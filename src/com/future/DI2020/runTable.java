@@ -83,6 +83,9 @@ class runTable {
 			case 4:   //cann't it be handled in case 2?
 				actType4(tID, actId);
 				break;
+			case 9:   //audit
+				actType9(tID, actId);
+				break;
 			default:
 				ovLogger.info("unkown action");
 				break;
@@ -100,18 +103,18 @@ class runTable {
 		JSONObject tblDetail = metaData.getTableDetails();
 
 		//TODO: no need to access JOURNAL! modify to avoid reading max journal seq num!!!
-		srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString());
+		srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 		srcData.miscPrep(tblDetail.get("temp_id").toString());
 		ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 
-		tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString());
+		tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 		tgtData.miscPrep(tblDetail.get("temp_id").toString());
 		tgtData.setupSink();
 		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
 		
 		String auxDBstr = tblDetail.get("dcc_db_id").toString();
 		if((!auxDBstr.equals("")) && (!auxDBstr.equals("na"))) {
-			auxData = DataPointer.dataPtrCreater(auxDBstr);
+			auxData = DataPointer.dataPtrCreater(auxDBstr, "DCC");
 			auxData.miscPrep(tblDetail.get("temp_id").toString());
 			ovLogger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
 		}
@@ -220,6 +223,28 @@ class runTable {
 		tearDown();
 	
 		ovLogger.info("    END.");
+	}
+	private static void actType9(int tID, int actId) {
+		int syncSt=2;
+
+		if(setup(tID, actId)==-1) {
+			return;   // something is not right. Do nothing.
+		}else {
+			ovLogger.info("    BEGIN.");
+			metaData.begin();
+		
+	      int srcRC=srcData.getRecordCount();
+	      int tgtRC=tgtData.getRecordCount();
+	
+			srcData.close();
+			tgtData.close();
+	
+			metaData.end(syncSt);
+			metaData.saveSyncStats();
+			tearDown();
+		
+			ovLogger.info("    END.");
+		}
 	}
 	
 	private static void tearDown() {

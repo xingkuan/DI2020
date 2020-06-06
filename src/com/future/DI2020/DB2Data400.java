@@ -26,8 +26,8 @@ class DB2Data400 extends DataPointer {
 	private long seqThisFresh = 0;
 
 	//public DB2Data400(String dbid) throws SQLException {
-	public DB2Data400(JSONObject dbid) throws SQLException {
-		super(dbid);
+	public DB2Data400(JSONObject dbid, String role) throws SQLException {
+		super(dbid, role);
 	}
 	protected void initializeFrom(DataPointer dt) {
 		ovLogger.info("   not needed yet");
@@ -269,12 +269,23 @@ class DB2Data400 extends DataPointer {
 		int rtv;
 		ResultSet lrRset;
 
+		  String sql;
+	      if(dbRole.equals("SRC")) {
+	    	  sql="select count(*) from " + metaData.getTableDetails().get("src_schema").toString() 
+			  		+ "." + metaData.getTableDetails().get("src_table").toString();
+	      }else if(dbRole.equals("TGT")) {
+	    	  sql="select count(*) from " + metaData.getTableDetails().get("tgt_schema").toString() 
+			  		+ "." + metaData.getTableDetails().get("tgt_table").toString();
+	      }else {
+	    	  ovLogger.error("invalid DB role assignment.");
+	    	  return -1;
+	      }
+
 		rtv = 0;
 		try {
 			Statement sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 
-			lrRset = sqlStmt.executeQuery("select count(*) from " + metaData.getTableDetails().get("src_sch").toString()
-					+ "." + metaData.getTableDetails().get("src_tbl").toString());
+			lrRset = sqlStmt.executeQuery(sql);
 			lrRset.next();
 			rtv = Integer.parseInt(lrRset.getString(1));
 

@@ -15,6 +15,8 @@ import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
 
 public class DataPointer {
+	protected String dbRole;
+	
 	protected String dbID;
 	protected String URL;
 	protected String driver;
@@ -37,9 +39,10 @@ public class DataPointer {
         ovLogger.info("implicit DataPointer constructor.");
 	}
 	//public DataPointer(String dbid) throws SQLException {
-	public DataPointer(JSONObject jo) throws SQLException {
+	public DataPointer(JSONObject jo, String role) throws SQLException {
 		//JSONObject jo = metaData.readDBDetails(dbid);
-
+		dbRole = role;
+		
 		dbID=jo.get("db_id").toString();
 		//this.dbID=dbid;
 		URL=jo.get("db_conn").toString();
@@ -52,7 +55,8 @@ public class DataPointer {
 		connectDB();  
 	}
 	
-	public static DataPointer dataPtrCreater(String dbid) {
+	//role should be SRC, TGT or DCC
+	public static DataPointer dataPtrCreater(String dbid, String role) {
 		DataPointer db;
 		db = dataPtrs.get("dbid");
 		
@@ -65,16 +69,16 @@ public class DataPointer {
 				String dbType=jo.get("db_type").toString();
 				switch(dbType){
 					case "DB2/AS400":
-						db = new DB2Data400(jo);
+						db = new DB2Data400(jo, role);
 						break;
 					case "VERTICA":
-						db = new VerticaData(jo);
+						db = new VerticaData(jo, role);
 						break;
 					case "KAFKA":
-						db = new KafkaData(jo);
+						db = new KafkaData(jo, role);
 						break;
 					case "ORACLE":
-						db = new OracleData(jo);
+						db = new OracleData(jo, role);
 						break;
 				}
 			} catch (SQLException e) {

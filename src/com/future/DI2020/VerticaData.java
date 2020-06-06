@@ -29,8 +29,8 @@ class VerticaData extends DataPointer {
 	private static final Logger ovLogger = LogManager.getLogger();
 
 	//public VerticaData(String dbid) throws SQLException {
-	public VerticaData(JSONObject dbid) throws SQLException {
-		super(dbid);
+	public VerticaData(JSONObject dbid, String role) throws SQLException {
+		super(dbid, role);
 	}
 
 	public void setupSinkData() {
@@ -513,9 +513,12 @@ class VerticaData extends DataPointer {
 
 			while (srcRset.next()) {
 				try {
-					for (i = 1; i <= javaType.size(); i++) {
+					for (i = 1; i <= javaType.size()-1; i++) {  //The last column is the internal key.
+															//for Oracle ROWID, is a special type, let's treat it as String
+															//for uniformity, so are the others. let's see if that is okay.
 							tgtPStmt.setObject(i, srcRset.getObject(i));
 					}
+					tgtPStmt.setString(javaType.size(), srcRset.getString(javaType.size()));
 					//To save a little: the ID field is always the last column!
 					//RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
 					RowIDs[curRecCnt] = srcRset.getString(javaType.size());
@@ -611,12 +614,21 @@ class VerticaData extends DataPointer {
 
 		ResultSet lrRset;
 		int i;
+		  String sql;
+	      if(dbRole.equals("SRC")) {
+	    	  sql="select count(*) from " + metaData.getTableDetails().get("src_schema").toString() 
+			  		+ "." + metaData.getTableDetails().get("src_table").toString();
+	      }else if(dbRole.equals("TGT")) {
+	    	  sql="select count(*) from " + metaData.getTableDetails().get("tgt_schema").toString() 
+			  		+ "." + metaData.getTableDetails().get("tgt_table").toString();
+	      }else {
+	    	  ovLogger.error("invalid DB role assignment.");
+	    	  return -1;
+	      }
 
 		try {
 			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-
-			lrRset = sqlStmt
-					.executeQuery("select count(*) from " + metaData.getTableDetails().get("src_sch").toString() + "." + metaData.getTableDetails().get("src_tbl").toString());
+			lrRset = sqlStmt.executeQuery(sql);
 			if (lrRset.next()) {
 				rtv = Integer.parseInt(lrRset.getString(1));
 			}
