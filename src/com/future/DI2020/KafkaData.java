@@ -11,6 +11,7 @@ import oracle.jdbc.*;
 import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONObject;
 import org.apache.avro.Schema;
 import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -41,8 +42,8 @@ class KafkaData extends DataPointer {
 	//TODO: Int can be more efficient. But about String, like Oracle ROWID?
 	private List<String> msgKeyList=new ArrayList<String>();
 	
-	//public KafkaData(String url, String cls, String user, String pwd) {
-	public KafkaData(String dID) throws SQLException {
+	//public KafkaData(String dID) throws SQLException {
+	public KafkaData(JSONObject dID) throws SQLException {
 		// super(dbid, url, cls, user, pwd);
 		super(dID);
 	}
@@ -124,7 +125,7 @@ class KafkaData extends DataPointer {
 	    String srcTbl;
 		//ProducerRecord<Long, String> aMsg;
 
-	    List<String> tblList = metaData.getDB2TablesOfJournal(metaData.getSrcDBinfo().get("db_id").toString(), 
+	    List<String> tblList = metaData.getDB2TablesOfJournal((String) metaData.getTableDetails().get("src_db_id".toString()), 
 	        		(String) metaData.getTableDetails().get("src_schema")+"."+(String) metaData.getTableDetails().get("src_table"));     
 	        
 	    srcData.crtSrcAuxResultSet();  

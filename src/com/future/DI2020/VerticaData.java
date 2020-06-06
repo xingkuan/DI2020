@@ -28,7 +28,8 @@ class VerticaData extends DataPointer {
 
 	private static final Logger ovLogger = LogManager.getLogger();
 
-	public VerticaData(String dbid) throws SQLException {
+	//public VerticaData(String dbid) throws SQLException {
+	public VerticaData(JSONObject dbid) throws SQLException {
 		super(dbid);
 	}
 

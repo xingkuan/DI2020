@@ -25,7 +25,8 @@ class DB2Data400 extends DataPointer {
 	
 	private long seqThisFresh = 0;
 
-	public DB2Data400(String dbid) throws SQLException {
+	//public DB2Data400(String dbid) throws SQLException {
+	public DB2Data400(JSONObject dbid) throws SQLException {
 		super(dbid);
 	}
 	protected void initializeFrom(DataPointer dt) {

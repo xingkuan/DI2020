@@ -110,7 +110,7 @@ class runTable {
 		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
 		
 		String auxDBstr = tblDetail.get("dcc_db_id").toString();
-		if(!auxDBstr.equals("")) {
+		if((!auxDBstr.equals("")) && (!auxDBstr.equals("na"))) {
 			auxData = DataPointer.dataPtrCreater(auxDBstr);
 			auxData.miscPrep(tblDetail.get("temp_id").toString());
 			ovLogger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());

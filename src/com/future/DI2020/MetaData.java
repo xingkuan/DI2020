@@ -139,8 +139,8 @@ class MetaData {
 		
 		initFieldMetaData();
 		
-		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
-		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
+//		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
+//		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
 		//if dccData is not from src, eg. Kafka, initialize it here.
 		return 0;
 	}
@@ -167,7 +167,8 @@ class MetaData {
 		tblDetailJSON = (JSONObject) jo.get(0);
 		
 		Object dccDBIDObj = tblDetailJSON.get("dcc_db_id");
-		if(!dccDBIDObj.toString().equals("")) {  //only sync via kafka has it.
+		if((!dccDBIDObj.toString().equals("")) && (!dccDBIDObj.toString().equals("na"))
+				) {  //only sync via kafka has it.
 			String journalName=tblDetailJSON.get("src_dcc_tbl").toString();
 			String[] temp = journalName.split("\\.");
 			lName=temp[0]; jName=temp[1];
@@ -246,17 +247,11 @@ class MetaData {
 				}
 				jArray.add(jsonObject);
 			}
+			rset.close();
+			stmt.close();
 		} catch (SQLException e) {
 			ovLogger.error(e);
-		} finally {
-			try {
-			rset.close();
-				stmt.close();
-			} catch (SQLException e) {
-				ovLogger.error(e);
-			}
-		}
-
+		} 
 		return jArray;
 	}
 
@@ -266,12 +261,12 @@ class MetaData {
 	public JSONObject getActDetails() {
 		return actDetailJSON;
 	}
-	public JSONObject getSrcDBinfo() {
-		return srcDBDetail;
-	}
-	public JSONObject getTgtDBinfo() {
-		return tgtDBDetail;
-	}
+//	public JSONObject getSrcDBinfo() {
+//		return srcDBDetail;
+//	}
+//	public JSONObject getTgtDBinfo() {
+//		return tgtDBDetail;
+//	}
 	public JSONObject getMiscValues() {
 		return miscValues;
 	}

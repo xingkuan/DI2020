@@ -36,12 +36,12 @@ public class DataPointer {
 	public DataPointer() {
         ovLogger.info("implicit DataPointer constructor.");
 	}
-	public DataPointer(String dbid) throws SQLException {
-	//protected DataPointer(String url, String cls, String user, String pwd) {
-		JSONObject jo = metaData.readDBDetails(dbid);
+	//public DataPointer(String dbid) throws SQLException {
+	public DataPointer(JSONObject jo) throws SQLException {
+		//JSONObject jo = metaData.readDBDetails(dbid);
 
-		//dbID=jo.get("db_id").toString();
-		this.dbID=dbid;
+		dbID=jo.get("db_id").toString();
+		//this.dbID=dbid;
 		URL=jo.get("db_conn").toString();
 		driver=jo.get("db_driver").toString();
 		userID=jo.get("db_usr").toString();
@@ -65,16 +65,16 @@ public class DataPointer {
 				String dbType=jo.get("db_type").toString();
 				switch(dbType){
 					case "DB2/AS400":
-						db = new DB2Data400(dbid);
+						db = new DB2Data400(jo);
 						break;
 					case "VERTICA":
-						db = new VerticaData(dbid);
+						db = new VerticaData(jo);
 						break;
 					case "KAFKA":
-						db = new KafkaData(dbid);
+						db = new KafkaData(jo);
 						break;
 					case "ORACLE":
-						db = new OracleData(dbid);
+						db = new OracleData(jo);
 						break;
 				}
 			} catch (SQLException e) {

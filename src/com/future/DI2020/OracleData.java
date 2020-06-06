@@ -15,7 +15,8 @@ class OracleData extends DataPointer{
 	private Statement srcSQLStmt = null;
 	private ResultSet srcRS = null;
 	
-   public OracleData(String dbID) throws SQLException {
+   //public OracleData(String dbID) throws SQLException {
+   public OracleData(JSONObject dbID) throws SQLException {
 		super(dbID);
    }
    protected void initializeFrom(DataPointer dt) {
@@ -201,7 +202,8 @@ class OracleData extends DataPointer{
 	   Statement sqlStmt;
 	   try {
 		   sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-		   sqlStmt.executeUpdate("alter trigger "  + metaData.getTableDetails().get("aux_pgm_name").toString() + " enable");
+		   String sql="alter trigger "  + metaData.getTableDetails().get("src_dcc_pgm").toString() + " enable";
+		   sqlStmt.executeUpdate(sql);
 		   sqlStmt.close();
 	   } catch (SQLException e) {
 		   // TODO Auto-generated catch block
