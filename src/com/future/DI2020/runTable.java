@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.sql.*;
 
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -55,6 +56,12 @@ class runTable {
 			System.out.println("Usage:   syncTable <tbl|pool> oId aId");
 			
 	}
+	/* actId:
+	 *     0: enable
+	 *     1: initial copy
+	 *     2: sync
+	 *     9: audit
+	 */
 	static void actOnTables(int poolID, int actId) {
 		List<Integer> tblList = metaData.getTblsByPoolID(poolID);
 		for (int i : tblList) {
@@ -147,9 +154,19 @@ class runTable {
 		}else {
 			ovLogger.info("    BEGIN.");
 			metaData.begin();
-		
-			srcData.crtSrcResultSet("");
+			//get the PRE and AFT sqls from meta:
+			JSONArray preSQLs, aftSQLs;
+			JSONObject sqlJO = metaData.getSrcSQLs(actId, false, false);
+			if((sqlJO==null)||(sqlJO.isEmpty())){
+				ovLogger.error("no SQL found for src resultset.");
+				return;
+			}
+			preSQLs = (JSONArray) sqlJO.get("PRE");
+			//aftSQLs = (JSONArray) sqlJO.get("AFT");
+			
+			srcData.crtSrcResultSet(actId, preSQLs);
 			int state = tgtData.initDataFrom(srcData);
+			//srcData.cleanup(actId, aftSQLs);
 	
 			srcData.close();
 			tgtData.close();
@@ -169,21 +186,49 @@ class runTable {
 		}else {
 			ovLogger.info("    BEGIN.");
 			metaData.begin();
-		
-			int state=srcData.crtSrcResultSet("");
-			if(state==-2) {
-				ovLogger.info("    no change.");
-			}else {
-				state = tgtData.syncDataFrom(srcData);
+			//get the PRE and AFT sqls from meta:
+			JSONArray preSQLs, aftSQLs;
+			JSONObject sqlJO = metaData.getSrcSQLs(actId, false, false);
+			if((sqlJO==null)||(sqlJO.isEmpty())){
+				ovLogger.error("no SQL found for src resultset.");
+				metaData.end(syncSt);
+				return;
 			}
-			srcData.close();
-			tgtData.close();
+			preSQLs = (JSONArray) sqlJO.get("PRE");
+			aftSQLs = (JSONArray) sqlJO.get("AFT");
+			
+			String tempId = metaData.getTableDetails().get("temp_id").toString();
+			switch(tempId) {
+			case "O2V":    //no aux (kafka in between).
+			case "D2V":
+			case "DJ2K":
+				int state=srcData.crtSrcResultSet(actId, preSQLs);
+				if(state<0) {
+					ovLogger.info("    error in source.");
+				}else {
+					state = tgtData.syncDataFrom(srcData);
+					//srcData.afterSync(actId, aftSQLs);
+				}
+				break;
+			case "D2V_":   //DCC keys from kafka
+				auxData.crtAuxSrcAsList();
+				int state=srcData.crtSrcResultSet(actId, preSQLs, auxData);
+				syncSt = tgtData.syncDataViaV2(srcData);
+				break;
+			default:
+				ovLogger.error("wrong template ID");
+				break;
+		}
+		if(aftSQLs != null)	
+			srcData.afterSync(actId, aftSQLs);	
+		srcData.close();
+		tgtData.close();
 	
-			metaData.end(syncSt);
-			metaData.saveSyncStats();
-			tearDown();
+		metaData.end(syncSt);
+		metaData.saveSyncStats();
+		tearDown();
 		
-			ovLogger.info("    END.");
+		ovLogger.info("    END.");
 		}
 	}
 	private static void actType3(int tID, int actId) {

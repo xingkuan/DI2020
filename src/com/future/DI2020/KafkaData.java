@@ -51,7 +51,7 @@ class KafkaData extends DataPointer {
 	//public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
 	public void createKafkaConsumer(String topic) {
 		String consumerGrp = metaData.getJobID() + metaData.getTableID();
-		String cientID = metaData.getJobID();
+		String cientID = metaData.getJobID()+metaData.getTableDetails().get("tbl_id")+"3";
 
 		kafkaMaxPollRecords = Integer.parseInt(conf.getConf("kafkaMaxPollRecords"));
 		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));

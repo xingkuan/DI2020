@@ -387,7 +387,6 @@ class MetaData {
 		runUpdateSQL(sql);
 	}
 
-
 	private boolean runUpdateSQL(String sql) {
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
@@ -400,7 +399,6 @@ class MetaData {
 		} catch (SQLException e) {
 			ovLogger.error(e);
 		} 
-		
 		return true;
 	}
 
@@ -413,7 +411,7 @@ class MetaData {
 
 		avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
 				    + "\"type\": \"record\", \n" 
-				    + "\"name\": \"" + tblDetailJSON.get("src_scheama")+"-"+ tblDetailJSON.get("src_table") + "\", \n" 
+				    + "\"name\": \"" + tblDetailJSON.get("src_schema")+"-"+ tblDetailJSON.get("src_table") + "\", \n" 
 				    + "\"fields\": [ \n" ;
 		
 		try {
@@ -426,14 +424,13 @@ class MetaData {
 
 		//first line
 		if (lrRset.next()) {
-			sqlSelectSource = "select " + lrRset.getString("src_field");
+			sqlSelectSource = "select a." + lrRset.getString("src_field");
 			sqlInsertTarget = "insert into " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table")
 				+ "(\""+ lrRset.getString("tgt_field") + "\""	;
 			//fldType[i] = lrRset.getInt("java_type");
 			//fldNames[i] = lrRset.getString("src_field");
 			fldType.add(lrRset.getInt("java_type"));
 			fldNames.add(lrRset.getString("src_field"));
-			keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 
 			avroSchema = avroSchema 
 					+ "{\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
@@ -441,12 +438,13 @@ class MetaData {
 		}
 		//rest line
 		while (lrRset.next()) {
-			sqlSelectSource += ", " + lrRset.getString("src_field");
+			sqlSelectSource += ", a." + lrRset.getString("src_field");
 			sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
 			//fldType[i] = lrRset.getInt("java_type");
 			//fldNames[i] = lrRset.getString("src_field");
 			fldType.add(lrRset.getInt("java_type"));
 			fldNames.add(lrRset.getString("src_field"));
+			keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 
 			avroSchema = avroSchema 
 					+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
@@ -454,6 +452,7 @@ class MetaData {
 			i++;
 			// System.out.println(i);
 		}
+
 		fldCnt=i;
 		lrRset.close();
 		lrepStmt.close();
@@ -468,7 +467,7 @@ class MetaData {
 			}
 		}
 		sqlInsertTarget += ") ";
-		sqlDeleteTarget = "delete " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table") 
+		sqlDeleteTarget = "delete from " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table") 
 				+ " where " + tblDetailJSON.get("tbl_pk") + "=?";
 		
 		avroSchema = avroSchema 
@@ -480,13 +479,6 @@ class MetaData {
 		}
 
 	}
-	public String getGDTTDDL() {
-	return"DECLARE GLOBAL TEMPORARY TABLE tmp"+tableID + "(" + tblDetailJSON.get("tbl_pk") + " " + keyFeildType + ") " 
-	+" NOT LOGGED";
-}
-	public String getGDTTIns() {
-	return "INSERT INTO tmp" + tableID + " VALUES (?)";
-	}
 //may not needed later on.
 public ArrayList<Integer> getFldJavaType() {
 	return fldType;
@@ -497,34 +489,98 @@ public ArrayList<String> getFldNames() {
 	public String getSQLInsTgt() {
 		return sqlInsertTarget;
 	}
-	public String getSQLSelSrc(boolean fast, boolean relaxed) {
-		//The kind of SQLs are:
-		// - all data in a table
-		// - DCC from a log table
-		// - DCC from a DB2 journal
-		// ... and META_TABLE and META_SRC_TEMPLATE should have enough info to provide
-		//     the right SQL.
-		//Intention:
-		// String strTemplate = "something from META_SRC_TEMPLATE '%(value)' in column # %(column)";
-		// strTemplate = strTemplate.replace("%(value)", x); // 1
-		// strTemplate = strTemplate.replace("%(column)", y); // 2
-		if (tblDetailJSON.get("temp_id").toString().equals("DJ2K")) {
-			return getSrcDCCSQL(fast, relaxed); //TODO: move this func database.
+	//Need to return the right list of SQLs in order to create the needed Resultset:
+	/* - for ACT_ID=1: 
+	 * 		Alway return the sqlSelectSource, generated in initFieldMetaData() 
+	 * - for ACT_ID=2:
+	 * 		For Oracle using trig and log table, (TEMP_ID O2V):
+	 * 			1. update all the log table records
+	 * 			2. add join + where clause to "sqlSelectSource" and return;
+	 * 		  and a statement for cleanup(): delete the processed recoded from the log table;
+	 * - for ACT_ID=2:
+	 * 		For DV2/AS400 journal RRNs to Kafka, (TEMP_ID DJ2K):
+	 * 			return the DISPLAY_JOURNAL sql. 
+	 * 				( need to options to return different versions, for optimal performance reason)
+	 * 		For DV2/AS400 via Kafka, (TEMP_ID D2V_):
+	 *      - if count of keys > threshold:
+	 * 			1. declare a temp_table
+	 * 			2. batch insert the keys into the temp table
+	 * 			3. add the temp_table + to the "sqlSelectSource" and return;
+	 * 		  and a statement for cleanup(): drop the temp_table;
+	 *      - if count of keys < threshold:
+	 * 			1. add the keys to where clause to the "sqlSelectSource" and return;
+	 */
+	public JSONObject getSrcSQLs(int actId, boolean fast, boolean relaxed) {
+		/*
+		 * The design intention: to be template driving.
+		 *   E. g. 
+		 *   String strTemplate = "something from META_SRC_TEMPLATE '%(value)' in column # %(column)";
+		 *   strTemplate = strTemplate.replace("%(value)", x); // 1
+		 *   strTemplate = strTemplate.replace("%(column)", y); // 2
+		 */
+		if(actId==1) {
+			return getAct1SQLs();
+		}else if (actId==2) {	
+			String tempID=tblDetailJSON.get("temp_id").toString();
+			switch(tempID) {   //TODO: move this func database.
+			case "DJ2K":
+				return getDJ2Kact2SQLs(fast, relaxed); 
+				//break;
+			case "D2V_":
+				return getD2V_act2SQLs(fast, relaxed); 
+			case "O2V":
+				return getO2Vact2SQLs(); 
+			default:
+				ovLogger.error("Invalid template.");
+				return null;
+		}
 		}else {
-			return sqlSelectSource;
+			ovLogger.error("Invalid action.");
+			return null;
 		}
 	}
-	public String getSQLSelSrcViaGDTT() {
-		return sqlSelectSource + " where " + tblDetailJSON.get("tbl_pk") 
-			+ " (select " + tblDetailJSON.get("tbl_pk") + " from tmp"+tableID +")";
+	private JSONObject getAct1SQLs() {
+		JSONObject jo = new JSONObject();
+		JSONArray pre = new JSONArray();
+		pre.add(1, sqlSelectSource );
+		jo.put("PRE", pre);
+		
+		return jo;
 	}
-	public String getSQLDelTgt() {
-		return sqlDeleteTarget;
+	private JSONObject getO2Vact2SQLs() {
+		JSONObject jo = new JSONObject();
+		JSONArray pre = new JSONArray();
+		pre.add("update " + tblDetailJSON.get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
+		pre.add(sqlSelectSource + ", " + tblDetailJSON.get("src_dcc_tbl") 
+				+ " b where b.dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') "
+				+ " and a.rowid=b."+tblDetailJSON.get("tbl_pk"));
+		jo.put("PRE", pre);
+		JSONArray aft = new JSONArray();
+		aft.add("delete from " + tblDetailJSON.get("src_dcc_tbl") + " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
+		jo.put("AFT", pre);
+		
+		return jo;
 	}
-//	public String getSQLWhereClause() {
-//	return sqlWhereClause;
-//}
-	private String getSrcDCCSQL(boolean fast, boolean relaxed) {
+	private JSONObject getD2V_act2SQLs(boolean fast, boolean relaxed) { 
+		JSONObject jo = new JSONObject();
+		JSONArray pre = new JSONArray();
+		//1. get keys from Kafka
+		//2. either --- skip it (too complicated). Keep only the following b1 and b2.
+		//     a. compose where clause and add to sqlSelectSource
+		//  or b1. declare temp. tbl and batch the keys
+		String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+tableID + "(" + tblDetailJSON.get("tbl_pk") + " " + keyFeildType + ") " 
+				+" NOT LOGGED"; 
+		pre.add(sql);
+		pre.add("INSERT INTO qtemp.DCC" + tableID + " VALUES (?)" );
+		sql = sqlSelectSource + ", qtemp.DCC"+tableID + " b "
+				+ " where a..rrn(a)=b." +tblDetailJSON.get("tbl_pk");  //TOTO: may have problem!
+		pre.add(sql)
+;
+		jo.put("PRE", pre);
+
+		return jo;
+	}
+	public JSONObject getDJ2Kact2SQLs(boolean fast, boolean relaxed) {  //"public" as an hacker
 		long lasDCCSeq = getDCCSeqLastRefresh();
 		String extWhere="";
 		
@@ -535,14 +591,17 @@ public ArrayList<String> getFldNames() {
 			extWhere = " and SEQUENCE_NUMBER <=" + seqThisRef; 
 		}
 		
+		String sql;
 		String currStr;
 		if(fast)
 			currStr="";
 		else
 			currStr="*CURCHAIN";
 
-		if(relaxed)
-			return " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
+		JSONObject jo = new JSONObject();
+		JSONArray pre = new JSONArray();
+		if(relaxed) {
+			sql= " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
 					+ " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") + "', " + "   '', '"
 					+ currStr + "', " 
 					+ "   cast(null as TIMESTAMP), " + "   cast(null as decimal(21,0)), "
@@ -552,9 +611,13 @@ public ArrayList<String> getFldNames() {
 					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
 					+ extWhere 
 					+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
-														// number seems not takining effect
-		else
-			return " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
+										 // number seems not takining effect
+			pre.add(1, sql );
+			jo.put("PRE", pre);
+
+			return jo;
+		}else
+			sql = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
 					+ " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") + "', " + "   '', '"
 					+ currStr + "', "
 					+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
@@ -566,7 +629,15 @@ public ArrayList<String> getFldNames() {
 					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
 					+ extWhere
 					+ " order by 2 asc";
+		pre.add(sql );
+		jo.put("PRE", pre);
+
+		return jo;
 	}
+	public String getSQLDelTgt() {
+		return sqlDeleteTarget;
+	}
+
 public String getSrcDCCThisSeqSQL(boolean fast) {
 	String currStr;
 	if(fast)

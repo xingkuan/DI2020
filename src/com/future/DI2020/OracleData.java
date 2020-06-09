@@ -8,6 +8,7 @@ import oracle.jdbc.*;
 import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.apache.logging.log4j.LogManager;
 
@@ -34,26 +35,20 @@ class OracleData extends DataPointer{
 	public ResultSet getSrcResultSet() {
 		return srcRS;
 	}
-	public int crtSrcResultSet(String str) {
-		if(str.equals("")) {  //DB2 has some complication.
-			//But for Oracle (trig based, it should be simpler. and parm "str" should always be ""
-			//TODO: move this complexity to DB. ---that is: to be Data Driving!
-			String sql = metaData.getSQLSelSrc(false, false);
-			if((sql==null)||(sql.equals(""))){
-				return -2;
-			}
-			
-			if( !SQLtoResultSet(sql) ) {
-			}
-		}else {
-			//TODO
+	public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
+		String sql;
+		for (int i = 0; i < jaSQLs.size()-1; i++) {
+			sql = jaSQLs.get(i).toString();
+			runUpdateSQL(sql);
+		}
+		sql=jaSQLs.get(jaSQLs.size()-1).toString();
+		if( !SQLtoResultSet(sql) ) {
+			return -1;
 		}
 		return 0;
 	}
 	private boolean SQLtoResultSet(String sql) {
 		try {
-			// String strTS = new
-			// SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(tblMeta.getLastRefresh());
 			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			srcRS = srcSQLStmt.executeQuery(sql);
 			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
@@ -223,6 +218,28 @@ class OracleData extends DataPointer{
 	   ovLogger.info("   trigger is enabled..");
 		
 	   return true;
+	}
+	protected void afterSync(int actId, JSONArray jaSQLs){
+		String sql;
+		for (int i = 0; i < jaSQLs.size(); i++) {
+			sql = jaSQLs.get(i).toString();
+			runUpdateSQL(sql);
+		}
+	}
+
+	private boolean runUpdateSQL(String sql) {
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt=null; 
+		try {
+			stmt = dbConn.createStatement();
+			int rslt = stmt.executeUpdate(sql);
+			stmt.close();
+			dbConn.commit();
+		} catch (SQLException e) {
+			ovLogger.error(e);
+		} 
+		return true;
 	}
 
    public void commit() throws SQLException {

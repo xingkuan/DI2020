@@ -12,6 +12,7 @@ import java.util.Map;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 public class DataPointer {
@@ -112,6 +113,7 @@ public class DataPointer {
 	}
 	}
 	protected void crtSrcResultSet(List<String >keys) {
+		ovLogger.info("   Need implementation in child.");
 	}
 	protected void dropStaleRowsOfList(List<String> keys) {
 	}
@@ -123,7 +125,7 @@ public class DataPointer {
 		return true;
 	}
 	//where clause is to be build from catalog
-	protected int crtSrcResultSet(String str) {
+	protected int crtSrcResultSet(int actId, JSONArray jo) {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return -1;
 	}
@@ -162,7 +164,9 @@ public class DataPointer {
 		ovLogger.info("   should be implemented in child class.");
 		return false;
 	}
-
+	protected void afterSync(int actId, JSONArray aftSQLs){
+		ovLogger.info("   should be implemented in child class.");
+	}
 	protected void close() {
 		
 	}
@@ -176,10 +180,10 @@ public class DataPointer {
 		// TODO Auto-generated method stub
 		return 0;
 	}
-	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
+//	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
+//		// TODO Auto-generated method stub
+//		return 0;
+//	}
 	public int syncDataViaV2(DataPointer srcData, DataPointer auxData) {
 		// TODO Auto-generated method stub
 		return 0;

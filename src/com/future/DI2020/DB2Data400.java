@@ -6,6 +6,7 @@ import java.text.*;
 import java.sql.*;
 
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
@@ -46,75 +47,50 @@ class DB2Data400 extends DataPointer {
 	public ResultSet getSrcResultSet() {
 		return srcRS;
 	}
-
-	public int crtSrcResultSet(String str) {
-		if(str.equals("")) {
-			//This complication is to handle both regular SQL and DISPLAY_JOURNAL,
-			//and the the way DISPLAY_JOURNAL could return null unexpectedly.
-			//TODO: move this complexity to DB. ---that is: to be Data Driving!
-			String sql = metaData.getSQLSelSrc(false, false);
-			if((sql==null)||(sql.equals(""))){
-				return -2;
-			}
-			
-			if( !SQLtoResultSet(sql) ) {
+	public void crtSrcResultSet(List<String >keys) {
+		ovLogger.info("   Need implementation in child.");
+	}
+	public int crtSrcResultSet(int act, JSONArray jaSQLs) {
+		String sql;
+		for (int i = 0; i < jaSQLs.size()-1; i++) {
+			sql = jaSQLs.get(i).toString();
+			runUpdateSQL(sql);
+		}
+		sql=jaSQLs.get(jaSQLs.size()-1).toString();
+		if( !SQLtoResultSet(sql) ) {  // DB2AS400 journal, double check with relaxed "display_journal"
+			if(metaData.getTableDetails().get("temp_id").toString().equals("DJ2K")) {
 				ovLogger.warn("Failed the 1st trying of initializing src resultset.");
-				sql = metaData.getSQLSelSrc(false, true);
+				JSONArray ja = (JSONArray) metaData.getDJ2Kact2SQLs(false, true).get("PRE");
+				sql=ja.get(0).toString();
 				if( !SQLtoResultSet(sql) ) {
 					ovLogger.warn("Failed the 2nd time for src resultset. Giveup");
 					return -1;
 				}
 			}
-		}else {
-			//TODO
 		}
 		return 0;
 	}
-	protected void crtSrcResultSetViaDGTT() {
-		String sql = metaData.getSQLSelSrcViaGDTT();
-		SQLtoResultSet(sql);
-	}
-	public void crtSrcResultSet(List<String> keys) {
-		int tempTblThresh = Integer.parseInt(conf.getConf("tempTblThresh"));
-		//Two different ways of create the resultset:
-		if(keys.size() < tempTblThresh) {
-			//1: simply pass the key as "in (par, par, ...)" clause.
-			String ins="(";
-			for (int i=0; i< keys.size()-1; i++) {
-				ins = ins + "'" + keys.get(i) + "', ";
-			}
-			ins = ins + "'" + keys.get(keys.size()-1) + "')";
-			crtSrcResultSet(ins);
-		}else {
-			//2: use temp table in source DB
-			//Firstly: declare a DGTT
-			String gdttDDL=metaData.getGDTTDDL();
-			String gdttIns=metaData.getGDTTIns();
-
-			try {
-				dbConn.setAutoCommit(false);
-		    Statement stmt = dbConn.createStatement();
-		    stmt.execute(gdttDDL);
-		    dbConn.commit();
-			//insert into DGTT
-			PreparedStatement prepStmt = dbConn.prepareStatement( gdttIns);
-			long lKey;
-			for (String key:keys){
-				lKey = Long.valueOf(key);
-				prepStmt.setLong(1,lKey);
-				prepStmt.addBatch();
-			}
-			int [] numUpdates=prepStmt.executeBatch(); 
-			} catch (SQLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-			//Join the DGTT --> crtSr Resultset
-			crtSrcResultSetViaDGTT();
+	protected void afterSync(int actId, JSONArray jaSQLs){
+		String sql;
+		for (int i = 0; i < jaSQLs.size(); i++) {
+			sql = jaSQLs.get(i).toString();
+			runUpdateSQL(sql);
 		}
 	}
-	public void dropStaleRowsOfList(List<String> keys) {
-		//DODO
+
+	private boolean runUpdateSQL(String sql) {
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt=null; 
+		try {
+			stmt = dbConn.createStatement();
+			int rslt = stmt.executeUpdate(sql);
+			stmt.close();
+			dbConn.commit();
+		} catch (SQLException e) {
+			ovLogger.error(e);
+		} 
+		return true;
 	}
 
 	/*
