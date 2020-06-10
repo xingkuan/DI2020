@@ -13,12 +13,22 @@ import oracle.jdbc.pool.OracleDataSource;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
 import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericData;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericDatumWriter;
 import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.BinaryEncoder;
+import org.apache.avro.io.DatumReader;
+import org.apache.avro.io.DatumWriter;
+import org.apache.avro.io.DecoderFactory;
+import org.apache.avro.io.EncoderFactory;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.clients.producer.Callback;
 import org.apache.kafka.clients.producer.KafkaProducer;
+import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
@@ -229,10 +239,47 @@ class KafkaData extends DataPointer {
 	public void setupSink() {
 		createKafkaProducer();
 	}
-	
-	/*
+
+	// ------ AVRO related --------------------------------------------------------------------
+	   Properties propsP = new Properties();
+	  {
+		    propsP.put("bootstrap.servers", "dbatool03:9092");
+		    propsP.put("acks", "all");
+		    propsP.put("retries", 0);
+		    propsP.put("batch.size", 16384);
+		    propsP.put("linger.ms", 1);
+		    propsP.put("buffer.memory", 33554432);
+		    propsP.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
+		    propsP.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
+	  }
+	void testProducer(ResultSet rs){
+		  Schema schema;
+		  GenericRecord avroRec;
+		//  Producer<String, byte[]> producer = null;
+		  try {
+			//schema = new Schema.Parser().parse(new File("user.avsc"));
+			schema = new Schema.Parser().parse(metaData.getAvroSchema());
+
+	       while ( rs.next() ) {
+	          // int cnt = rs.getInt("cnt");
+	           System.out.println(rs.getString("name"));
+	           
+           avroRec = new GenericData.Record(schema);
+	   		avroRec.put(1, rs.getString(1));
+	   		avroRec.put(2, rs.getInt(2));
+	   		avroRec.put(3, rs.getString(3));
+
+	   		writeKafka(avroRec, schema);
+	   		//byte[] myvar = avroToBytes(avroRec, schema);
+	   		//writeKafka(myvar);   
+	       }
+		  } catch (SQLException e) {
+			  
+		  }
+	}
+
 	public int writeKafka(byte[] myvar) {
-	Producer<String, byte[]> 	producer = new KafkaProducer<String, byte[]>(props);
+	Producer<String, byte[]> 	producer = new KafkaProducer<String, byte[]>(propsP);
 	  try {
         System.out.println("Sending message in bytes : " + myvar);
         System.out.println("... : " + java.util.Arrays.toString(myvar));
@@ -245,170 +292,90 @@ class KafkaData extends DataPointer {
 	  return 0;
   }
 
+	
 	public int writeKafka(GenericRecord avroRec, Schema schema) {
 		byte[] myvar = avroToBytes(avroRec, schema);
 		
-	Producer<String, byte[]> 	producer = new KafkaProducer<String, byte[]>(props);
+	Producer<String, byte[]> 	producer = new KafkaProducer<String, byte[]>(propsP);
 	  try {
-       System.out.println("Sending message in bytes : " + myvar);
-       System.out.println("... : " + java.util.Arrays.toString(myvar));
-       ProducerRecord<String, byte[]> rec = new ProducerRecord<>("tes", myvar);
-       producer.send(rec);
-	} finally {
+		  ProducerRecord<String, byte[]> rec = new ProducerRecord<>("tes", myvar);
+		  producer.send(rec);
+	  	} finally {
 	      producer.close();
 	    }	
-	  
 	  return 0;
- }
-	  private byte[] avroToBytes(GenericRecord avroRec, Schema schema){
-		  byte[] myvar=null;
+	}
+	private byte[] avroToBytes(GenericRecord avroRec, Schema schema){
+	  byte[] myvar=null;
 		
-		  DatumWriter<GenericRecord> writer = new GenericDatumWriter<GenericRecord>(schema);
-		  ByteArrayOutputStream out = new ByteArrayOutputStream();
-	      BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
+	  DatumWriter<GenericRecord> writer = new GenericDatumWriter<GenericRecord>(schema);
+	  ByteArrayOutputStream out = new ByteArrayOutputStream();
+	  BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
 	      
-	      try {
-			writer.write(avroRec, encoder);
-		
-	      encoder.flush();
-	      myvar = out.toByteArray();
-	      } catch (IOException e) {
-	  		// TODO Auto-generated catch block
-	  		e.printStackTrace();
-	  	}
-		return myvar;
-		  
-	  }
-
-	
-private void consumer() {	  
-	...
-	    props.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-
-	    KafkaConsumer<String, byte[]> kafkaConsumer = new KafkaConsumer<String, byte[]>(props);
-	    //kafkaConsumer.subscribe(Arrays.asList("tes"));
-	    kafkaConsumer.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
-	    
-		try {
-			Schema schema = new Schema.Parser().parse(new File("user.avsc"));
-			
-			DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
-
-
-		ByteArrayInputStream in;
-	    while (true) {
-	      ConsumerRecords<String, byte[]> records = kafkaConsumer.poll(100);
-	      for (ConsumerRecord<String, byte[]> record : records) {
-	    	  
-	        System.out.println("Partition: " + record.partition() 
-	            + " Offset: " + record.offset()
-	            + " Value: " + java.util.Arrays.toString(record.value()) 
-	            + " ThreadID: " + Thread.currentThread().getId()  );
-
-	    	in = new ByteArrayInputStream(record.value());
-	  		BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
-	  		
-	  		GenericRecord a = reader.read(null, decoder);
-	  		System.out.println(a);
-	  		System.out.println(a.get("name"));
-	  		System.out.println(a.get("favorite_number"));
-	  		System.out.println(a.get("favorite_color"));
-	      }
-	    }
-		} catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	  }
-public void testConsumer() {
-...
-	props.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
-
-KafkaConsumer<String, byte[]> kafkaConsumer = new KafkaConsumer<String, byte[]>(props);
-//kafkaConsumer.subscribe(Arrays.asList("tes"));
-kafkaConsumer.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
-
-try {
-	Schema schema = new Schema.Parser().parse(new File("user.avsc"));
-	
-	DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
-
-
-ByteArrayInputStream in;
-while (true) {
-  ConsumerRecords<String, byte[]> records = kafkaConsumer.poll(100);
-  for (ConsumerRecord<String, byte[]> record : records) {
-	  
-    System.out.println("Partition: " + record.partition() 
-        + " Offset: " + record.offset()
-        + " Value: " + java.util.Arrays.toString(record.value()) 
-        + " ThreadID: " + Thread.currentThread().getId()  );
-
-	in = new ByteArrayInputStream(record.value());
-		BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
-		
-		GenericRecord a = reader.read(null, decoder);
-		System.out.println(a);
-		System.out.println(a.get("name"));
-		System.out.println(a.get("favorite_number"));
-		System.out.println(a.get("favorite_color"));
-  }
-}
-} catch (IOException e) {
-	// TODO Auto-generated catch block
-	e.printStackTrace();
-}
-}
-void testProducer(){
-	  Schema schema;
-	  GenericRecord avroRec;
-	//  Producer<String, byte[]> producer = null;
 	  try {
-		schema = new Schema.Parser().parse(new File("user.avsc"));
-		///////
-    	 MetaRep rep = new MetaRep();
-    	 String strSch = rep.getAvroSchema("user");
-    	 Schema schema = new Schema.Parser().parse(strSch);
-    	GenericRecord avroRec;
-       while ( rs.next() ) {
-          // int cnt = rs.getInt("cnt");
-           System.out.println(rs.getString("name"));
-           
-           avroRec = new GenericData.Record(schema);
-   		avroRec.put("name", rs.getString("name"));
-   		avroRec.put("favorite_number", rs.getInt("fav_num"));
-   		avroRec.put("favorite_color", rs.getString("fav_col"));
-
-   		System.out.println("Original Message : "+ avroRec);
-   		
-   		kafka.writeKafka(avroRec, schema);
-           
-       }
-
-		///////
+		writer.write(avroRec, encoder);
 		
-		
-		avroRec = new GenericData.Record(schema);
-		avroRec.put("name", "Ben");
-		avroRec.put("favorite_number", 7);
-		avroRec.put("favorite_color", "red");
-
-		System.out.println("Original Message : "+ avroRec);
-		
-		byte[] myvar = avroToBytes(avroRec, schema);
-
-		writeKafka(myvar);
-
+	    encoder.flush();
+	    myvar = out.toByteArray();
 	  } catch (IOException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		} finally {
-		 //     producer.close();
-		    }
-	  
-}
-*/ 
-	public void close() {
+  		e.printStackTrace();
+  	}
+	return myvar;
+  }
+
+	
+	
+	
+    Properties propsC = new Properties();
+    {
+    propsC.put("bootstrap.servers", "usir1xrvkfk01:9092");
+    propsC.put("group.id", "group-1");
+    propsC.put("enable.auto.commit", "true");
+    propsC.put("auto.commit.interval.ms", "1000");
+    propsC.put("auto.offset.reset", "earliest");
+    propsC.put("session.timeout.ms", "30000");
+    propsC.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+    }
+	public void testConsumer() {
+		propsC.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
+
+	KafkaConsumer<String, byte[]> kafkaConsumer = new KafkaConsumer<String, byte[]>(propsC);
+	//kafkaConsumer.subscribe(Arrays.asList("tes"));
+	kafkaConsumer.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
+
+	try {
+		Schema schema = new Schema.Parser().parse(new File("user.avsc"));
+		
+		DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+
+	ByteArrayInputStream in;
+	while (true) {
+	  ConsumerRecords<String, byte[]> records = kafkaConsumer.poll(100);
+	  for (ConsumerRecord<String, byte[]> record : records) {
+		  
+	    System.out.println("Partition: " + record.partition() 
+	        + " Offset: " + record.offset()
+	        + " Value: " + java.util.Arrays.toString(record.value()) 
+	        + " ThreadID: " + Thread.currentThread().getId()  );
+
+		in = new ByteArrayInputStream(record.value());
+			BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
+			
+			GenericRecord a = reader.read(null, decoder);
+			System.out.println(a);
+			System.out.println(a.get(1));
+			System.out.println(a.get(2));
+			System.out.println(a.get(3));
+	  }
+	}
+	} catch (IOException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
+	}
+
+//--------------------------------------------------------------------------------------------------------
+public void close() {
 		try {
 		consumer.close();
 		producer.close();
@@ -416,37 +383,4 @@ void testProducer(){
 			ovLogger.info("      nothing to close.");
 		}
 	}
-	/*
-	 * public boolean tblRefreshTry() { KafkaConsumer<Long, String> consumerx =
-	 * createKafkaConsumer("JOHNLEE2.TESTTBL2");
-	 * 
-	 * int noRecordsCount=0, cntRRN=0; int giveUp=10; String rrnList=""; long
-	 * lastJournalSeqNum=0l;
-	 * 
-	 * while (true) { ConsumerRecords<Long, String> records = consumerx.poll(0);
-	 * 
-	 * if (records.count()==0) { noRecordsCount++; if (noRecordsCount > giveUp)
-	 * break; else continue; }
-	 * 
-	 * for (ConsumerRecord<Long, String> record : records) {
-	 * //System.out.printf("offset = %d, key = %s, value = %s%n", record.offset(),
-	 * record.key(), record.value()); if(cntRRN==0) rrnList = record.value(); else
-	 * rrnList = rrnList + "," + record.value(); lastJournalSeqNum=record.key();
-	 * cntRRN++; }
-	 * 
-	 * //in case there are more in Kafka broker: rrnList=""; noRecordsCount=0;
-	 * 
-	 * for (ConsumerRecord<Long, String> record : records) {
-	 * 
-	 * System.out.println("key: " + record.key()); System.out.println("value: " +
-	 * record.value());
-	 * 
-	 * System.out.println("Partition: " + record.partition() + " Offset: " +
-	 * record.offset() + " Value: " + record.value() + " ThreadID: " +
-	 * Thread.currentThread().getId() );
-	 * 
-	 * } }
-	 * 
-	 * return true; }
-	 */
 }

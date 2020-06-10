@@ -144,8 +144,9 @@ class runTable {
 		JSONObject tblDetail = metaData.getTableDetails();
 		String actTemp = tblDetail.get("temp_id").toString();
 		switch(actTemp) {
+		case "O2K":   //replicate records to kafka.
 		case "O2V":
-		case "DJ2K":
+		case "DJ2K":  //replicate key to kafka
 			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
 			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
@@ -155,6 +156,7 @@ class runTable {
 				return 0;  
 			}
 			break;
+		case "D2K_":   //replicate records to kafka, via keys in Kafka
 		case "D2V_":
 			String auxDBstr = tblDetail.get("dcc_db_id").toString();
 			auxData = DataPointer.dataPtrCreater(auxDBstr, "DCC");
