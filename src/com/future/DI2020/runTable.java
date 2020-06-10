@@ -36,6 +36,12 @@ class runTable {
 	private int kafkaMaxPollRecords;
 	private int pollWaitMil;
 
+	/* actId:
+	 *     0: enable
+	 *     1: initial copy
+	 *     2: sync
+	 *     9: audit
+	 */
 	public static void main(String[] args) {
 		System.out.println(args.length);
 
@@ -56,12 +62,6 @@ class runTable {
 			System.out.println("Usage:   syncTable <tbl|pool> oId aId");
 			
 	}
-	/* actId:
-	 *     0: enable
-	 *     1: initial copy
-	 *     2: sync
-	 *     9: audit
-	 */
 	static void actOnTables(int poolID, int actId) {
 		List<Integer> tblList = metaData.getTblsByPoolID(poolID);
 		for (int i : tblList) {
@@ -272,8 +272,6 @@ class runTable {
 		}
 		if(aftSQLs != null)	
 			srcData.afterSync(actId, aftSQLs);	
-		srcData.close();
-		tgtData.close();
 	
 		metaData.end(syncSt);
 		metaData.saveSyncStats();

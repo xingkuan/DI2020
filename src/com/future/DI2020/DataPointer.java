@@ -56,6 +56,10 @@ public class DataPointer {
 		connectDB();  
 	}
 	
+	public String getDBType() {
+		return dbType;
+	}
+	
 	//role should be SRC, TGT or DCC
 	public static DataPointer dataPtrCreater(String dbid, String role) {
 		DataPointer db;
@@ -146,7 +150,7 @@ public class DataPointer {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return null;
 	}
-	protected List<String> getSrcResultList(){
+	protected List<String> getDCCKeyList(){
 		ovLogger.info("   empty getSrcResultList() in DataPointer.");
 		return null;
 	}

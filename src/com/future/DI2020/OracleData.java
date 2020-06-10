@@ -74,8 +74,8 @@ class OracleData extends DataPointer{
 
    public int getRecordCount(){
       int rtv;
-	   Statement sqlStmt;
-	      ResultSet sqlRset;
+	  Statement sqlStmt;
+	  ResultSet sqlRset;
       int i;
 
 	  String sql;
@@ -104,6 +104,28 @@ class OracleData extends DataPointer{
       return rtv;
    }
    
+	public List<String> getDCCKeyList(){
+		List<String> keyList=new ArrayList<String>();
+
+	    Statement stmt1;
+ 	    ResultSet rs1;
+		String sql1 = "select distinct orarid from " 
+					+ metaData.getTableDetails().get("src_dcc_tbl") 
+					+ " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')";
+		try {
+			stmt1 = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			rs1 = stmt1.executeQuery(sql1);
+			while(rs1.next())
+				keyList.add(rs1.getString(1));
+			rs1.close();
+			stmt1.close();
+		} catch (SQLException e) {
+			ovLogger.error("   " + e);
+		}
+
+		return keyList;
+	}
+
    
 // methods for registration
 	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {

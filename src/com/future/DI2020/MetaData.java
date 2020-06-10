@@ -167,8 +167,8 @@ class MetaData {
 		JSONArray jo;
 		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
 					"pool_id, init_dt, init_duration, curr_state, src_dcc_pgm, src_dcc_tbl, dcc_db_id, \n" + 
-					"dcc_store, ts_regist, ts_last_ref, seq_last_ref "
-							+ " from meta_table " + " where tbl_id=" + tableID;
+					"dcc_store, ts_regist, ts_last_ref, seq_last_ref, db_type "
+							+ " from meta_table a, meta_db b " + " where a.src_db_id=b.db_id and tbl_id=" + tableID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
 			ovLogger.error("tableId does not exist.");
@@ -271,16 +271,10 @@ class MetaData {
 	public JSONObject getActDetails() {
 		return actDetailJSON;
 	}
-//	public JSONObject getSrcDBinfo() {
-//		return srcDBDetail;
-//	}
-//	public JSONObject getTgtDBinfo() {
-//		return tgtDBDetail;
-//	}
 	public JSONObject getMiscValues() {
 		return miscValues;
 	}
-	public boolean tblReadyForInit() {
+/*	public boolean tblReadyForInit() {
 		boolean rtv=true;
 		
 		String srcDBt=srcDBDetail.get("db_type").toString();
@@ -295,7 +289,7 @@ class MetaData {
 			}
 		}	
 		return rtv;
-	}
+	}*/
 	public int begin() {
 			ovLogger.warn(actDetailJSON.get("info").toString());
 			Calendar cal = Calendar.getInstance();
@@ -412,8 +406,7 @@ class MetaData {
 		return true;
 	}
 
-//	private String sqlWhereClause;
-	// creates select and insert strings
+	// TODO: move most code into DB as as part of registering table.
 	private void initFieldMetaData() {
 		Statement lrepStmt;
 		ResultSet lrRset;
@@ -446,9 +439,14 @@ class MetaData {
 					+ "{\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
 			i++;
 		}
-		//rest line
-		while (lrRset.next()) {
-			sqlSelectSource += ", a." + lrRset.getString("src_field");
+		//rest line (but not the last)
+		while (lrRset.next() ) {   
+			if( lrRset.isLast() &&                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
+				(tblDetailJSON.get("db_type").toString().contains("DB2/AS400"))){  // but "a." is needed for Oracle.
+				sqlSelectSource += ", " + lrRset.getString("src_field");
+			}else {
+				sqlSelectSource += ", a." + lrRset.getString("src_field");
+			}
 			sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
 			//fldType[i] = lrRset.getInt("java_type");
 			//fldNames[i] = lrRset.getString("src_field");
@@ -567,7 +565,7 @@ public ArrayList<String> getFldNames() {
 		jo.put("PRE", pre);
 		JSONArray aft = new JSONArray();
 		aft.add("delete from " + tblDetailJSON.get("src_dcc_tbl") + " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-		jo.put("AFT", pre);
+		jo.put("AFT", aft);
 		
 		return jo;
 	}

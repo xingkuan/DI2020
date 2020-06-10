@@ -85,7 +85,12 @@ class VerticaData extends DataPointer {
 	// when log table is inserted from trigger
 	public int syncDataFrom(DataPointer srcData) {
 		int rtc=0;
-
+	/* other than the src resultset, also create a KEY list from srcData,
+	 * which is used to delete the stalerows in tgt.
+	 */
+		List<String> keyList = srcData.getDCCKeyList();
+		dropStaleRowsOfList(keyList);
+		
 		// where clause is to be composed from log table
 		ResultSet rsltSet = srcData.getSrcResultSet();
 		rtc = syncDataFromV2(rsltSet, 2);  //2 for sync
@@ -178,42 +183,23 @@ class VerticaData extends DataPointer {
 
 	public int syncDataViaV2(DataPointer srcData, DataPointer auxData) {
 		int rtc = 2;
-		List<String> keys = auxData.getSrcResultList();
+		List<String> keys = auxData.getDCCKeyList();
 		/* Drop the idea of using where key in (....) for small list;
 		 *   The code becomes too complicated if I do.
 		 */
 		if(keys.size()>0) {
 			//Thread 1: Ask srdData to select data from the list
-			Runnable task2 = () -> { 
+			Runnable srcTask = () -> { 
 				srcData.crtSrcResultSet(keys);
-			/*	for(int i=0;i<20; i++) {
-					try {
-						TimeUnit.SECONDS.sleep(1);
-					} catch (InterruptedException e) {
-						e.printStackTrace();
-					}
-						System.out.println("Task #2 is running");
-						srcData.crtSrcResultSet(keys);
-					}
-			*/
 				};
-				Thread thread1=new Thread(task2);
-				thread1.start();
+			Thread srcThread=new Thread(srcTask);
+			srcThread.start();
 			
 			//main thread: batch delete the records in this target
 			dropStaleRowsOfList(keys);
-		/*	for(int i=0;i<10; i++) {
-				try {
-					TimeUnit.SECONDS.sleep(1);
-				} catch (InterruptedException e) {
-					e.printStackTrace();
-				}
-					System.out.println("This is the main thread");
-				}
-			*/
 			//wait till thread 1 and do batch insert:
 			try {
-				thread1.join();
+				srcThread.join();
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -221,6 +207,9 @@ class VerticaData extends DataPointer {
 			//now the source is ready, the tgt is cleaned:
 			ResultSet rsltSet = srcData.getSrcResultSet();
 			rtc = syncDataFromV2(rsltSet, 2);
+			if(rtc<0) {
+				ovLogger.error("Error happened. There is the risk of data being out of sync for " + metaData.getTableDetails().get("src_schema") + metaData.getTableDetails().get("src_table"));
+			}
 
 		}else {
 			ovLogger.info("   No changes!");
@@ -302,14 +291,12 @@ class VerticaData extends DataPointer {
 		ArrayList<Integer> javaType = metaData.getFldJavaType();
 		ArrayList<String> fldNames = metaData.getFldNames();
 
-		PreparedStatement insStmt, delStmt=null;
+		PreparedStatement insStmt;
 
 		try {
 			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
 
 			insStmt = dbConn.prepareStatement(metaData.getSQLInsTgt());
-			if(actId==2)
-				delStmt = dbConn.prepareStatement(metaData.getSQLDelTgt());
 
 			while (rsltSet.next()) {
 				try {
@@ -318,8 +305,6 @@ class VerticaData extends DataPointer {
 															//for uniformity, so are the others. let's see if that is okay.
 						insStmt.setObject(i, rsltSet.getObject(i));
 					}
-					if(actId==2)
-						delStmt.setString(1, rsltSet.getString(javaType.size()));
 					insStmt.setString(javaType.size(), rsltSet.getString(javaType.size()));
 					//To save a little: the ID field is always the last column!
 					//RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
@@ -334,16 +319,12 @@ class VerticaData extends DataPointer {
 				}
 				
 				// insert batch into target table
-				if(actId==1)
-					delStmt.addBatch();
 				insStmt.addBatch();
 				totalSynCnt++;
 				curRecCnt++;
 
 				if (curRecCnt == batchSize) {
 					try {
-						if(actId==1)
-							batchDel = delStmt.executeBatch();
 						batchIns = insStmt.executeBatch();
 
 						curRecCnt = 0;
@@ -368,8 +349,6 @@ class VerticaData extends DataPointer {
 			}
 			// the last batch
 			try {
-				if(actId==2)
-					batchDel = delStmt.executeBatch();
 				batchIns = insStmt.executeBatch();
 			} catch (BatchUpdateException e) {
 				ovLogger.error("   Error... rolling back");

@@ -86,8 +86,8 @@ class DB2Data400 extends DataPointer {
 		}else {  //TODO: ugly; also works for DB2/AS400 only! (maybe not so bad. This code is DB2Data400.java!)
 			JSONObject TJ = metaData.getTableDetails();
 			//use global temp tbl
-			sql = "DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+ TJ.get("tbl_id") + 
-					"(" + TJ.get("tbl_pk") + " " + metaData.getPK() + ") " 
+			sql = "DECLARE GLOBAL TEMPORARY TABLE DCC"+ TJ.get("tbl_id") + 
+					"(" + TJ.get("tbl_pk") + " bigint) " 
 					+" NOT LOGGED"; 
 			runUpdateSQL(sql);
 			//batch insert into the temp table:
@@ -122,7 +122,7 @@ class DB2Data400 extends DataPointer {
 			}
 			sql = metaData.getBareSrcSQL();
 			sql = sql + ", qtemp.DCC"+TJ.get("tbl_id") + " b "
-					+ " where a..rrn(a)=b." +TJ.get("tbl_pk");
+					+ " where rrn(a)=b." +TJ.get("tbl_pk");
 			SQLtoResultSet(sql);
 		}
 	}

@@ -61,7 +61,7 @@ class KafkaData extends DataPointer {
 		props.put("group.id", consumerGrp);
 		// props.put(ConsumerConfig.GROUP_ID_CONFIG, jobID);
 		props.put("client.id", cientID);
-		props.put("enable.auto.commit", "true");
+		props.put("enable.auto.commit", "false");
 		props.put("auto.commit.interval.ms", "1000");
 		props.put("auto.offset.reset", "earliest"); // if we do this, we better reduce msg retention to just one day.
 		props.put("max.poll.records", kafkaMaxPollRecords);
@@ -212,6 +212,7 @@ class KafkaData extends DataPointer {
 			}
 			ovLogger.info("    read total msg: " + (cntRRN-1));
 		}
+		consumer.commitSync();  //TODO: little risk here. Ideally, that should happen after data is save in tgt.
 		consumer.close();
 
 		msgKeyList = msgKeyListT.stream()
@@ -221,7 +222,7 @@ class KafkaData extends DataPointer {
 		//metaData.end(rtc);
 		metaData.setTotalMsgCnt(cntRRN-1);
 	}
-	protected List<String> getSrcResultList(){
+	protected List<String> getDCCKeyList(){
 		return msgKeyList;
 	}
 
