@@ -51,7 +51,7 @@ class KafkaData extends DataPointer {
 	//public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
 	public void createKafkaConsumer(String topic) {
 		String consumerGrp = metaData.getJobID() + metaData.getTableID();
-		String cientID = metaData.getJobID()+metaData.getTableDetails().get("tbl_id")+"3";
+		String cientID = metaData.getJobID()+metaData.getTableDetails().get("tbl_id");
 
 		kafkaMaxPollRecords = Integer.parseInt(conf.getConf("kafkaMaxPollRecords"));
 		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));
@@ -169,14 +169,20 @@ class KafkaData extends DataPointer {
 }
 	
 	protected boolean miscPrep(String jobTempID) {
-		String topic = metaData.getTableDetails().get("src_schema")+"."
-				+metaData.getTableDetails().get("src_table");
 		super.miscPrep(jobTempID);
-		createKafkaConsumer(topic);
+
+		if(metaData.getTableDetails().get("temp_id").toString().equals("D2V_")) {
+			String topic = metaData.getTableDetails().get("src_schema")+"."
+				+metaData.getTableDetails().get("src_table");
+			createKafkaConsumer(topic);
+			crtAuxSrcAsList();
+		}
 		return true;
 	}
-	
-	public void crtAuxSrcAsList() {
+	protected int getDccCnt() {  //this one is very closely couple with crtAuxSrcAsList! TODO: any better way for arranging?
+		return msgKeyList.size();
+	}
+	protected void crtAuxSrcAsList() {
 		int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
 		int maxMsgConsumption = Integer.parseInt(conf.getConf("kafkaMaxMsgConsumption"));
 
@@ -200,9 +206,9 @@ class KafkaData extends DataPointer {
 				//lastJournalSeqNum = record.key();
 				msgKeyListT.add(record.value());
 				cntRRN++;
-				if(cntRRN>maxMsgConsumption) { //consume only maximum of "maxMsgConsumption" msgs.
-					break;
-				}
+				//if(cntRRN>maxMsgConsumption) { //consume only maximum of "maxMsgConsumption" msgs.
+				//	break;
+				//}
 			}
 			ovLogger.info("    read total msg: " + (cntRRN-1));
 		}

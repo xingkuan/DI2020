@@ -28,7 +28,7 @@ class runTable {
 	static DataPointer auxData;
 
 
-	static String jobID = "syncTbl";
+	static String jobID ;
 	static int jobSub=3;
 
 	private int totalDelCnt = 0, totalInsCnt = 0, totalErrCnt = 0;
@@ -69,26 +69,21 @@ class runTable {
         }
 	}
 	static void actOnTable(int tID, int actId) {
+		ovLogger.info("    BEGIN.");
 
 		//based on jobDetail, do the corresponding...
 		switch(actId){
 			case 0:  //enable table to be actionable.
-				ovLogger.info("move the enableTbl.java here");
+				jobID = "enableTbl";
 				actType0(tID, actId);
 				break;
 			case 1:  //initial copying of data from src to tgt
-				//ovLogger.info("move initTable.java here");
+				jobID = "initTbl";
 				actType1(tID, actId);
 				break;
-			case 2:   //sync DCC 
-				ovLogger.info("move runDCC.java here");
+			case 2:   //sync DCC, and tbl as well 
+				jobID = "syncTbl";
 				actType2(tID, actId);
-				break;
-			case 3:  //cann't it be handled in case 2?
-				actType3(tID, actId);
-				break;
-			case 4:   //cann't it be handled in case 2?
-				actType4(tID, actId);
 				break;
 			case 9:   //audit
 				actType9(tID, actId);
@@ -97,44 +92,103 @@ class runTable {
 				ovLogger.info("unkown action");
 				break;
 		}
+		ovLogger.info("    End.");
 	}
 
-	private static int setup(int tblID, int actId) {
+	private static int setupAct(int tblID, int actId) { 
 		tableID=tblID;
-		if(metaData.setupTableAct(jobID, tableID, actId)==-1) {
-			ovLogger.error("Did not do anything.");
+		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
+			ovLogger.error("Exit without doing anything.");
 			return -1;
 		}
-		ovLogger.info(jobID + " " + tableID + ":" + metaData.getTableDetails().get("src_table").toString());
+		ovLogger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
 
 		JSONObject tblDetail = metaData.getTableDetails();
+		String actTemp = tblDetail.get("temp_id").toString();
+		
+		switch(actId) {
+		case 0:
+			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
+			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			break;
+		case 1:
+		case 9:
+			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
+			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 
-		//TODO: no need to access JOURNAL! modify to avoid reading max journal seq num!!!
-		srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-		srcData.miscPrep(tblDetail.get("temp_id").toString());
-		ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+			tgtData.miscPrep(actTemp);
+			tgtData.setupSink();
+			ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
+		}
+		
+		return 0;
+   }
+	/* Setup data sources, so job can be. But also try to do the minimum: 
+	 * - If {count of DCC} == 0: don't do the rest.
+	 * - If {count of DCC} >  0: prepare the needed data sources.
+	 * - If {count of DCC} <  0: something is wrong; skip the rest.
+	 */
+	private static int setupAct2(int tblID, int actId) {  //TODO: too ugly!
+		int dccCnt=0;
+		
+		tableID=tblID;
+		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
+			ovLogger.error("Exit without doing anything.");
+			return -1;
+		}
+		ovLogger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
+
+		JSONObject tblDetail = metaData.getTableDetails();
+		String actTemp = tblDetail.get("temp_id").toString();
+		switch(actTemp) {
+		case "O2V":
+		case "DJ2K":
+			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
+			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			dccCnt = srcData.getDccCnt();
+			if(dccCnt==0) {
+				ovLogger.info("   no dcc.");
+				return 0;  
+			}
+			break;
+		case "D2V_":
+			String auxDBstr = tblDetail.get("dcc_db_id").toString();
+			auxData = DataPointer.dataPtrCreater(auxDBstr, "DCC");
+			auxData.miscPrep(actTemp);
+			dccCnt = auxData.getDccCnt();
+			if(dccCnt==0) {
+				ovLogger.info("   no dcc.");
+				return 0;  
+			}
+			ovLogger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
+			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
+			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			break;
+		default:
+			ovLogger.error("Not a valid template: " + actTemp);
+			break;
+		}
+		
 
 		tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-		tgtData.miscPrep(tblDetail.get("temp_id").toString());
+		tgtData.miscPrep(actTemp);
 		tgtData.setupSink();
 		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
 		
-		String auxDBstr = tblDetail.get("dcc_db_id").toString();
-		if((!auxDBstr.equals("")) && (!auxDBstr.equals("na"))) {
-			auxData = DataPointer.dataPtrCreater(auxDBstr, "DCC");
-			auxData.miscPrep(tblDetail.get("temp_id").toString());
-			ovLogger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
-		}
-		return 0;
+		return dccCnt;
    }
 	
 	private static void actType0(int tID, int actId) {
 		int syncSt=2;
 
-		if(setup(tID, actId)==-1) {
+		if(setupAct(tID, 0)==-1) {
 			return;   // something is not right. Do nothing.
 		}else {
-			ovLogger.info("    BEGIN.");
 			metaData.begin();
 	
 			srcData.beginDCC();  //For Oracle (to V), it is enable trigger and curr_state=2;
@@ -142,17 +196,14 @@ class runTable {
 								 //For DB2/AS400 tbl (to V), curr_state=2
 			metaData.end(syncSt);
 			metaData.saveSyncStats();
-
-			ovLogger.info("    END.");
 		}
 	}
 	private static void actType1(int tID, int actId) {
 		int syncSt=2;
 
-		if(setup(tID, actId)==-1) {
+		if(setupAct(tID, actId)==-1) {
 			return;   // something is not right. Do nothing.
 		}else {
-			ovLogger.info("    BEGIN.");
 			metaData.begin();
 			//get the PRE and AFT sqls from meta:
 			JSONArray preSQLs, aftSQLs;
@@ -174,17 +225,17 @@ class runTable {
 			metaData.end(syncSt);
 			metaData.saveSyncStats();
 			tearDown();
-		
-			ovLogger.info("    END.");
 		}
 	}
 	private static void actType2(int tID, int actId) {
 		int syncSt=2;
 
-		if(setup(tID, actId)==-1) {
+		if(setupAct2(tID, actId)<=0) {
+			// 1. 0: If count of DCC is 0, don't do anything.
+			// 2. -1: If something is wrong,
+			// 3. >0: the number of DCC
 			return;   // something is not right. Do nothing.
 		}else {
-			ovLogger.info("    BEGIN.");
 			metaData.begin();
 			//get the PRE and AFT sqls from meta:
 			JSONArray preSQLs, aftSQLs;
@@ -210,10 +261,10 @@ class runTable {
 					//srcData.afterSync(actId, aftSQLs);
 				}
 				break;
-			case "D2V_":   //DCC keys from kafka
-				auxData.crtAuxSrcAsList();
-				int state=srcData.crtSrcResultSet(actId, preSQLs, auxData);
-				syncSt = tgtData.syncDataViaV2(srcData);
+			case "D2V_":   //sync with DCC keys from kafka
+				//auxData.crtAuxSrcAsList();  //This is done in setupAct2() already!
+				syncSt = tgtData.syncDataViaV2(srcData, auxData);  //crtSrcResultSet() is pushed into this call. 
+																   //TODO: ugly code.
 				break;
 			default:
 				ovLogger.error("wrong template ID");
@@ -227,55 +278,14 @@ class runTable {
 		metaData.end(syncSt);
 		metaData.saveSyncStats();
 		tearDown();
-		
-		ovLogger.info("    END.");
 		}
-	}
-	private static void actType3(int tID, int actId) {
-		int syncSt=2;
-
-		ovLogger.info("    BEGIN.");
-		setup(tID, actId);
-		metaData.begin();
-	
-		syncSt = tgtData.syncDataFrom(srcData);
-
-		srcData.close();
-		tgtData.close();
-	
-		metaData.end(syncSt);
-		metaData.saveSyncStats();
-		tearDown();
-	
-		ovLogger.info("    END.");
-	}
-	private static void actType4(int tID, int actId) {
-		int syncSt=2;
-
-		ovLogger.info("    BEGIN.");
-		setup(tID, actId);
-		metaData.begin();
-	
-		auxData.crtAuxSrcAsList();
-		syncSt = tgtData.syncDataViaV2(srcData, auxData);
-
-		srcData.close();
-		tgtData.close();
-		auxData.close();
-	
-		metaData.end(syncSt);
-		metaData.saveSyncStats();
-		tearDown();
-	
-		ovLogger.info("    END.");
 	}
 	private static void actType9(int tID, int actId) {
 		int syncSt=2;
 
-		if(setup(tID, actId)==-1) {
+		if(setupAct(tID, actId)==-1) {
 			return;   // something is not right. Do nothing.
 		}else {
-			ovLogger.info("    BEGIN.");
 			metaData.begin();
 		
 	      int srcRC=srcData.getRecordCount();
@@ -287,8 +297,6 @@ class runTable {
 			metaData.end(syncSt);
 			metaData.saveSyncStats();
 			tearDown();
-		
-			ovLogger.info("    END.");
 		}
 	}
 	

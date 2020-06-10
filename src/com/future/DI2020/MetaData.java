@@ -108,7 +108,9 @@ class MetaData {
 		}
 	}
 
-	public int setupTableAct(String jID, int tblID, int aId) {
+	public int setupTableForAction(String jID, int tblID, int aId) {
+		int rtc;
+		
 		jobID = jID;
 		tableID = tblID;
 		actID = aId;
@@ -123,25 +125,33 @@ class MetaData {
 		lName=null;
 		jName=null;
 		
-		if(initTableDetails() == -1 )
-			return -1;
-		// actDetailJSON is included in initTableDetails();
-		String currState= tblDetailJSON.get("curr_state").toString();
-		if ((currState.equals("")||currState.equals("0") ) &&
-				(aId != 0)) {
-			ovLogger.warn("This table is not enabled yet.");
-			return -1;
+		if(initTableDetails() == -1 ) {  // actDetailJSON is included in initTableDetails();
+			rtc = -1;
+			return rtc;
 		}
-		if ((!currState.equals("2")) && (aId == 2)) {
-			ovLogger.warn("This table is not enabled yet.");
-			return -1;
+		//verify table level status; if ok, finish the setup for action.
+		String currState= tblDetailJSON.get("curr_state").toString();
+		switch(aId) {
+		case 0:
+			if (!(currState.equals("")||currState.equals("0") )) {
+				ovLogger.warn("This table is already enabled.");
+				rtc = -1;
+			}
+			rtc = 0;
+			break;
+		case 1:
+		case 2:
+			if (!currState.equals("2")) {
+				ovLogger.warn("This table is not in sync state.");
+				return -1;
+			}
+			break;
+		default:
+			ovLogger.error("unsupported action.");	
 		}
 		
 		initFieldMetaData();
 		
-//		srcDBDetail = readDBDetails(tblDetailJSON.get("src_db_id").toString());
-//		tgtDBDetail = readDBDetails(tblDetailJSON.get("tgt_db_id").toString());
-		//if dccData is not from src, eg. Kafka, initialize it here.
 		return 0;
 	}
 
@@ -152,7 +162,7 @@ class MetaData {
 		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
 		return jo;
 	}
-	// ... and others
+	
 	private int initTableDetails() {
 		JSONArray jo;
 		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
@@ -165,7 +175,7 @@ class MetaData {
 			return -1;
 		}
 		tblDetailJSON = (JSONObject) jo.get(0);
-		
+		//If DCC data src is involved:
 		Object dccDBIDObj = tblDetailJSON.get("dcc_db_id");
 		if((!dccDBIDObj.toString().equals("")) && (!dccDBIDObj.toString().equals("na"))
 				) {  //only sync via kafka has it.
@@ -178,7 +188,7 @@ class MetaData {
 					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 			jo = SQLtoJSONArray(sql);
 			if(jo.isEmpty()) {
-				ovLogger.error("no log journal.");
+				ovLogger.error("error in DCC, e. g. DB2/AS400 journal");
 				return -1;
 			}
 			dccDetailJSON = (JSONObject) jo.get(0);
@@ -584,7 +594,7 @@ public ArrayList<String> getFldNames() {
 		long lasDCCSeq = getDCCSeqLastRefresh();
 		String extWhere="";
 		
-		if((lasDCCSeq == -1)||(seqThisRef <= lasDCCSeq))
+		if((lasDCCSeq == -1)||(seqThisRef <= lasDCCSeq))   
 			return null;   // this is the first time or no data, simply set META_AUX.SEQ_LAST_REF
 
 		if (seqThisRef > lasDCCSeq ) {
@@ -701,7 +711,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		return tblDetailJSON.get("tbl_pk").toString();
 	}
 
-	public String getSQLSelectXForm() {
+	public String getBareSrcSQL() {
 		return sqlSelectSource;
 	}
 

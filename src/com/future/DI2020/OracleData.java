@@ -35,6 +35,17 @@ class OracleData extends DataPointer{
 	public ResultSet getSrcResultSet() {
 		return srcRS;
 	}
+	//should only be sued when TEMP_ID
+	public int getDccCnt() {  //this one is very closely couple with crtSrcResultSet! TODO: any better way for arranging?
+		if(!metaData.getTableDetails().get("temp_id").toString().contains("_")){
+			ovLogger.warn("It does not look like it should be called!");
+		}
+		String sql = "update " + metaData.getTableDetails().get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" ;
+
+		int cnt = runUpdateSQL(sql);
+
+		return cnt;
+	}
 	public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
 		String sql;
 		for (int i = 0; i < jaSQLs.size()-1; i++) {
@@ -227,19 +238,20 @@ class OracleData extends DataPointer{
 		}
 	}
 
-	private boolean runUpdateSQL(String sql) {
+	private int runUpdateSQL(String sql) {
+		int rslt=0;
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
 		Statement stmt=null; 
 		try {
 			stmt = dbConn.createStatement();
-			int rslt = stmt.executeUpdate(sql);
+			rslt = stmt.executeUpdate(sql);
 			stmt.close();
 			dbConn.commit();
 		} catch (SQLException e) {
 			ovLogger.error(e);
 		} 
-		return true;
+		return rslt;
 	}
 
    public void commit() throws SQLException {

@@ -10,6 +10,9 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.json.simple.parser.JSONParser;
 import org.json.simple.parser.ParseException;
+
+import com.vertica.jdbc.VerticaConnection;
+
 import org.apache.logging.log4j.LogManager;
 
 
@@ -38,7 +41,7 @@ class DB2Data400 extends DataPointer {
 		boolean rtc=false;
 		super.miscPrep(jTemp);
 //		if(metaData.isDCCJob()) { 
-		if(jTemp.equals("DJ2K")) { 
+		if(jTemp.equals("DJ2K")) { //Only  needed when sync DCC to Kafka.
 			rtc=initThisRefreshSeq();
 		}
 		return rtc;
@@ -46,9 +49,6 @@ class DB2Data400 extends DataPointer {
 
 	public ResultSet getSrcResultSet() {
 		return srcRS;
-	}
-	public void crtSrcResultSet(List<String >keys) {
-		ovLogger.info("   Need implementation in child.");
 	}
 	public int crtSrcResultSet(int act, JSONArray jaSQLs) {
 		String sql;
@@ -70,6 +70,63 @@ class DB2Data400 extends DataPointer {
 		}
 		return 0;
 	}
+	public void crtSrcResultSet(List<String >keys) {
+		//List<String> msgKeys = dcc.getSrcResultList();
+		int cnt=keys.size();
+		int tempTblThresh = Integer.parseInt(conf.getConf("tempTblThresh"));
+		String sql;
+		
+		if(cnt < tempTblThresh ) {  //compose a sql with "where 
+			String wc = keys.get(0);
+			for (int i=1; i< keys.size(); i++) {
+				wc=wc+","+keys.get(i);
+			}
+			sql = metaData.getBareSrcSQL() + " where rrn(a) in (" + wc + ")"; 
+			SQLtoResultSet(sql);
+		}else {  //TODO: ugly; also works for DB2/AS400 only! (maybe not so bad. This code is DB2Data400.java!)
+			JSONObject TJ = metaData.getTableDetails();
+			//use global temp tbl
+			sql = "DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+ TJ.get("tbl_id") + 
+					"(" + TJ.get("tbl_pk") + " " + metaData.getPK() + ") " 
+					+" NOT LOGGED"; 
+			runUpdateSQL(sql);
+			//batch insert into the temp table:
+			{
+			sql = "INSERT INTO qtemp.DCC" + TJ.get("tbl_id") + " VALUES (?)" ;
+			int[] batchIns = null;
+			int i = 0, curRecCnt = 0;
+			PreparedStatement insStmt;
+			
+			try {
+					insStmt = dbConn.prepareStatement(sql);
+				for (String key: keys) {
+					try {
+						insStmt.setString(1, key);
+					} catch (Exception e) {
+						ovLogger.error("   " + e);
+						//rtc = -1;
+					}
+					insStmt.addBatch();
+				}
+				try {
+					batchIns = insStmt.executeBatch();
+				} catch (BatchUpdateException e) {
+					ovLogger.error("   Error... rolling back");
+					ovLogger.error(e.getMessage());
+				}
+			} catch (SQLException e1) {
+				// TODO Auto-generated catch block
+				e1.printStackTrace();
+			}
+
+			}
+			sql = metaData.getBareSrcSQL();
+			sql = sql + ", qtemp.DCC"+TJ.get("tbl_id") + " b "
+					+ " where a..rrn(a)=b." +TJ.get("tbl_pk");
+			SQLtoResultSet(sql);
+		}
+	}
+	
 	protected void afterSync(int actId, JSONArray jaSQLs){
 		String sql;
 		for (int i = 0; i < jaSQLs.size(); i++) {
@@ -273,6 +330,9 @@ class DB2Data400 extends DataPointer {
 		return rtv;
 	}
 
+	public int getDccCnt() {
+		return (int) (seqThisFresh - metaData.getDCCSeqLastRefresh());
+	}
 	// locate the ending SEQUENCE_NUMBER of this run:
 	private boolean initThisRefreshSeq() {
 		if (initThisRefreshSeq(true))

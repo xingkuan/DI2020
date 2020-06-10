@@ -117,8 +117,12 @@ public class DataPointer {
 	}
 	protected void dropStaleRowsOfList(List<String> keys) {
 	}
+	protected int getDccCnt() {
+		ovLogger.info("   Need implementation in child.");
+		return 0;
+	}
 
-	public void crtAuxSrcAsList() {
+	protected void crtAuxSrcAsList() {
 	}
 	protected boolean crtSrcAuxResultSet() {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
@@ -126,6 +130,10 @@ public class DataPointer {
 	}
 	//where clause is to be build from catalog
 	protected int crtSrcResultSet(int actId, JSONArray jo) {
+		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		return -1;
+	}
+	protected int crtSrcResultSet(int actId, JSONArray jo, DataPointer aux) {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return -1;
 	}

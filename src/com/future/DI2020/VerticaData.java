@@ -46,6 +46,7 @@ class VerticaData extends DataPointer {
 	// no where clause for initializing
 	public int initDataFrom(DataPointer srcData) {
 		int rtc=0;
+		truncateTbl();
 		ResultSet rsltSet = srcData.getSrcResultSet();
 		//copyDataFrom(rsltSet);
 		syncDataFromV2(rsltSet, 1);  //1 for initializing  
@@ -61,6 +62,24 @@ class VerticaData extends DataPointer {
 		}
 		
 		return rtc;
+	}
+	private void truncateTbl() {
+		String sql = "truncate table " + metaData.getTableDetails().get("tgt_schema") + "."+ metaData.getTableDetails().get("tgt_table");
+		runUpdateSQL(sql);
+	}
+	private boolean runUpdateSQL(String sql) {
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt=null; 
+		try {
+			stmt = dbConn.createStatement();
+			int rslt = stmt.executeUpdate(sql);
+			stmt.close();
+			dbConn.commit();
+		} catch (SQLException e) {
+			ovLogger.error(e);
+		} 
+		return true;
 	}
 
 	// when log table is inserted from trigger
