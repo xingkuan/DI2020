@@ -52,8 +52,10 @@ public class RegisterTbl {
 			System.out.println(
 					"   or:   RegisterTbl rrn D2V_ sdbID ssch stbl EXT jrnl tdbid tsch ttbl dccDB topic opath poolID tblID");
 			return;
-			//eg 1: DB2RRN D2V_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
-			//eg 2: ORARID O2V ORA1 VERTSNAP TESTO VERTSNAP.TESTO_DCCTRG VERTSNAP.TESTO_DCCLOG VERTX TEST TESTO na na c:/users/johnlee/ 9 
+			//eg 1 (tID:2,3): DB2RRN D2V_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
+			//eg 2 (tID:  5): ORARID O2V ORA1 VERTSNAP TESTO VERTSNAP.TESTO_DCCTRG VERTSNAP.TESTO_DCCLOG VERTX TEST TESTO na na c:/users/johnlee/ 9 
+			//eg 3 (tID:  6): ORARID O2K ORA1 VERTSNAP TESTOK VERTSNAP.TESTOK_DCCTRG VERTSNAP.TESTOK_DCCLOG KAFKA1 TEST TESTOK na na c:/users/johnlee/ 9 
+			//eg 4 (tID:7,8): DB2RRN D2K_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN KAFKA1 TEST AVROTESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
 		}
 //		DB2RRN DB2D JOHNLEE2 TESTTBL2 JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
 		String strPK = args[0];
@@ -146,10 +148,16 @@ public class RegisterTbl {
 					fWriter.write(sqlStr);
 					fWriter.close();
 				}
-				sqlStr = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " + srcSch + "_"
-						+ srcTbl + "\n\n" + "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
-						+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " + "--topic "
-						+ srcSch + "." + srcTbl + " \n";
+				sqlStr = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " 
+						+ srcSch + "."	+ srcTbl + "\n\n" 
+						+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
+						+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
+						+ "--topic " + srcSch + "." + srcTbl + " \n\n";
+				sqlStr += "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " 
+						+ tgtSch + "."	+ srcTbl + "\n\n" 
+						+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
+						+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
+						+ "--topic " + tgtSch + "." + tgtTbl + " \n";
 				fWriter = new FileWriter(new File(outPath + kafka));
 				fWriter.write(sqlStr);
 				fWriter.close();

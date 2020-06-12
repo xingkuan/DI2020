@@ -414,7 +414,7 @@ class MetaData {
 
 		avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
 				    + "\"type\": \"record\", \n" 
-				    + "\"name\": \"" + tblDetailJSON.get("src_schema")+"-"+ tblDetailJSON.get("src_table") + "\", \n" 
+				    + "\"name\": \"" + tblDetailJSON.get("src_schema")+"."+ tblDetailJSON.get("src_table") + "\", \n" 
 				    + "\"fields\": [ \n" ;
 		
 		try {
@@ -441,22 +441,28 @@ class MetaData {
 		}
 		//rest line (but not the last)
 		while (lrRset.next() ) {   
-			if( lrRset.isLast() &&                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
-				(tblDetailJSON.get("db_type").toString().contains("DB2/AS400"))){  // but "a." is needed for Oracle.
+			if( lrRset.isLast()) {                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
+				if(tblDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
 				sqlSelectSource += ", " + lrRset.getString("src_field");
+				avroSchema = avroSchema 
+						+ ", {\"name\": \"DB2RRN\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
+				}if(tblDetailJSON.get("db_type").toString().contains("ORACLE")){
+					sqlSelectSource += ", a." + lrRset.getString("src_field");
+					avroSchema = avroSchema 
+							+ ", {\"name\": \"ORARID\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
+				}
 			}else {
 				sqlSelectSource += ", a." + lrRset.getString("src_field");
+	
+				sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
+				//fldType[i] = lrRset.getInt("java_type");
+				//fldNames[i] = lrRset.getString("src_field");
+				fldType.add(lrRset.getInt("java_type"));
+				fldNames.add(lrRset.getString("src_field"));
+				keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
+				avroSchema = avroSchema 
+						+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
 			}
-			sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
-			//fldType[i] = lrRset.getInt("java_type");
-			//fldNames[i] = lrRset.getString("src_field");
-			fldType.add(lrRset.getInt("java_type"));
-			fldNames.add(lrRset.getString("src_field"));
-			keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
-
-			avroSchema = avroSchema 
-					+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
-
 			i++;
 			// System.out.println(i);
 		}
@@ -537,6 +543,7 @@ public ArrayList<String> getFldNames() {
 			case "D2V_":
 				return getD2V_act2SQLs(fast, relaxed); 
 			case "O2V":
+			case "O2K":
 				return getO2Vact2SQLs(); 
 			default:
 				ovLogger.error("Invalid template.");

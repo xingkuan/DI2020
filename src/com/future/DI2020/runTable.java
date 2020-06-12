@@ -42,6 +42,12 @@ class runTable {
 	 *     2: sync
 	 *     9: audit
 	 */
+	/* test parms:
+	 *      tbl 2 2[..]     -- DB2 to Vertica, via Kafka, sync[..]
+	 * 		tbl 3 0[..]	    -- DB2 J. to Kafka, enable[..]
+	 * 		tbl 5 2[..]	    -- Oracle to Vertica, sync[..]
+	 * 		tbl 6 2[..]	    -- Oracle to Kafka, sync[..]
+	 */
 	public static void main(String[] args) {
 		System.out.println(args.length);
 
@@ -244,6 +250,7 @@ class runTable {
 			JSONObject sqlJO = metaData.getSrcSQLs(actId, false, false);
 			if((sqlJO==null)||(sqlJO.isEmpty())){
 				ovLogger.error("no SQL found for src resultset.");
+				syncSt=2;
 				metaData.end(syncSt);
 				return;
 			}
@@ -253,13 +260,18 @@ class runTable {
 			String tempId = metaData.getTableDetails().get("temp_id").toString();
 			switch(tempId) {
 			case "O2V":    //no aux (kafka in between).
+			case "O2K":
 			case "D2V":
 			case "DJ2K":
-				int state=srcData.crtSrcResultSet(actId, preSQLs);
-				if(state<0) {
+				syncSt=srcData.crtSrcResultSet(actId, preSQLs);
+				if(syncSt<0) {
 					ovLogger.info("    error in source.");
 				}else {
-					state = tgtData.syncDataFrom(srcData);
+					//TODO:  for test. need re-org!
+					if(tempId.equals("O2K"))
+						syncSt = tgtData.syncAvroDataFrom(srcData);
+					else
+						syncSt = tgtData.syncDataFrom(srcData);
 					//srcData.afterSync(actId, aftSQLs);
 				}
 				break;
@@ -275,6 +287,17 @@ class runTable {
 		if(aftSQLs != null)	
 			srcData.afterSync(actId, aftSQLs);	
 	
+		if(syncSt==2){
+			srcData.commit();
+			tgtData.commit();
+			if(aftSQLs != null)	
+				srcData.commit();	
+		}else {
+			srcData.rollback();
+			tgtData.rollback();
+			if(aftSQLs != null)	
+				srcData.rollback();	
+		}
 		metaData.end(syncSt);
 		metaData.saveSyncStats();
 		tearDown();

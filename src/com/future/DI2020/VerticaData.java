@@ -120,7 +120,7 @@ class VerticaData extends DataPointer {
 		
 		return rtc;
 	}
-	public void dropStaleRowsOfList(List<String> keys) {
+	public int dropStaleRowsOfList(List<String> keys) {
 		int rtc = 2;
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 
@@ -135,14 +135,10 @@ class VerticaData extends DataPointer {
 				try {
 					delStmt.setString(1, key);
 				} catch (Exception e) {
-					ovLogger.error("initLoadType1 Exception.");
 					ovLogger.error("   " + e.toString());
-					ovLogger.error("    ****************************");
-					ovLogger.error("    rowid: " + key);
-					rtc = -1;
+					ovLogger.error("    The key of problem: " + key);
+					//rtc = -1; //will keep going!
 				}
-				
-				// insert batch into target table
 				delStmt.addBatch();
 				totalDelCnt++;
 
@@ -153,8 +149,8 @@ class VerticaData extends DataPointer {
 						curRecCnt = 0;
 						ovLogger.info("   batch - " + totalSynCnt);
 					} catch (BatchUpdateException e) {
-						ovLogger.error("   Batch Error... ");
-						ovLogger.error(e);
+						ovLogger.error("   Batch Error: " + e);
+						return -1;  //just error out
 					}
 				}
 			}
@@ -162,23 +158,17 @@ class VerticaData extends DataPointer {
 			try {
 				batchDel = delStmt.executeBatch();
 			} catch (BatchUpdateException e) {
-				ovLogger.error("   Error... rolling back");
-				ovLogger.error(e.getMessage());
-
+				ovLogger.error("   Batch Error: " + e);
+				return -1;  //just error out
 			}
-
-			commit();
+			//commit(); //to be called at the end of sync
 			rtc = 2;
 		} catch (SQLException e) {
-			try {
-				rtc = -1;
-				rollback();
-			} catch (SQLException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
+			rtc = -1;
+			//rollback();  //to be called at the end of sync
 			ovLogger.error(e);
 		}
+		return rtc;
 	}
 
 	public int syncDataViaV2(DataPointer srcData, DataPointer auxData) {
@@ -363,16 +353,11 @@ class VerticaData extends DataPointer {
 				}
 			}
 
-			commit();
+			//commit();  //to be called at the end of sync
 			rtc = 2;
 		} catch (SQLException e) {
-			try {
-				rtc = -1;
-				rollback();
-			} catch (SQLException e1) {
-				// TODO Auto-generated catch block
-				e1.printStackTrace();
-			}
+			rtc = -1;
+			// rollback();  //to be called at the end of sync
 			ovLogger.error(e.getMessage());
 		}
 
@@ -419,12 +404,22 @@ class VerticaData extends DataPointer {
 		sRset.close();
 	}
 
-	public void commit() throws SQLException {
-		dbConn.commit();
+	public void commit() {
+		try {
+			dbConn.commit();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
-	public void rollback() throws SQLException {
-		dbConn.rollback();
+	public void rollback()  {
+		try {
+			dbConn.rollback();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	public void close() {
@@ -437,7 +432,8 @@ class VerticaData extends DataPointer {
 		ovLogger.info("   closed src db conn: " + dbID);
 	}
 
-	public void deleteRowsBatch(ResultSet rs) throws SQLException {
+	private int deleteRowsBatch(ResultSet rs) throws SQLException {
+		int rtc = 0;
 		String delSQL = metaData.getSQLDelTgt();
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 
@@ -468,15 +464,13 @@ class VerticaData extends DataPointer {
 		if (!ckeckBatch(batchResults)) {
 			ovLogger.error("   delete batch has problem.");
 		}
-		commit();
+		//commit();  //to be called at the end of sync
 		} catch (SQLException e) {
 			ovLogger.error(e);
-			try {
-				rollback();
-			} catch (SQLException e1) {
-				e1.printStackTrace();
-			}
+			//rollback();  //to be called at the end of sync
+			rtc=-1;
 		}
+		return rtc;
 	}
 	//even if found prblem, keeps going, but report in log 
 	private boolean ckeckBatch(int[] batch) {

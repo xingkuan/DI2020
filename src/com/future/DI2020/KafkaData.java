@@ -222,8 +222,8 @@ class KafkaData extends DataPointer {
 			}
 			ovLogger.info("    read total msg: " + (cntRRN-1));
 		}
-		consumer.commitSync();  //TODO: little risk here. Ideally, that should happen after data is save in tgt.
-		consumer.close();
+		//consumer.commitSync();  //TODO: little risk here. Ideally, that should happen after data is save in tgt.
+		//consumer.close();       //   so to be called in the end of sync
 
 		msgKeyList = msgKeyListT.stream()
 	     .distinct()
@@ -232,6 +232,15 @@ class KafkaData extends DataPointer {
 		//metaData.end(rtc);
 		metaData.setTotalMsgCnt(cntRRN-1);
 	}
+	public void commit() {
+		consumer.commitSync();  
+		consumer.close();
+	}
+	public void rollback() {
+		//consumer.commitSync();  
+		consumer.close();
+	}
+
 	protected List<String> getDCCKeyList(){
 		return msgKeyList;
 	}
@@ -241,91 +250,105 @@ class KafkaData extends DataPointer {
 	}
 
 	// ------ AVRO related --------------------------------------------------------------------
-	   Properties propsP = new Properties();
-	  {
-		    propsP.put("bootstrap.servers", "dbatool03:9092");
-		    propsP.put("acks", "all");
-		    propsP.put("retries", 0);
-		    propsP.put("batch.size", 16384);
-		    propsP.put("linger.ms", 1);
-		    propsP.put("buffer.memory", 33554432);
-		    propsP.put("key.serializer", "org.apache.kafka.common.serialization.StringSerializer");
-		    propsP.put("value.serializer", "org.apache.kafka.common.serialization.ByteArraySerializer");
-	  }
-	void testProducer(ResultSet rs){
-		  Schema schema;
-		  GenericRecord avroRec;
+	//https://dev.to/de_maric/guide-to-apache-avro-and-kafka-46gk
+	//https://aseigneurin.github.io/2018/08/02/kafka-tutorial-4-avro-and-schema-registry.html
+	//private KafkaProducer<Long, GenericRecord> createKafkaAVROProducer() {
+	private KafkaProducer<Long, byte[]> createKafkaAVROProducer() {
+		String cientID = metaData.getJobID() + "_" + metaData.getDCCPoolID();
+
+		String strVal = conf.getConf("kafkaMaxBlockMS");
+		String kafkaACKS = conf.getConf("kafkaACKS");
+		String kafkaINDEM = conf.getConf("kafkaINDEM");
+		int kafkaMaxBlockMS = Integer.parseInt(strVal);
+		int kafkaRetry = Integer.parseInt(conf.getConf("kafkaRetry"));
+
+		Properties props = new Properties();
+		props.put("bootstrap.servers", URL);
+			
+		props.put("acks", kafkaACKS);
+		props.put("enable.idempotence", kafkaINDEM);
+		props.put("batch.size", 1638400);
+
+		props.put("linger.ms", 1);
+		props.put("buffer.memory", 33554432);
+		props.put("max.block.ms", kafkaMaxBlockMS); // default 60000 ms
+		// props.put("key.serializer",
+		// "org.apache.kafka.common.serialization.StringSerializer");
+		props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());  //TODO: need more thinking!
+		// props.put("value.serializer",
+		// "org.apache.kafka.common.serialization.ByteArraySerializer");
+		//props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
+		//props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "io.confluent.kafka.serializers.KafkaAvroSerializer");
+		props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
+		props.put(ProducerConfig.CLIENT_ID_CONFIG, cientID);
+
+		//KafkaProducer<Long, GenericRecord> prod = new KafkaProducer<Long, GenericRecord>(props);
+		KafkaProducer<Long, byte[]> prod = new KafkaProducer<Long, byte[]>(props);
+			//Note: If the brokers are down, it will keep trying forever ... seems no way for
+			//      checking and handling . Weird !!!
+		return prod;
+	}
+  
+	public int syncAvroDataFrom(DataPointer srcData) {
+		int cnt=0;
+		ResultSet rs=srcData.getSrcResultSet();
+		
+		String jsonSch = metaData.getAvroSchema();
+		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
+		//schema = new Schema.Parser().parse(new File("user.avsc"));
+		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
+		Producer<Long, byte[]> producer = createKafkaAVROProducer();
+
+		GenericData.Record record;
 		//  Producer<String, byte[]> producer = null;
 		  try {
-			//schema = new Schema.Parser().parse(new File("user.avsc"));
-			schema = new Schema.Parser().parse(metaData.getAvroSchema());
-
 	       while ( rs.next() ) {
-	          // int cnt = rs.getInt("cnt");
-	           System.out.println(rs.getString("name"));
-	           
-           avroRec = new GenericData.Record(schema);
-	   		avroRec.put(1, rs.getString(1));
-	   		avroRec.put(2, rs.getInt(2));
-	   		avroRec.put(3, rs.getString(3));
+	    	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!      
+	    	   record.put(1, rs.getString(1));
+	    	   record.put(2, rs.getInt(2));
+	    	   record.put(3, rs.getString(3));
 
-	   		writeKafka(avroRec, schema);
-	   		//byte[] myvar = avroToBytes(avroRec, schema);
-	   		//writeKafka(myvar);   
+	    	   /*
+	    	    * use byte, instead; ideally, use Confluent's Schena Registry 
+	    	    */
+	    	   //producer.send(new ProducerRecord<Long, GenericRecord>("topica", (long) 1, record));
+		   		byte[] myvar = avroToBytes(record, schema);
+		   		producer.send(new ProducerRecord<Long, byte[]>("topica", (long) 1, myvar),new Callback() {
+                    public void onCompletion(RecordMetadata recordMetadata, Exception e) {
+                        //execute everytime a record is successfully sent or exception is thrown
+                    	if(e == null){
+                        }else{
+    						ovLogger.error(e);
+                        }
+                    }
+                });
+		   		cnt++;
 	       }
 		  } catch (SQLException e) {
 			  
 		  }
+		  return cnt;
 	}
-
-	public int writeKafka(byte[] myvar) {
-	Producer<String, byte[]> 	producer = new KafkaProducer<String, byte[]>(propsP);
-	  try {
-        System.out.println("Sending message in bytes : " + myvar);
-        System.out.println("... : " + java.util.Arrays.toString(myvar));
-        ProducerRecord<String, byte[]> rec = new ProducerRecord<>("tes", myvar);
-        producer.send(rec);
-	} finally {
-	      producer.close();
-	    }	
-	  
-	  return 0;
-  }
-
 	
-	public int writeKafka(GenericRecord avroRec, Schema schema) {
-		byte[] myvar = avroToBytes(avroRec, schema);
-		
-	Producer<String, byte[]> 	producer = new KafkaProducer<String, byte[]>(propsP);
-	  try {
-		  ProducerRecord<String, byte[]> rec = new ProducerRecord<>("tes", myvar);
-		  producer.send(rec);
-	  	} finally {
-	      producer.close();
-	    }	
-	  return 0;
-	}
 	private byte[] avroToBytes(GenericRecord avroRec, Schema schema){
-	  byte[] myvar=null;
-		
-	  DatumWriter<GenericRecord> writer = new GenericDatumWriter<GenericRecord>(schema);
-	  ByteArrayOutputStream out = new ByteArrayOutputStream();
-	  BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
-	      
-	  try {
-		writer.write(avroRec, encoder);
-		
-	    encoder.flush();
-	    myvar = out.toByteArray();
-	  } catch (IOException e) {
-  		e.printStackTrace();
-  	}
-	return myvar;
-  }
+		byte[] myvar=null;
+			
+		  DatumWriter<GenericRecord> writer = new GenericDatumWriter<GenericRecord>(schema);
+		  ByteArrayOutputStream out = new ByteArrayOutputStream();
+		  BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
+		      
+		  try {
+			writer.write(avroRec, encoder);
+			
+		    encoder.flush();
+			out.close();
+		    myvar = out.toByteArray();
+		  } catch (IOException e) {
+	  		e.printStackTrace();
+	  	}
+		return myvar;
+	  }
 
-	
-	
-	
     Properties propsC = new Properties();
     {
     propsC.put("bootstrap.servers", "usir1xrvkfk01:9092");

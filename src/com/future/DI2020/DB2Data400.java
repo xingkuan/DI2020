@@ -426,7 +426,7 @@ class DB2Data400 extends DataPointer {
 				} else if (sDataType.equals("DATE")) {
 					strDataSpec = "DATE";
 					xType = 7;
-					aDataType = "date";
+					aDataType = "int\", \"logicalType\": \"date";
 				} else if (sDataType.equals("TIMESTMP")) {
 					strDataSpec = "TIMESTAMP";
 					xType = 6;
@@ -440,7 +440,7 @@ class DB2Data400 extends DataPointer {
 						strDataSpec = "NUMBER(" + rset.getInt("length") + ")";
 						xType = 1; // or 2
 					}
-					aDataType = "dbl";
+					aDataType = "double";
 				} else if (sDataType.equals("CHAR")) {
 					strDataSpec = "CHAR(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
 					xType = 1;
@@ -556,12 +556,22 @@ class DB2Data400 extends DataPointer {
 
 	// ..............
 
-	public void commit() throws SQLException {
-		dbConn.commit();
+	public void commit(){
+		try {
+			dbConn.commit();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
-	public void rollback() throws SQLException {
-		dbConn.rollback();
+	public void rollback(){
+		try {
+			dbConn.rollback();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
 	}
 
 	//try Functional programming

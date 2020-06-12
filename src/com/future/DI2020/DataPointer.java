@@ -119,7 +119,9 @@ public class DataPointer {
 	protected void crtSrcResultSet(List<String >keys) {
 		ovLogger.info("   Need implementation in child.");
 	}
-	protected void dropStaleRowsOfList(List<String> keys) {
+	protected int dropStaleRowsOfList(List<String> keys) {
+		ovLogger.info("   Need implementation in child.");
+		return 0;
 	}
 	protected int getDccCnt() {
 		ovLogger.info("   Need implementation in child.");
@@ -157,7 +159,12 @@ public class DataPointer {
 	protected void releaseRSandSTMT() {
 		ovLogger.info("   empty releaseRSandSTMT() in DataPointer.");
 	}
-	
+	protected void commit() {
+		ovLogger.info("   should be implemented in child.");
+	}
+	protected void rollback() {
+		ovLogger.info("   should be implemented in child.");
+	}
 	protected int initDataFrom(DataPointer dt) {
 		return 0;
 	}
@@ -187,7 +194,10 @@ public class DataPointer {
 		// TODO Auto-generated method stub
 		return 0;
 	}
-
+	public int syncAvroDataFrom(DataPointer srcData) {
+		// TODO Auto-generated method stub
+		return 0;
+	}
 	public int syncDataFrom(DataPointer srcData) {
 		// TODO Auto-generated method stub
 		return 0;

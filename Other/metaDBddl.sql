@@ -56,7 +56,7 @@ CREATE TABLE META_TABLE_FIELD
   TGT_FIELD         VARCHAR(50),
   TGT_FIELD_TYPE    VARCHAR(20),
   JAVA_TYPE         INT,
-  AVRO_TYPE         VARCHAR(20),
+  AVRO_TYPE         VARCHAR(50),
   primary key (tbl_id, field_id)
 )
 ;
@@ -155,6 +155,8 @@ insert into META_TEMPLATE
 ('O2V', 1, 'initial copy src to tgt'),
 ('O2V', 2, 'sync src to tgt via trig'),
 ('O2V', 9, 'audit'),
+('O2K', 0, 'enable trig'),
+('O2K', 2, 'sync src to tgt(kafka) via trig'),
 ('O2K_', 2, 'sync src data to kafka topic via kafka.')
 ;
 

@@ -170,7 +170,7 @@ class OracleData extends DataPointer{
 				} else if (sDataType.equals("DATE")) {
 					strDataSpec = "DATE";
 					xType = 7;
-					aDataType = "date";
+					aDataType = "int\", \"logicalType\": \"date";
 				} else if (sDataType.equals("TIMESTMP")) {
 					strDataSpec = "TIMESTAMP";
 					xType = 6;
@@ -184,7 +184,7 @@ class OracleData extends DataPointer{
 						strDataSpec = "NUMBER(" + rset.getInt("data_length") + ")";
 						xType = 1; // or 2
 					}
-					aDataType = "dbl";
+					aDataType = "long";
 				} else if (sDataType.equals("CHAR")) {
 					strDataSpec = "CHAR(" + 2 * rset.getInt("data_length") + ")"; // simple double it to handle UTF string
 					xType = 1;
@@ -276,11 +276,21 @@ class OracleData extends DataPointer{
 		return rslt;
 	}
 
-   public void commit() throws SQLException {
-      dbConn.commit();
+   public void commit() {
+      try {
+		dbConn.commit();
+	} catch (SQLException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
    }
-   public void rollback() throws SQLException {
-      dbConn.rollback();
+   public void rollback()  {
+      try {
+		dbConn.rollback();
+	} catch (SQLException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
    }
 
 }
