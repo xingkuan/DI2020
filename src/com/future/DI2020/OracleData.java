@@ -166,33 +166,37 @@ class OracleData extends DataPointer{
 				if (sDataType.equals("VARCHAR2")) {
 					strDataSpec = "VARCHAR(" + 2*rset.getInt("data_length") + ")"; // simple double it to handle UTF string
 					xType = 1;
-					aDataType = "string";
+					aDataType = "[\"string\", \"null\"]";
 				} else if (sDataType.equals("DATE")) {
 					strDataSpec = "DATE";
 					xType = 7;
-					aDataType = "int\", \"logicalType\": \"date";
-				} else if (sDataType.equals("TIMESTMP")) {
+					aDataType = "\"int\", \"logicalType\": \"date\"";
+				} else if (sDataType.contains("TIMESTAMP")) {
 					strDataSpec = "TIMESTAMP";
 					xType = 6;
-					aDataType = "timestamp_micros";
+					aDataType = "\"int\", \"logicalType\": \"timestamp-micros\"";
 				} else if (sDataType.equals("NUMBER")) {
 					scal = rset.getInt("data_scale");
 					if (scal > 0) {
 						strDataSpec = "NUMBER(" + rset.getInt("data_length") + ", " + rset.getInt("data_scale") + ")";
 						xType = 4; // was 5; but let's make them all DOUBLE
+						//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
+						//+ "\"scale\": " + scal;
 					} else {
 						strDataSpec = "NUMBER(" + rset.getInt("data_length") + ")";
-						xType = 1; // or 2
+						xType = 4; // or 2
+						//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
+						//+ "\"scale\": " + 0;
 					}
-					aDataType = "long";
+					aDataType = "\"long\"";   //BigDecimal is what getObject returns; but it can't work with AVRO.
 				} else if (sDataType.equals("CHAR")) {
 					strDataSpec = "CHAR(" + 2 * rset.getInt("data_length") + ")"; // simple double it to handle UTF string
 					xType = 1;
-					aDataType = "string";
+					aDataType = "[\"string\", \"null\"]";
 				} else {
 					strDataSpec = sDataType;
 					xType = 1;
-					aDataType = "string";
+					aDataType = "\"string\"";
 				}
 				sqlCrtTbl = sqlCrtTbl + "\"" + rset.getString("column_name") + "\" " + strDataSpec + ",\n";  //""" is needed because column name can contain space!
 
@@ -200,7 +204,7 @@ class OracleData extends DataPointer{
 						+ "(" + tblID + ", " + rset.getInt("column_id") + ", '"  
 						+ rset.getString("column_name") + "', '" + sDataType + "', '"
 						+ rset.getString("column_name") + "', '" + strDataSpec + "', "
-						+ xType + ", '" + aDataType + "'),\n";
+						+ xType + ", '\"type\": " + aDataType + "'),\n";
 			}
 			sqlCrtTbl = sqlCrtTbl + " " + PK + " varchar(20) ) \n;";
 

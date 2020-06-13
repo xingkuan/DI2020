@@ -254,7 +254,7 @@ class KafkaData extends DataPointer {
 	//https://aseigneurin.github.io/2018/08/02/kafka-tutorial-4-avro-and-schema-registry.html
 	//private KafkaProducer<Long, GenericRecord> createKafkaAVROProducer() {
 	private KafkaProducer<Long, byte[]> createKafkaAVROProducer() {
-		String cientID = metaData.getJobID() + "_" + metaData.getDCCPoolID();
+		String cientID = metaData.getJobID() + "_" + metaData.getTableID();
 
 		String strVal = conf.getConf("kafkaMaxBlockMS");
 		String kafkaACKS = conf.getConf("kafkaACKS");
@@ -290,30 +290,65 @@ class KafkaData extends DataPointer {
 	}
   
 	public int syncAvroDataFrom(DataPointer srcData) {
+		int rtc=2;
 		int cnt=0;
 		ResultSet rs=srcData.getSrcResultSet();
-		
+		ArrayList<Integer> fldType = metaData.getFldJavaType();
+
 		String jsonSch = metaData.getAvroSchema();
 		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
 		//schema = new Schema.Parser().parse(new File("user.avsc"));
 		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
 		Producer<Long, byte[]> producer = createKafkaAVROProducer();
-
+long tempNum;
+Object tempO;
 		GenericData.Record record;
 		//  Producer<String, byte[]> producer = null;
 		  try {
 	       while ( rs.next() ) {
 	    	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!      
-	    	   record.put(1, rs.getString(1));
-	    	   record.put(2, rs.getInt(2));
-	    	   record.put(3, rs.getString(3));
+				for (int i = 0; i < fldType.size(); i++) {  //The last column is the internal key.
+					/* Can't use getObject() for simplicity. :(
+					 *   1. Oracle ROWID, is a special type, not String as expected
+					 *   2. For NUMBER, it returns as BigDecimal, which Java has no proper way for handling and 
+					 *      AVRO has problem with it as well.
+					 */
+					//record.put(i, rs.getObject(i+1));
+					switch(fldType.get(i)) {
+					case 1:
+						record.put(i, rs.getString(i+1));
+						break;
+					case 4:
+						record.put(i, rs.getLong(i+1));
+						break;
+					case 7:
+					case 6:
+						tempO=rs.getDate(i+1);
+						if(tempO==null)
+							record.put(i, null);
+						else {
+						tempNum = rs.getDate(i+1).getTime();
+						record.put(i, tempNum);
+						}
+				//		break;
+				//	case 6:
+				//		record.put(i, new java.util.Timestamp(rs.getTimestamp(i+1).getTime()));
+						break;
+					default:
+						ovLogger.warn("unknow data type!");
+						record.put(i, rs.getString(i+1));
+						break;
+					}
+				}
+				//String temp = rs.getString(fldNames.size());
+				//record.put(fldNames.size()-1, rs.getString(fldNames.size()));
 
 	    	   /*
 	    	    * use byte, instead; ideally, use Confluent's Schena Registry 
 	    	    */
 	    	   //producer.send(new ProducerRecord<Long, GenericRecord>("topica", (long) 1, record));
 		   		byte[] myvar = avroToBytes(record, schema);
-		   		producer.send(new ProducerRecord<Long, byte[]>("topica", (long) 1, myvar),new Callback() {
+		   		producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
                     public void onCompletion(RecordMetadata recordMetadata, Exception e) {
                         //execute everytime a record is successfully sent or exception is thrown
                     	if(e == null){
@@ -325,9 +360,10 @@ class KafkaData extends DataPointer {
 		   		cnt++;
 	       }
 		  } catch (SQLException e) {
-			  
+			  ovLogger.error(e);
 		  }
-		  return cnt;
+		  //return cnt;
+		  return rtc;
 	}
 	
 	private byte[] avroToBytes(GenericRecord avroRec, Schema schema){
@@ -344,7 +380,7 @@ class KafkaData extends DataPointer {
 			out.close();
 		    myvar = out.toByteArray();
 		  } catch (IOException e) {
-	  		e.printStackTrace();
+	  		ovLogger.error(e);
 	  	}
 		return myvar;
 	  }

@@ -436,7 +436,7 @@ class MetaData {
 			fldNames.add(lrRset.getString("src_field"));
 
 			avroSchema = avroSchema 
-					+ "{\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
+					+ "{\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 			i++;
 		}
 		//rest line (but not the last)
@@ -445,24 +445,25 @@ class MetaData {
 				if(tblDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
 				sqlSelectSource += ", " + lrRset.getString("src_field");
 				avroSchema = avroSchema 
-						+ ", {\"name\": \"DB2RRN\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
+						+ ", {\"name\": \"DB2RRN\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 				}if(tblDetailJSON.get("db_type").toString().contains("ORACLE")){
 					sqlSelectSource += ", a." + lrRset.getString("src_field");
 					avroSchema = avroSchema 
-							+ ", {\"name\": \"ORARID\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
+							+ ", {\"name\": \"ORARID\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 				}
+				keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 			}else {
 				sqlSelectSource += ", a." + lrRset.getString("src_field");
 	
 				sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
 				//fldType[i] = lrRset.getInt("java_type");
 				//fldNames[i] = lrRset.getString("src_field");
-				fldType.add(lrRset.getInt("java_type"));
-				fldNames.add(lrRset.getString("src_field"));
 				keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 				avroSchema = avroSchema 
-						+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": \"" + lrRset.getString("avro_type") + "\"} \n" ;
+						+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 			}
+			fldType.add(lrRset.getInt("java_type"));
+			fldNames.add(lrRset.getString("src_field"));
 			i++;
 			// System.out.println(i);
 		}

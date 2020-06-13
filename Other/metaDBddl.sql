@@ -56,7 +56,7 @@ CREATE TABLE META_TABLE_FIELD
   TGT_FIELD         VARCHAR(50),
   TGT_FIELD_TYPE    VARCHAR(20),
   JAVA_TYPE         INT,
-  AVRO_TYPE         VARCHAR(50),
+  AVRO_TYPE         VARCHAR(80),
   primary key (tbl_id, field_id)
 )
 ;
