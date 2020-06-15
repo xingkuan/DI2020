@@ -249,7 +249,7 @@ class KafkaData extends DataPointer {
 		createKafkaProducer();
 	}
 
-	// ------ AVRO related --------------------------------------------------------------------
+	// ------ AVRO related; TODO: need to be consolidated--------------------------------------------------
 	//https://dev.to/de_maric/guide-to-apache-avro-and-kafka-46gk
 	//https://aseigneurin.github.io/2018/08/02/kafka-tutorial-4-avro-and-schema-registry.html
 	//private KafkaProducer<Long, GenericRecord> createKafkaAVROProducer() {
@@ -295,6 +295,8 @@ class KafkaData extends DataPointer {
 		ResultSet rs=srcData.getSrcResultSet();
 		ArrayList<Integer> fldType = metaData.getFldJavaType();
 
+		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		
 		String jsonSch = metaData.getAvroSchema();
 		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
 		//schema = new Schema.Parser().parse(new File("user.avsc"));
@@ -348,7 +350,9 @@ Object tempO;
 	    	    */
 	    	   //producer.send(new ProducerRecord<Long, GenericRecord>("topica", (long) 1, record));
 		   		byte[] myvar = avroToBytes(record, schema);
-		   		producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
+		   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
+		   		//producer.send(new ProducerRecord<Long, byte[]>(topic, (long) 1, myvar),new Callback() {  //TODO: what key to send?
+		   		producer.send(new ProducerRecord<Long, byte[]>(topic,  myvar),new Callback() {             //      For now, no key
                     public void onCompletion(RecordMetadata recordMetadata, Exception e) {
                         //execute everytime a record is successfully sent or exception is thrown
                     	if(e == null){
@@ -385,52 +389,70 @@ Object tempO;
 		return myvar;
 	  }
 
-    Properties propsC = new Properties();
-    {
-    propsC.put("bootstrap.servers", "usir1xrvkfk01:9092");
-    propsC.put("group.id", "group-1");
-    propsC.put("enable.auto.commit", "true");
-    propsC.put("auto.commit.interval.ms", "1000");
-    propsC.put("auto.offset.reset", "earliest");
-    propsC.put("session.timeout.ms", "30000");
-    propsC.put("key.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
-    }
-	public void testConsumer() {
+	private KafkaConsumer<Long, byte[]> createKafkaAVROConsumer() {
+	    Properties propsC = new Properties();
+
+	    String consumerGrp = metaData.getJobID() + metaData.getTableID();
+		String cientID = metaData.getJobID()+metaData.getTableDetails().get("tbl_id");
+
+		kafkaMaxPollRecords = Integer.parseInt(conf.getConf("kafkaMaxPollRecords"));
+		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));
+
+		propsC.put("bootstrap.servers", URL);
+		propsC.put("group.id", consumerGrp);
+		// props.put(ConsumerConfig.GROUP_ID_CONFIG, jobID);
+		propsC.put("client.id", cientID);
+		propsC.put("enable.auto.commit", "false");
+		propsC.put("auto.commit.interval.ms", "1000");
+		propsC.put("auto.offset.reset", "earliest"); // if we do this, we better reduce msg retention to just one day.
+		propsC.put("max.poll.records", kafkaMaxPollRecords);
+		propsC.put("session.timeout.ms", "30000");
+		propsC.put("key.deserializer", "org.apache.kafka.common.serialization.LongDeserializer");
+		//propsC.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 		propsC.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
 
-	KafkaConsumer<String, byte[]> kafkaConsumer = new KafkaConsumer<String, byte[]>(propsC);
-	//kafkaConsumer.subscribe(Arrays.asList("tes"));
-	kafkaConsumer.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
+		KafkaConsumer<Long, byte[]> kafkaConsumer = new KafkaConsumer<Long, byte[]>(propsC);
+		// consumerx.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
+		//consumer.subscribe(Arrays.asList(topic));
 
-	try {
-		Schema schema = new Schema.Parser().parse(new File("user.avsc"));
+		return kafkaConsumer;
+
+	}
+	
+	public void testConsumer() {
+		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
 		
-		DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+		String jsonSch = metaData.getAvroSchema();
+		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
 
-	ByteArrayInputStream in;
-	while (true) {
-	  ConsumerRecords<String, byte[]> records = kafkaConsumer.poll(100);
-	  for (ConsumerRecord<String, byte[]> record : records) {
-		  
-	    System.out.println("Partition: " + record.partition() 
-	        + " Offset: " + record.offset()
-	        + " Value: " + java.util.Arrays.toString(record.value()) 
-	        + " ThreadID: " + Thread.currentThread().getId()  );
+		KafkaConsumer<Long, byte[]> kafkaConsumer = createKafkaAVROConsumer();
+		kafkaConsumer.subscribe(Arrays.asList(topic));
 
-		in = new ByteArrayInputStream(record.value());
-			BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
+		try {
+			DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+
+			ByteArrayInputStream in;
+			while (true) {
+				ConsumerRecords<Long, byte[]> records = kafkaConsumer.poll(100);
+				for (ConsumerRecord<Long, byte[]> record : records) {
+				    System.out.println("Partition: " + record.partition() 
+				        + " Offset: " + record.offset()
+				        + " Value: " + java.util.Arrays.toString(record.value()) 
+				        + " ThreadID: " + Thread.currentThread().getId()  );
 			
-			GenericRecord a = reader.read(null, decoder);
-			System.out.println(a);
-			System.out.println(a.get(1));
-			System.out.println(a.get(2));
-			System.out.println(a.get(3));
-	  }
-	}
-	} catch (IOException e) {
-		// TODO Auto-generated catch block
-		e.printStackTrace();
-	}
+					in = new ByteArrayInputStream(record.value());
+					BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
+						
+					GenericRecord a = reader.read(null, decoder);
+					System.out.println(a);
+					System.out.println(a.get(1));
+					System.out.println(a.get(2));
+					System.out.println(a.get(3));
+				}
+			}
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
 	}
 
 //--------------------------------------------------------------------------------------------------------

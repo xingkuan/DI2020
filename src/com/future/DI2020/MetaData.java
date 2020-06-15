@@ -146,8 +146,9 @@ class MetaData {
 				return -1;
 			}
 			break;
+		case 21:  //testing code
 		default:
-			ovLogger.error("unsupported action.");	
+			ovLogger.error("unsupported action or just for dev/test purpose.");	
 		}
 		
 		initFieldMetaData();

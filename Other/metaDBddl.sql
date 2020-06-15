@@ -157,6 +157,7 @@ insert into META_TEMPLATE
 ('O2V', 9, 'audit'),
 ('O2K', 0, 'enable trig'),
 ('O2K', 2, 'sync src to tgt(kafka) via trig'),
+('O2K', 21, 'testing code'),
 ('O2K_', 2, 'sync src data to kafka topic via kafka.')
 ;
 
