@@ -329,8 +329,11 @@ Object tempO;
 						if(tempO==null)
 							record.put(i, null);
 						else {
+							//record.put(i, tempO); // class java.sql.Date cannot be cast to class java.lang.Long
 						tempNum = rs.getDate(i+1).getTime();
-						record.put(i, tempNum);
+						//record.put(i, new java.util.Date(tempNum));  //class java.util.Date cannot be cast to class java.lang.Number 
+						//record.put(i, tempNum);  //but that will show as long on receiving!
+						record.put(i, tempO.toString());  
 						}
 				//		break;
 				//	case 6:
@@ -389,6 +392,8 @@ Object tempO;
 		return myvar;
 	  }
 
+	
+	
 	private KafkaConsumer<Long, byte[]> createKafkaAVROConsumer() {
 	    Properties propsC = new Properties();
 
@@ -421,6 +426,8 @@ Object tempO;
 	
 	public void testConsumer() {
 		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		ConsumerRecords<Long, byte[]> records;
+		GenericRecord a=null, b=null;
 		
 		String jsonSch = metaData.getAvroSchema();
 		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
@@ -433,21 +440,23 @@ Object tempO;
 
 			ByteArrayInputStream in;
 			while (true) {
-				ConsumerRecords<Long, byte[]> records = kafkaConsumer.poll(100);
+				records = kafkaConsumer.poll(Duration.ofMillis(100));
 				for (ConsumerRecord<Long, byte[]> record : records) {
 				    System.out.println("Partition: " + record.partition() 
 				        + " Offset: " + record.offset()
 				        + " Value: " + java.util.Arrays.toString(record.value()) 
 				        + " ThreadID: " + Thread.currentThread().getId()  );
-			
+			//TODO: is that right? 
 					in = new ByteArrayInputStream(record.value());
 					BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
-						
-					GenericRecord a = reader.read(null, decoder);
+					kafkaConsumer.commitAsync();
+
+					a = reader.read(null, decoder);
+					//a = reader.read(b, decoder); 
 					System.out.println(a);
 					System.out.println(a.get(1));
-					System.out.println(a.get(2));
-					System.out.println(a.get(3));
+					System.out.println(a.get(2));  //TODO: still in long, not DATE!?
+					System.out.println(a.get(3)); 
 				}
 			}
 		} catch (IOException e) {
