@@ -9,4 +9,7 @@ module projDI {
 	requires org.apache.avro;
 	requires com.fasterxml.jackson.core;
 	requires com.fasterxml.jackson.annotation;
+	requires elasticsearch.rest.client;
+	requires org.apache.httpcomponents.httpcore;
+	requires org.apache.httpcomponents.httpcore.nio;
 }

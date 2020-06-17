@@ -10,11 +10,17 @@ class Test
 	   //metrix.sendMXrest("initDuration,jobId=test,tblID=0 value=6\n");
 	   //metrix.sendMX("initDuration,jobId=test,tblID=0 value=6\n");
       
-	   testAVROConsumer();
+	   //testAVROConsumer();
+	   
+	   testES();
 	   
 	   return ;
    }
    
+   private static void testES() {
+	   ESData es = new ESData();
+	   es.test();
+   }
    private static void testAVROConsumer() {
 		int tableID=6;
 		MetaData metaData = MetaData.getInstance();

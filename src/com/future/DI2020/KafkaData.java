@@ -379,7 +379,8 @@ Object tempO;
 		  DatumWriter<GenericRecord> writer = new GenericDatumWriter<GenericRecord>(schema);
 		  ByteArrayOutputStream out = new ByteArrayOutputStream();
 		  BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
-		      
+//other:		  BinaryEncoder encoder = EncoderFactory.get().jsonEncoder(schema, out)
+
 		  try {
 			writer.write(avroRec, encoder);
 			

@@ -85,6 +85,9 @@ public class DataPointer {
 					case "ORACLE":
 						db = new OracleData(jo, role);
 						break;
+					case "ES":
+						db = new ESData(jo, role);
+						break;
 				}
 			} catch (SQLException e) {
 				// TODO Auto-generated catch block
@@ -97,24 +100,23 @@ public class DataPointer {
 	}
 	private void connectDB() {
 		if(dbCat.equals("RDBMS")){
-		try {
-            //Class.forName("oracle.jdbc.OracleDriver"); 
-            Class.forName(driver); 
-         } catch(ClassNotFoundException e){
-            ovLogger.error("   Driver error has occured");
-            ovLogger.error( e);
-         }
+			try {
+				Class.forName(driver); 
+			} catch(ClassNotFoundException e){
+				ovLogger.error("   Driver error has occured");
+				ovLogger.error( e);
+			}
       
-      try {
-         dbConn = DriverManager.getConnection(URL, userID, passPWD);
-         dbConn.setAutoCommit(false);
-      } catch(SQLException e) {
-         ovLogger.error("   cannot connect to db");
-         ovLogger.error(e);
-      }
-	}else {
-		ovLogger.info("   not applicable for non-Relational.");
-	}
+			try {
+				dbConn = DriverManager.getConnection(URL, userID, passPWD);
+				dbConn.setAutoCommit(false);
+			} catch(SQLException e) {
+				ovLogger.error("   cannot connect to db");
+				ovLogger.error(e);
+			}
+		}else {
+				ovLogger.info("   not applicable for non-Relational.");
+		}
 	}
 	protected void crtSrcResultSet(List<String >keys) {
 		ovLogger.info("   Need implementation in child.");

@@ -136,6 +136,22 @@ values (
 'Oracle Dev')
 ;
 --For testing, use schem VERTSNAP.
+insert into META_DB (
+  DB_ID,
+  DB_CAT, DB_TYPE,
+  DB_USR, DB_PWD,
+  DB_DRIVER,
+  DB_CONN,
+  DB_INFO)
+values (
+'ES1', 
+'Search Engine', 'ES',
+'xxx', 'xxx', 
+'',
+'http://dbatool02:9200', 
+'ElasticSearch')
+;
+
 
 insert into META_TEMPLATE
 (
