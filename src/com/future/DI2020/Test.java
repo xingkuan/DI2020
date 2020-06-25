@@ -40,7 +40,7 @@ class Test
 		JSONObject tblDetail = metaData.getTableDetails();
 		String actTemp = tblDetail.get("temp_id").toString();
 
-		KafkaData tgtData = (KafkaData) DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+		KafkaData tgtData = (KafkaData) DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 		tgtData.testConsumer();
 
    }

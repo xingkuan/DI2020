@@ -26,7 +26,7 @@ public class RegisterTbl {
 
 	private static int tblID;
 
-	static DataPointer srcDB;
+	static DataPoint srcDB;
 
 	static String srcSQLs = "srcDDL.sql";
 	static String crtTblSQL = "tgtTblDDL.sql";
@@ -78,7 +78,7 @@ public class RegisterTbl {
 		System.out.println(outPath);
 		RegisterTbl regTbl = new RegisterTbl();
 
-		srcDB = DataPointer.dataPtrCreater(srcDBid, "SRC");
+		srcDB = DataPoint.dataPtrCreater(srcDBid, "SRC");
 
 		if(dccLog.equals("EXT") ) {    //TODO: So far, that is modeled after DB2/AS400 journal only. May not be that good idea!
 			if(!srcDB.regTblMisc(srcSch, srcTbl, dccLog)) {

@@ -37,7 +37,7 @@ import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.LogManager;
 
 
-class KafkaData extends DataPointer {
+class KafkaData extends DataPoint {
 	Conf conf = Conf.getInstance();
 	protected final String logDir = conf.getConf("logDir");
 	private static final Logger ovLogger = LogManager.getLogger();
@@ -67,7 +67,7 @@ class KafkaData extends DataPointer {
 		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));
 
 		Properties props = new Properties();
-		props.put("bootstrap.servers", URL);
+		props.put("bootstrap.servers", urlString);
 		props.put("group.id", consumerGrp);
 		// props.put(ConsumerConfig.GROUP_ID_CONFIG, jobID);
 		props.put("client.id", cientID);
@@ -102,7 +102,7 @@ class KafkaData extends DataPointer {
 		int kafkaRetry = Integer.parseInt(conf.getConf("kafkaRetry"));
 
 		Properties props = new Properties();
-		props.put("bootstrap.servers", URL);
+		props.put("bootstrap.servers", urlString);
 		
 	    props.put("acks", kafkaACKS);
 	    props.put("enable.idempotence", kafkaINDEM);
@@ -128,7 +128,7 @@ class KafkaData extends DataPointer {
 		return producer;
 	}
 
-	public int syncDataFrom(DataPointer srcData) {
+	public int syncDataFrom(DataPoint srcData) {
 		int rtc=2;
 	    int rrn=0;
 	    long seq=0l;
@@ -263,7 +263,7 @@ class KafkaData extends DataPointer {
 		int kafkaRetry = Integer.parseInt(conf.getConf("kafkaRetry"));
 
 		Properties props = new Properties();
-		props.put("bootstrap.servers", URL);
+		props.put("bootstrap.servers", urlString);
 			
 		props.put("acks", kafkaACKS);
 		props.put("enable.idempotence", kafkaINDEM);
@@ -289,7 +289,7 @@ class KafkaData extends DataPointer {
 		return prod;
 	}
   
-	public int syncAvroDataFrom(DataPointer srcData) {
+	public int syncAvroDataFrom(DataPoint srcData) {
 		int rtc=2;
 		int cnt=0;
 		ResultSet rs=srcData.getSrcResultSet();
@@ -404,7 +404,7 @@ Object tempO;
 		kafkaMaxPollRecords = Integer.parseInt(conf.getConf("kafkaMaxPollRecords"));
 		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));
 
-		propsC.put("bootstrap.servers", URL);
+		propsC.put("bootstrap.servers", urlString);
 		propsC.put("group.id", consumerGrp);
 		// props.put(ConsumerConfig.GROUP_ID_CONFIG, jobID);
 		propsC.put("client.id", cientID);

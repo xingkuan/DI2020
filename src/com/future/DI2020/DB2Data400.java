@@ -21,7 +21,7 @@ interface FunctionalTry {
 }
 
 
-class DB2Data400 extends DataPointer {
+class DB2Data400 extends JDBCData {
 //	private int tableID=0;
 
 	private Statement srcSQLStmt = null;
@@ -30,10 +30,10 @@ class DB2Data400 extends DataPointer {
 	private long seqThisFresh = 0;
 
 	//public DB2Data400(String dbid) throws SQLException {
-	public DB2Data400(JSONObject dbid, String role) throws SQLException {
-		super(dbid, role);
+	public DB2Data400(JSONObject dbDetailJSON, String role) throws SQLException {
+		super(dbDetailJSON, role);
 	}
-	protected void initializeFrom(DataPointer dt) {
+	protected void initializeFrom(DataPoint dt) {
 		ovLogger.info("   not needed yet");
 	}
 

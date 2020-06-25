@@ -23,9 +23,9 @@ class runTable {
 	private static final MetaData metaData = MetaData.getInstance();
 
 	static int tableID;
-	static DataPointer srcData;
-	static DataPointer tgtData;
-	static DataPointer auxData;
+	static DataPoint srcData;
+	static DataPoint tgtData;
+	static DataPoint auxData;
 
 
 	static String jobID ;
@@ -114,17 +114,17 @@ class runTable {
 		
 		switch(actId) {
 		case 0:
-			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
 			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 			break;
 		case 1:
 		case 9:
-			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
 			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 
-			tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+			tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 			tgtData.miscPrep(actTemp);
 			tgtData.setupSink();
 			ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
@@ -153,7 +153,7 @@ class runTable {
 		case "O2K":   //replicate records to kafka.
 		case "O2V":
 		case "DJ2K":  //replicate key to kafka
-			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
 			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 			dccCnt = srcData.getDccCnt();
@@ -165,7 +165,7 @@ class runTable {
 		case "D2K_":   //replicate records to kafka, via keys in Kafka
 		case "D2V_":
 			String auxDBstr = tblDetail.get("dcc_db_id").toString();
-			auxData = DataPointer.dataPtrCreater(auxDBstr, "DCC");
+			auxData = DataPoint.dataPtrCreater(auxDBstr, "DCC");
 			auxData.miscPrep(actTemp);
 			dccCnt = auxData.getDccCnt();
 			if(dccCnt==0) {
@@ -173,7 +173,7 @@ class runTable {
 				return 0;  
 			}
 			ovLogger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
-			srcData = DataPointer.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
 			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 			break;
@@ -183,7 +183,7 @@ class runTable {
 		}
 		
 
-		tgtData = DataPointer.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+		tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 		tgtData.miscPrep(actTemp);
 		tgtData.setupSink();
 		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());

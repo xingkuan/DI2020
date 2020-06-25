@@ -15,16 +15,15 @@ import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-public class DataPointer {
+public class DataPoint {
 	protected String dbRole;
 	
 	protected String dbID;
-	protected String URL;
+	protected String urlString;
 	protected String driver;
 	protected String userID;
 	protected String passPWD;
 	protected String dbType, dbCat;
-	protected Connection dbConn;
 
 	protected static final Logger ovLogger = LogManager.getLogger();
 	protected static final MetaData metaData = MetaData.getInstance();
@@ -32,28 +31,27 @@ public class DataPointer {
 	protected static final Metrix metrix = Metrix.getInstance();
 	protected static final String logDir = conf.getConf("logDir");
 
-	private static Map<String, DataPointer> dataPtrs=new HashMap<>();
+	private static Map<String, DataPoint> dataPtrs=new HashMap<>();
 
 	protected int totalErrCnt = 0, totalInsCnt = 0, totalDelCnt = 0, totalSynCnt=0;
 
-	public DataPointer() {
+	public DataPoint() {
         ovLogger.info("implicit DataPointer constructor.");
 	}
 	//public DataPointer(String dbid) throws SQLException {
-	public DataPointer(JSONObject jo, String role) throws SQLException {
+	public DataPoint(JSONObject jo, String role) {
 		//JSONObject jo = metaData.readDBDetails(dbid);
 		dbRole = role;
 		
 		dbID=jo.get("db_id").toString();
 		//this.dbID=dbid;
-		URL=jo.get("db_conn").toString();
+		urlString=jo.get("db_conn").toString();
 		driver=jo.get("db_driver").toString();
 		userID=jo.get("db_usr").toString();
 		passPWD=jo.get("db_pwd").toString();
 		dbType=jo.get("db_cat").toString();
 		dbType=jo.get("db_type").toString();
 		dbCat=jo.get("db_cat").toString();
-		connectDB();  
 	}
 	
 	public String getDBType() {
@@ -61,8 +59,8 @@ public class DataPointer {
 	}
 	
 	//role should be SRC, TGT or DCC
-	public static DataPointer dataPtrCreater(String dbid, String role) {
-		DataPointer db;
+	public static DataPoint dataPtrCreater(String dbid, String role) {
+		DataPoint db;
 		db = dataPtrs.get("dbid");
 		
 		if(db != null) {
@@ -98,26 +96,6 @@ public class DataPointer {
 		}
 		return db;
 	}
-	private void connectDB() {
-		if(dbCat.equals("RDBMS")){
-			try {
-				Class.forName(driver); 
-			} catch(ClassNotFoundException e){
-				ovLogger.error("   Driver error has occured");
-				ovLogger.error( e);
-			}
-      
-			try {
-				dbConn = DriverManager.getConnection(URL, userID, passPWD);
-				dbConn.setAutoCommit(false);
-			} catch(SQLException e) {
-				ovLogger.error("   cannot connect to db");
-				ovLogger.error(e);
-			}
-		}else {
-				ovLogger.info("   not applicable for non-Relational.");
-		}
-	}
 	protected void crtSrcResultSet(List<String >keys) {
 		ovLogger.info("   Need implementation in child.");
 	}
@@ -141,7 +119,7 @@ public class DataPointer {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return -1;
 	}
-	protected int crtSrcResultSet(int actId, JSONArray jo, DataPointer aux) {
+	protected int crtSrcResultSet(int actId, JSONArray jo, DataPoint aux) {
 		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return -1;
 	}
@@ -167,7 +145,7 @@ public class DataPointer {
 	protected void rollback() {
 		ovLogger.info("   should be implemented in child.");
 	}
-	protected int initDataFrom(DataPointer dt) {
+	protected int initDataFrom(DataPoint dt) {
 		return 0;
 	}
 	protected boolean miscPrep(String jobTemplate) {
@@ -196,11 +174,11 @@ public class DataPointer {
 		// TODO Auto-generated method stub
 		return 0;
 	}
-	public int syncAvroDataFrom(DataPointer srcData) {
+	public int syncAvroDataFrom(DataPoint srcData) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
-	public int syncDataFrom(DataPointer srcData) {
+	public int syncDataFrom(DataPoint srcData) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
@@ -208,7 +186,7 @@ public class DataPointer {
 //		// TODO Auto-generated method stub
 //		return 0;
 //	}
-	public int syncDataViaV2(DataPointer srcData, DataPointer auxData) {
+	public int syncDataViaV2(DataPoint srcData, DataPoint auxData) {
 		// TODO Auto-generated method stub
 		return 0;
 	}

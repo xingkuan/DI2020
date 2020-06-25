@@ -20,7 +20,7 @@ import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.logging.log4j.LogManager;
 
-class VerticaData extends DataPointer {
+class VerticaData extends JDBCData {
 
 	private Statement sqlStmt;
 	private boolean stmtOpen;
@@ -44,7 +44,7 @@ class VerticaData extends DataPointer {
 	}
 
 	// no where clause for initializing
-	public int initDataFrom(DataPointer srcData) {
+	public int initDataFrom(DataPoint srcData) {
 		int rtc=0;
 		truncateTbl();
 		ResultSet rsltSet = srcData.getSrcResultSet();
@@ -83,7 +83,7 @@ class VerticaData extends DataPointer {
 	}
 
 	// when log table is inserted from trigger
-	public int syncDataFrom(DataPointer srcData) {
+	public int syncDataFrom(DataPoint srcData) {
 		int rtc=0;
 	/* other than the src resultset, also create a KEY list from srcData,
 	 * which is used to delete the stalerows in tgt.
@@ -171,7 +171,7 @@ class VerticaData extends DataPointer {
 		return rtc;
 	}
 
-	public int syncDataViaV2(DataPointer srcData, DataPointer auxData) {
+	public int syncDataViaV2(DataPoint srcData, DataPoint auxData) {
 		int rtc = 2;
 		List<String> keys = auxData.getDCCKeyList();
 		/* Drop the idea of using where key in (....) for small list;

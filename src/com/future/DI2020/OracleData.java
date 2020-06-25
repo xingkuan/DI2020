@@ -12,7 +12,7 @@ import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.apache.logging.log4j.LogManager;
 
-class OracleData extends DataPointer{
+class OracleData extends JDBCData{
 	private Statement srcSQLStmt = null;
 	private ResultSet srcRS = null;
 	
@@ -20,7 +20,7 @@ class OracleData extends DataPointer{
    public OracleData(JSONObject dbID, String role) throws SQLException {
 		super(dbID, role);
    }
-   protected void initializeFrom(DataPointer dt) {
+   protected void initializeFrom(DataPoint dt) {
 		ovLogger.info("   not needed yet");
    }
 	public boolean miscPrep(String jTemp) {
