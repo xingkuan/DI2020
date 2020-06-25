@@ -12,4 +12,5 @@ module projDI {
 	requires elasticsearch.rest.client;
 	requires org.apache.httpcomponents.httpcore;
 	requires org.apache.httpcomponents.httpcore.nio;
+	requires java.scripting;
 }

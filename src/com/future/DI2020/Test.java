@@ -1,5 +1,12 @@
 package com.future.DI2020;
 
+import javax.script.Invocable;
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
+
+
+
 import org.json.simple.JSONObject;
 
 class Test
@@ -12,7 +19,10 @@ class Test
       
 	   //testAVROConsumer();
 	   
-	   testES();
+	   //testES();
+	   
+	   //testJSNashorn();
+	   testJSGraal();
 	   
 	   return ;
    }
@@ -34,5 +44,47 @@ class Test
 		tgtData.testConsumer();
 
    }
+   
+   private static void testJSNashorn() {
+	   ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");  //to be deprecated!
+	   //engine.eval(new FileReader("script.js"));
+	   try {
+	    Invocable invocable = (Invocable) engine;
 
+	    engine.eval("value = 10");
+	    Boolean greaterThan5 = (Boolean) engine.eval("value > 5");
+	    Boolean lessThan5 = (Boolean) engine.eval("value < 5");
+	    System.out.println("10 > 5? " + greaterThan5); // true
+	    System.out.println("10 < 5? " + lessThan5); // false
+	    
+	    engine.eval("function sum(a,b){return a+b;}");
+	    int v = (Integer)engine.eval("sum(21,22)");
+	    System.out.println(v);
+	   } catch (ScriptException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		} 
+   }
+   /*
+   https://www.graalvm.org/downloads/ don't know if that will work when you read this.
+	   From the GraalVM download put the following jar files onto your classpath (in my case the download contained a "Contents/Home/jre" folder):
+	   graaljs.jar (Contents/Home/jre/languages/js/graaljs.jar)
+	   graaljs-scriptengine.jar (Contents/Home/jre/lib/boot/graaljs-scriptengine.jar)
+	   graal-sdk.jar (Contents/Home/jre/lib/boot/graal-sdk.jar)
+	   truffle-api.jar (Contents/Home/jre/lib/truffle/truffle-api.jar)
+	   icu4j.jar (Contents/Home/jre/languages/js/icu4j.jar)
+	   */
+   private static void testJSGraal() {
+	    ScriptEngine graalEngine = new ScriptEngineManager().getEngineByName("graal.js");
+	    try {
+			graalEngine.eval("print('Hello Graal World!');");
+
+			graalEngine.eval("function sum(a,b){return a.concat(b);}");
+		    String v = (String)graalEngine.eval("sum(\"Hello, \", \"the other world!\")");
+		    System.out.println(v);
+	    } catch (ScriptException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}   
+	}
 }
