@@ -45,6 +45,7 @@ class KafkaData extends DataPoint {
 	int kafkaMaxPollRecords;
 	int pollWaitMil;
 
+	//private List<String> docList = new ArrayList<String>();
 
 	private KafkaConsumer<Long, String> consumer;
 	private KafkaProducer<Long, String> producer;
@@ -424,7 +425,48 @@ Object tempO;
 		return kafkaConsumer;
 
 	}
-	
+	//public void consumeBy(ESData sink) {
+	//public JSONArray consumer() {
+	//public List<String> getSrcList() {
+		public void crtSrcResultSet(int actId, String preSQLs) { //parameters are not applicable here :(
+		//List<String> docList = new ArrayList<String>();
+				
+		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		ConsumerRecords<Long, byte[]> records;
+		GenericRecord a=null, b=null;
+		
+		String jsonSch = metaData.getAvroSchema();
+		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
+
+		KafkaConsumer<Long, byte[]> kafkaConsumer = createKafkaAVROConsumer();
+		kafkaConsumer.subscribe(Arrays.asList(topic));
+
+		try {
+			DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+
+			ByteArrayInputStream in;
+			while (true) {
+				records = kafkaConsumer.poll(Duration.ofMillis(100));
+				for (ConsumerRecord<Long, byte[]> record : records) {
+					in = new ByteArrayInputStream(record.value());
+					BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
+					kafkaConsumer.commitAsync();
+
+					a = reader.read(null, decoder);
+					//a = reader.read(b, decoder); 
+					System.out.println(a);
+					System.out.println(a.get(1));
+					//sink.process(a); or construct a JSONArray, and return to the sink
+
+					msgKeyList.add(a.toString());
+				}
+			}
+			//sink.bulkIndex(docList);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		//return docList;
+	}
 	public void testConsumer() {
 		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
 		ConsumerRecords<Long, byte[]> records;

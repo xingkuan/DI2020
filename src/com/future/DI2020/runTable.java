@@ -150,8 +150,10 @@ class runTable {
 		JSONObject tblDetail = metaData.getTableDetails();
 		String actTemp = tblDetail.get("temp_id").toString();
 		switch(actTemp) {
-		case "O2K":   //replicate records to kafka.
-		case "O2V":
+		case "O2K":   //replicate Oracle records to kafka.
+		case "D2K":   //          DB2/AS400 records to kafka.
+		case "K2E":   //          Kafka data to Elasticsearch.
+		case "O2V":   //          
 		case "DJ2K":  //replicate key to kafka
 			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
@@ -260,6 +262,8 @@ class runTable {
 			String tempId = metaData.getTableDetails().get("temp_id").toString();
 			switch(tempId) {
 			case "O2V":    //no aux (kafka in between).
+			case "D2K":   //          DB2/AS400 records to kafka.
+			case "K2E":   //          Kafka data to Elasticsearch.
 			case "O2K":
 			case "D2V":
 			case "DJ2K":
