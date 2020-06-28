@@ -18,7 +18,7 @@ import org.apache.kafka.common.TopicPartition;
 import org.apache.logging.log4j.LogManager;
 
 class runTable {
-	private static final Logger ovLogger = LogManager.getLogger();
+	private static final Logger logger = LogManager.getLogger();
 	private static final Metrix metrix = Metrix.getInstance();
 	private static final MetaData metaData = MetaData.getInstance();
 
@@ -75,7 +75,7 @@ class runTable {
         }
 	}
 	static void actOnTable(int tID, int actId) {
-		ovLogger.info("    BEGIN.");
+		logger.info("    BEGIN.");
 
 		//based on jobDetail, do the corresponding...
 		switch(actId){
@@ -95,19 +95,19 @@ class runTable {
 				actType9(tID, actId);
 				break;
 			default:
-				ovLogger.info("unkown action");
+				logger.info("unkown action");
 				break;
 		}
-		ovLogger.info("    End.");
+		logger.info("    End.");
 	}
 
 	private static int setupAct(int tblID, int actId) { 
 		tableID=tblID;
 		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
-			ovLogger.error("Exit without doing anything.");
+			logger.error("Exit without doing anything.");
 			return -1;
 		}
-		ovLogger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
+		logger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
 
 		JSONObject tblDetail = metaData.getTableDetails();
 		String actTemp = tblDetail.get("temp_id").toString();
@@ -116,18 +116,18 @@ class runTable {
 		case 0:
 			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 			break;
 		case 1:
 		case 9:
 			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 
 			tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 			tgtData.miscPrep(actTemp);
 			tgtData.setupSink();
-			ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
+			logger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
 		}
 		
 		return 0;
@@ -142,10 +142,10 @@ class runTable {
 		
 		tableID=tblID;
 		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
-			ovLogger.error("Exit without doing anything.");
+			logger.error("Exit without doing anything.");
 			return -1;
 		}
-		ovLogger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
+		logger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
 
 		JSONObject tblDetail = metaData.getTableDetails();
 		String actTemp = tblDetail.get("temp_id").toString();
@@ -157,10 +157,10 @@ class runTable {
 		case "DJ2K":  //replicate key to kafka
 			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 			dccCnt = srcData.getDccCnt();
 			if(dccCnt==0) {
-				ovLogger.info("   no dcc.");
+				logger.info("   no dcc.");
 				return 0;  
 			}
 			break;
@@ -171,16 +171,16 @@ class runTable {
 			auxData.miscPrep(actTemp);
 			dccCnt = auxData.getDccCnt();
 			if(dccCnt==0) {
-				ovLogger.info("   no dcc.");
+				logger.info("   no dcc.");
 				return 0;  
 			}
-			ovLogger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
+			logger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
 			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			ovLogger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
 			break;
 		default:
-			ovLogger.error("Not a valid template: " + actTemp);
+			logger.error("Not a valid template: " + actTemp);
 			break;
 		}
 		
@@ -188,7 +188,7 @@ class runTable {
 		tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 		tgtData.miscPrep(actTemp);
 		tgtData.setupSink();
-		ovLogger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
+		logger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
 		
 		return dccCnt;
    }
@@ -219,14 +219,18 @@ class runTable {
 			JSONArray preSQLs, aftSQLs;
 			JSONObject sqlJO = metaData.getSrcSQLs(actId, false, false);
 			if((sqlJO==null)||(sqlJO.isEmpty())){
-				ovLogger.error("no SQL found for src resultset.");
+				logger.error("no SQL found for src resultset.");
 				return;
 			}
 			preSQLs = (JSONArray) sqlJO.get("PRE");
 			//aftSQLs = (JSONArray) sqlJO.get("AFT");
 			
-			srcData.crtSrcResultSet(actId, preSQLs);
-			int state = tgtData.initDataFrom(srcData);
+			//srcData.crtSrcResultSet(actId, preSQLs);
+			//int state = tgtData.initDataFrom(srcData);
+			//*******
+			tgtData.setupSink();
+			srcData.copyTo(tgtData);
+			//*******
 			//srcData.cleanup(actId, aftSQLs);
 	
 			srcData.close();
@@ -251,7 +255,7 @@ class runTable {
 			JSONArray preSQLs, aftSQLs;
 			JSONObject sqlJO = metaData.getSrcSQLs(actId, false, false);
 			if((sqlJO==null)||(sqlJO.isEmpty())){
-				ovLogger.error("no SQL found for src resultset.");
+				logger.error("no SQL found for src resultset.");
 				syncSt=2;
 				metaData.end(syncSt);
 				return;
@@ -269,23 +273,32 @@ class runTable {
 			case "DJ2K":
 				syncSt=srcData.crtSrcResultSet(actId, preSQLs);
 				if(syncSt<0) {
-					ovLogger.info("    error in source.");
+					logger.info("    error in source.");
 				}else {
 					//TODO:  for test. need re-org!
 					if(tempId.equals("O2K"))
 						syncSt = tgtData.syncAvroDataFrom(srcData);
 					else
-						syncSt = tgtData.syncDataFrom(srcData);
-					//srcData.afterSync(actId, aftSQLs);
+						//syncSt = tgtData.syncDataFrom(srcData);
+						////srcData.afterSync(actId, aftSQLs);
+						//*******
+						tgtData.setupSink();
+						srcData.copyTo(tgtData);
+						//*******
 				}
 				break;
 			case "D2V_":   //sync with DCC keys from kafka
-				//auxData.crtAuxSrcAsList();  //This is done in setupAct2() already!
-				syncSt = tgtData.syncDataViaV2(srcData, auxData);  //crtSrcResultSet() is pushed into this call. 
+				////auxData.crtAuxSrcAsList();  //This is done in setupAct2() already!
+				//syncSt = tgtData.syncDataViaV2(srcData, auxData);  //crtSrcResultSet() is pushed into this call. 
 																   //TODO: ugly code.
+				//*******
+				tgtData.setupSink();
+				srcData.copyToVia(tgtData,auxData);  
+				//*******
+
 				break;
 			default:
-				ovLogger.error("wrong template ID");
+				logger.error("wrong template ID");
 				break;
 		}
 		if(aftSQLs != null)	
@@ -331,7 +344,7 @@ class runTable {
 		srcData.close();
 		tgtData.close();
 		metaData.close();
-		ovLogger.info("Completed "+jobID+": " +  metaData.getTableID());
+		logger.info("Completed "+jobID+": " +  metaData.getTableID());
 	}
 
 	

@@ -25,7 +25,7 @@ public class Metrix {
     
     private byte[] buf;
     
-    private static final Logger ovLogger = LogManager.getLogger();
+    private static final Logger logger = LogManager.getLogger();
     
     
     private static Metrix instance = null;  // use lazy instantiation new OVSmetrix();
@@ -44,7 +44,7 @@ public class Metrix {
         String portStr = conf.getConf("influxDBport");
         String hostName = conf.getConf("influxDBhost");
         
-        //ovLogger.info(hostName + ":" + portStr);
+        //logger.info(hostName + ":" + portStr);
         int portNum = Integer.parseInt(portStr);
         
     	try {
@@ -57,7 +57,7 @@ public class Metrix {
 
            sock.send(dp);
         } catch (Exception e) {
-    		ovLogger.error("Exception " + e);
+    		logger.error("Exception " + e);
     	}
     }
     

@@ -52,7 +52,7 @@ class MetaData {
 	private Timestamp tsThisRef;
 	private long seqThisRef;
 
-	private static final Logger ovLogger = LogManager.getLogger();
+	private static final Logger logger = LogManager.getLogger();
 
 	private static final Metrix metrix = Metrix.getInstance();
 
@@ -95,8 +95,8 @@ class MetaData {
 		try {
 			Class.forName(dvr);
 		} catch (ClassNotFoundException e) {
-			ovLogger.error("DB Driver error has occured");
-			ovLogger.error(e);
+			logger.error("DB Driver error has occured");
+			logger.error(e);
 		}
 
 		try {
@@ -104,7 +104,7 @@ class MetaData {
 			repConn.setAutoCommit(false);
 			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
 		} catch (SQLException e) {
-			ovLogger.error(e);
+			logger.error(e);
 		}
 	}
 
@@ -134,7 +134,7 @@ class MetaData {
 		switch(aId) {
 		case 0:
 			if (!(currState.equals("")||currState.equals("0") )) {
-				ovLogger.warn("This table is already enabled.");
+				logger.warn("This table is already enabled.");
 				rtc = -1;
 			}
 			rtc = 0;
@@ -142,13 +142,13 @@ class MetaData {
 		case 1:
 		case 2:
 			if (!currState.equals("2")) {
-				ovLogger.warn("This table is not in sync state.");
+				logger.warn("This table is not in sync state.");
 				return -1;
 			}
 			break;
 		case 21:  //testing code
 		default:
-			ovLogger.error("unsupported action or just for dev/test purpose.");	
+			logger.error("unsupported action or just for dev/test purpose.");	
 		}
 		
 		initFieldMetaData();
@@ -172,7 +172,7 @@ class MetaData {
 							+ " from meta_table a, meta_db b " + " where a.src_db_id=b.db_id and tbl_id=" + tableID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
-			ovLogger.error("tableId does not exist.");
+			logger.error("tableId does not exist.");
 			return -1;
 		}
 		tblDetailJSON = (JSONObject) jo.get(0);
@@ -189,7 +189,7 @@ class MetaData {
 					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 			jo = SQLtoJSONArray(sql);
 			if(jo.isEmpty()) {
-				ovLogger.error("error in DCC, e. g. DB2/AS400 journal");
+				logger.error("error in DCC, e. g. DB2/AS400 journal");
 				return -1;
 			}
 			dccDetailJSON = (JSONObject) jo.get(0);
@@ -199,7 +199,7 @@ class MetaData {
 					+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
-			ovLogger.error("action not applicable.");
+			logger.error("action not applicable.");
 			return -1;
 		}
 		actDetailJSON = (JSONObject) jo.get(0);
@@ -261,7 +261,7 @@ class MetaData {
 			rset.close();
 			stmt.close();
 		} catch (SQLException e) {
-			ovLogger.error(e);
+			logger.error(e);
 		} 
 		return jArray;
 	}
@@ -286,13 +286,13 @@ class MetaData {
 					rtv=false;
 				}
 			}catch(Exception e) {
-				ovLogger.error(e);  //in case of null objects	
+				logger.error(e);  //in case of null objects	
 			}
 		}	
 		return rtv;
 	}*/
 	public int begin() {
-			ovLogger.warn(actDetailJSON.get("info").toString());
+			logger.warn(actDetailJSON.get("info").toString());
 			Calendar cal = Calendar.getInstance();
 			startMS = cal.getTimeInMillis();
 			updateCurrState(1);  //indicating table is being worked on
@@ -314,7 +314,7 @@ class MetaData {
 	public void saveInitStats() {
 		//markEndTime();
 		int duration = (int) (endMS - startMS) / 1000;
-		ovLogger.info(jobID + " duration: " + duration + " sec");
+		logger.info(jobID + " duration: " + duration + " sec");
 
 		// report to InfluxDB:
 		metrix.sendMX(
@@ -342,7 +342,7 @@ class MetaData {
 	public void saveSyncStats() {
 		//markEndTime();
 		int duration = (int) (endMS - startMS) / 1000;
-		ovLogger.info(jobID + " duration: " + duration + " sec");
+		logger.info(jobID + " duration: " + duration + " sec");
 
 		// report to InfluxDB:
 		metrix.sendMX(
@@ -369,7 +369,7 @@ class MetaData {
 	}
 	public void saveTblInitStats() {
 		int duration = (int) (endMS - startMS) / 1000;
-		ovLogger.info(jobID + " duration: " + duration + " sec");
+		logger.info(jobID + " duration: " + duration + " sec");
 
 		// report to InfluxDB:
 		metrix.sendMX(
@@ -402,7 +402,7 @@ class MetaData {
 			stmt.close();
 			repConn.commit();
 		} catch (SQLException e) {
-			ovLogger.error(e);
+			logger.error(e);
 		} 
 		return true;
 	}
@@ -548,11 +548,11 @@ public ArrayList<String> getFldNames() {
 			case "O2K":
 				return getO2Vact2SQLs(); 
 			default:
-				ovLogger.error("Invalid template.");
+				logger.error("Invalid template.");
 				return null;
 		}
 		}else {
-			ovLogger.error("Invalid action.");
+			logger.error("Invalid action.");
 			return null;
 		}
 	}
@@ -681,7 +681,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		} else {   //should never happen. no?
 			//seqThisRef = (long) miscValues.get("thisJournalSeq");
 			seqThisRef = Long.valueOf( (dccDetailJSON.get("seq_last_ref").toString()));
-			ovLogger.info("... need to see why can't retrieve Journal Seq!!!");
+			logger.info("... need to see why can't retrieve Journal Seq!!!");
 		}
 	}
 
@@ -741,7 +741,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 			repStmt.close();
 			repConn.close();
 		} catch (Exception e) {
-			ovLogger.warn("TODO: closed already. " + e);
+			logger.warn("TODO: closed already. " + e);
 		}
 
 	}
@@ -770,10 +770,10 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 				tList.add(tbl);
 			}
 		} catch (SQLException se) {
-			ovLogger.error("OJDBC driver error: " + se);
+			logger.error("OJDBC driver error: " + se);
 		} catch (Exception e) {
 			// Handle errors for Class.forName
-			ovLogger.error(e);
+			logger.error(e);
 		} finally {
 			// make sure the resources are closed:
 			try {
@@ -810,10 +810,10 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 				tList.add(id);
 			}
 		} catch (SQLException se) {
-			ovLogger.error("OJDBC driver error has occured" + se);
+			logger.error("OJDBC driver error has occured" + se);
 		} catch (Exception e) {
 			// Handle errors for Class.forName
-			ovLogger.error(e);
+			logger.error(e);
 		} finally {
 			// make sure the resources are closed:
 			try {
@@ -877,7 +877,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 			rRset.close();
 			repStmt.close();
 		} catch (SQLException e) {
-			ovLogger.error(e);
+			logger.error(e);
 		}
 
 		return tblID + 1;
@@ -900,10 +900,10 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 			lrRset.close();
 			lrepStmt.close();
 		} catch (SQLException se) {
-			ovLogger.error(se);
+			logger.error(se);
 		} catch (Exception e) {
 			// Handle errors for Class.forName
-			ovLogger.error(e);
+			logger.error(e);
 		} 
 
 		return rslt;

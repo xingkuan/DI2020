@@ -50,8 +50,42 @@ class ESData extends DataPoint{
 		//}
 		return rtc;
 	}
+/*****************************/
+	Request request;
+	StringBuilder bulkRequestBody;
+	public void setupSink() {
+		connect();
+		
+		request = new Request(
+				   "POST", 
+		           "/myindex/_bulk");
+		/*action_and_meta_data\n
+		 *optional_source\n
+		 *...
+		 *  { "index" : { "_index" : "myindex", "_id" : "1" } }
+		 *  { "field1" : "value1" }
+		 *  ...
+		 */
+		bulkRequestBody  = new StringBuilder();
+	}
+	public void sinkARec(ResultSet rs) {
+    	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
+    	bulkRequestBody.append("\n");
+    	bulkRequestBody.append(rs);   //mem is json, in single line.
+    	bulkRequestBody.append("\n");
+	}
+	public void finishCopy() {
+	    request.setEntity(new NStringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON));
+	    try {
+			Response indexResponse = restClient.performRequest(request);
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			logger.error(e);
+		}
+	}
+/*****************************/
    protected void initializeFrom(DataPoint dt) {
-		ovLogger.info("   not needed yet");
+		logger.info("   not needed yet");
    }
    private void connect() {
 		String[] urls = urlString.split(",");
@@ -159,7 +193,7 @@ class ESData extends DataPoint{
 	     @Override
 	     public void onFailure(Exception exception) {
 	       latch.countDown();
-	       ovLogger.error("Could not process ES request. ", exception);
+	       logger.error("Could not process ES request. ", exception);
 	     }
 	   };
 	       
@@ -173,9 +207,9 @@ class ESData extends DataPoint{
 	     });
 	   try {
 	     latch.await(); //wait for all the threads to finish
-	     ovLogger.info("Done inserting all the records to the index");
+	     logger.info("Done inserting all the records to the index");
 	   } catch (InterruptedException e1) {
-	     ovLogger.warn("Got interrupted.",e1);
+	     logger.warn("Got interrupted.",e1);
 	   }
 	 }
    public void tobeTried() {

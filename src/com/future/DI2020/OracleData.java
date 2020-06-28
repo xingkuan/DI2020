@@ -13,6 +13,8 @@ import org.json.simple.JSONObject;
 import org.apache.logging.log4j.LogManager;
 
 class OracleData extends JDBCData{
+	public static final Logger logger = LogManager.getLogger();
+	
 	private Statement srcSQLStmt = null;
 	private ResultSet srcRS = null;
 	
@@ -21,7 +23,7 @@ class OracleData extends JDBCData{
 		super(dbID, role);
    }
    protected void initializeFrom(DataPoint dt) {
-		ovLogger.info("   not needed yet");
+		logger.info("   not needed yet");
    }
 	public boolean miscPrep(String jTemp) {
 		boolean rtc=true;
@@ -38,7 +40,7 @@ class OracleData extends JDBCData{
 	//should only be sued when TEMP_ID
 	public int getDccCnt() {  //this one is very closely couple with crtSrcResultSet! TODO: any better way for arranging?
 		if(!metaData.getTableDetails().get("temp_id").toString().contains("_")){
-			ovLogger.warn("It does not look like it should be called!");
+			logger.warn("It does not look like it should be called!");
 		}
 		String sql = "update " + metaData.getTableDetails().get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" ;
 
@@ -58,52 +60,7 @@ class OracleData extends JDBCData{
 		}
 		return 0;
 	}
-	private boolean SQLtoResultSet(String sql) {
-		try {
-			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			srcRS = srcSQLStmt.executeQuery(sql);
-			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
-				ovLogger.info("   opened src recordset: ");
-			}
-		} catch (SQLException e) {
-			ovLogger.error("   " + e);
-			return false;
-		}
-		return true;
-	}
 
-   public int getRecordCount(){
-      int rtv;
-	  Statement sqlStmt;
-	  ResultSet sqlRset;
-      int i;
-
-	  String sql;
-      if(dbRole.equals("SRC")) {
-    	  sql="select count(*) from " + metaData.getTableDetails().get("src_schema").toString() 
-		  		+ "." + metaData.getTableDetails().get("src_table").toString();
-      }else if(dbRole.equals("TGT")) {
-    	  sql="select count(*) from " + metaData.getTableDetails().get("tgt_schema").toString() 
-		  		+ "." + metaData.getTableDetails().get("tgt_table").toString();
-      }else {
-    	  ovLogger.error("invalid DB role assignment.");
-    	  return -1;
-      }
-      
-      rtv=0;
-      try {
-    	  sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-    	  sqlRset=sqlStmt.executeQuery(sql);
-    	  sqlRset.next();
-            rtv = Integer.parseInt(sqlRset.getString(1));  
-            sqlRset.close();
-         sqlStmt.close();
-      } catch(SQLException e) {
-         ovLogger.error("   running sql: "+ e); 
-      }
-      return rtv;
-   }
-   
 	public List<String> getDCCKeyList(){
 		List<String> keyList=new ArrayList<String>();
 
@@ -120,7 +77,7 @@ class OracleData extends JDBCData{
 			rs1.close();
 			stmt1.close();
 		} catch (SQLException e) {
-			ovLogger.error("   " + e);
+			logger.error("   " + e);
 		}
 
 		return keyList;
@@ -252,7 +209,7 @@ class OracleData extends JDBCData{
 		   e.printStackTrace();
 	   }
 		
-	   ovLogger.info("   trigger is enabled..");
+	   logger.info("   trigger is enabled..");
 		
 	   return true;
 	}
@@ -275,7 +232,7 @@ class OracleData extends JDBCData{
 			stmt.close();
 			dbConn.commit();
 		} catch (SQLException e) {
-			ovLogger.error(e);
+			logger.error(e);
 		} 
 		return rslt;
 	}

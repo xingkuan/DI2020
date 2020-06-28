@@ -23,9 +23,7 @@ interface FunctionalTry {
 
 class DB2Data400 extends JDBCData {
 //	private int tableID=0;
-
-	private Statement srcSQLStmt = null;
-	private ResultSet srcRS = null;
+	public static final Logger logger = LogManager.getLogger();
 	
 	private long seqThisFresh = 0;
 
@@ -34,7 +32,7 @@ class DB2Data400 extends JDBCData {
 		super(dbDetailJSON, role);
 	}
 	protected void initializeFrom(DataPoint dt) {
-		ovLogger.info("   not needed yet");
+		logger.info("   not needed yet");
 	}
 
 	public boolean miscPrep(String jTemp) {
@@ -59,11 +57,11 @@ class DB2Data400 extends JDBCData {
 		sql=jaSQLs.get(jaSQLs.size()-1).toString();
 		if( !SQLtoResultSet(sql) ) {  // DB2AS400 journal, double check with relaxed "display_journal"
 			if(metaData.getTableDetails().get("temp_id").toString().equals("DJ2K")) {
-				ovLogger.warn("Failed the 1st trying of initializing src resultset.");
+				logger.warn("Failed the 1st trying of initializing src resultset.");
 				JSONArray ja = (JSONArray) metaData.getDJ2Kact2SQLs(false, true).get("PRE");
 				sql=ja.get(0).toString();
 				if( !SQLtoResultSet(sql) ) {
-					ovLogger.warn("Failed the 2nd time for src resultset. Giveup");
+					logger.warn("Failed the 2nd time for src resultset. Giveup");
 					return -1;
 				}
 			}
@@ -103,7 +101,7 @@ class DB2Data400 extends JDBCData {
 					try {
 						insStmt.setString(1, key);
 					} catch (Exception e) {
-						ovLogger.error("   " + e);
+						logger.error("   " + e);
 						//rtc = -1;
 					}
 					insStmt.addBatch();
@@ -111,8 +109,8 @@ class DB2Data400 extends JDBCData {
 				try {
 					batchIns = insStmt.executeBatch();
 				} catch (BatchUpdateException e) {
-					ovLogger.error("   Error... rolling back");
-					ovLogger.error(e.getMessage());
+					logger.error("   Error... rolling back");
+					logger.error(e.getMessage());
 				}
 			} catch (SQLException e1) {
 				// TODO Auto-generated catch block
@@ -145,7 +143,7 @@ class DB2Data400 extends JDBCData {
 			stmt.close();
 			dbConn.commit();
 		} catch (SQLException e) {
-			ovLogger.error(e);
+			logger.error(e);
 		} 
 		return true;
 	}
@@ -166,11 +164,11 @@ class DB2Data400 extends JDBCData {
 			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			srcRS = srcSQLStmt.executeQuery(strSQL);
 			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
-				ovLogger.info("   opened src jrnl recordset: ");
+				logger.info("   opened src jrnl recordset: ");
 				rtv=true;
 			}
 		} catch (SQLException e) {
-			ovLogger.error("initSrcLogQuery() failure: " + e);
+			logger.error("initSrcLogQuery() failure: " + e);
 			// 2020.04.12:
 			// looks like it is possible that a Journal 0f the last entry can be deleted by
 			// this time,--which mayhappen if that journal was never used -- which will
@@ -178,39 +176,24 @@ class DB2Data400 extends JDBCData {
 			// one way is to NOT use -- cast(" + strLastSeq + " as decimal(21,0)), .
 			// The code do it here in the hope of doing good thing. But the user should be
 			// the one to see if that is appropreate.
-			ovLogger.warn(
+			logger.warn(
 					"Posssible data loss! needed journal " + metaData.getTableDetails().get("SRC_TABLE") + " must have been deleted.");
-			ovLogger.warn("  try differently of " + metaData.getTableDetails().get("SRC_TABLE") + ":");
+			logger.warn("  try differently of " + metaData.getTableDetails().get("SRC_TABLE") + ":");
 			try {
 				srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 				String StrSQL = metaData.getSrcDCCSQL(false, true);
 				srcRS = srcSQLStmt.executeQuery(StrSQL);
 				rtv=true;
-				ovLogger.info("   opened src jrnl recordset on ultimate try: ");
+				logger.info("   opened src jrnl recordset on ultimate try: ");
 			} catch (SQLException ex) {
-				ovLogger.error("   ultimate failure: " + metaData.getTableDetails().get("SRC_TABLE") + " !");
-				ovLogger.error("   initSrcLogQuery() failure: " + ex);
+				logger.error("   ultimate failure: " + metaData.getTableDetails().get("SRC_TABLE") + " !");
+				logger.error("   initSrcLogQuery() failure: " + ex);
 			}
 		}
 		return rtv;
 		}
 	}
 */
-	private boolean SQLtoResultSet(String sql) {
-		try {
-			// String strTS = new
-			// SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(tblMeta.getLastRefresh());
-			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			srcRS = srcSQLStmt.executeQuery(sql);
-			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
-				ovLogger.info("   opened src recordset: ");
-			}
-		} catch (SQLException e) {
-			ovLogger.error("   " + e);
-			return false;
-		}
-		return true;
-	}
 	public void releaseRSandSTMT() {
 		try {
 			srcSQLStmt.close();
@@ -237,9 +220,9 @@ class DB2Data400 extends JDBCData {
 			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			sqlRset = sqlStmt.executeQuery(sqlStr);
 		} catch (SQLException e) {
-			ovLogger.error("   aux recordset not created");
-			ovLogger.error(e);
-			ovLogger.error(" \n\n\n" + sqlStr + "\n\n\n");
+			logger.error("   aux recordset not created");
+			logger.error(e);
+			logger.error(" \n\n\n" + sqlStr + "\n\n\n");
 		}
 
 		return sqlRset;
@@ -289,45 +272,13 @@ class DB2Data400 extends JDBCData {
 			sqlStmt.close();
 		} catch (SQLException e) {
 			// System.out.println(label + " error during threshlogcnt");
-//.         ovLogger.log(label + " error during threshlogcnt");
-			ovLogger.error(" error during threshlogcnt");
+//.         logger.log(label + " error during threshlogcnt");
+			logger.error(" error during threshlogcnt");
 		}
 		// System.out.println(label + " theshold log count: " + lc);
-//.      ovLogger.log(label + " theshold log count: " + lc);
-		ovLogger.info(" theshold log count: " + lc);
+//.      logger.log(label + " theshold log count: " + lc);
+		logger.info(" theshold log count: " + lc);
 		return lc;
-	}
-
-	public int getRecordCount() {
-		int rtv;
-		ResultSet lrRset;
-
-		  String sql;
-	      if(dbRole.equals("SRC")) {
-	    	  sql="select count(*) from " + metaData.getTableDetails().get("src_schema").toString() 
-			  		+ "." + metaData.getTableDetails().get("src_table").toString();
-	      }else if(dbRole.equals("TGT")) {
-	    	  sql="select count(*) from " + metaData.getTableDetails().get("tgt_schema").toString() 
-			  		+ "." + metaData.getTableDetails().get("tgt_table").toString();
-	      }else {
-	    	  ovLogger.error("invalid DB role assignment.");
-	    	  return -1;
-	      }
-
-		rtv = 0;
-		try {
-			Statement sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-
-			lrRset = sqlStmt.executeQuery(sql);
-			lrRset.next();
-			rtv = Integer.parseInt(lrRset.getString(1));
-
-			lrRset.close();
-			sqlStmt.close();
-		} catch (SQLException e) {
-			ovLogger.error(e);
-		}
-		return rtv;
 	}
 
 	public int getDccCnt() {
@@ -356,7 +307,7 @@ class DB2Data400 extends JDBCData {
 			if (lrRset.next()) {
 				seqThisFresh = lrRset.getLong(1);
 				if(seqThisFresh==0) {
-					ovLogger.info("   not able to get current Journal seq. Try the expensive way. " );
+					logger.info("   not able to get current Journal seq. Try the expensive way. " );
 					rtv=false;
 				}else {
 				metaData.setRefreshSeqThis(seqThisFresh);
@@ -367,9 +318,9 @@ class DB2Data400 extends JDBCData {
 			sqlStmt.close();
 		} catch (SQLException e) {
 			if(fast)
-				ovLogger.info("   not able to get current Journal seq. Try the expensive way. " + e);
+				logger.info("   not able to get current Journal seq. Try the expensive way. " + e);
 			else
-				ovLogger.error("   not able to get current Journal seq. Give up. " + e);
+				logger.error("   not able to get current Journal seq. Give up. " + e);
 		}
 		
 		return rtv;
@@ -543,14 +494,14 @@ class DB2Data400 extends JDBCData {
 			stmt.close();
 		} catch (SQLException e) {
 			rslt = false;
-			ovLogger.error(e.getMessage());
+			logger.error(e.getMessage());
 		}
 
 		return rslt;
 	}
 	
 	public boolean beginDCC(){
-		ovLogger.info("   not applicable to DB2/AS400.");
+		logger.info("   not applicable to DB2/AS400.");
 		return true;
 	}
 

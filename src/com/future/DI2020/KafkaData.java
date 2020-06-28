@@ -40,7 +40,7 @@ import org.apache.logging.log4j.LogManager;
 class KafkaData extends DataPoint {
 	Conf conf = Conf.getInstance();
 	protected final String logDir = conf.getConf("logDir");
-	private static final Logger ovLogger = LogManager.getLogger();
+	private static final Logger logger = LogManager.getLogger();
 
 	int kafkaMaxPollRecords;
 	int pollWaitMil;
@@ -156,8 +156,8 @@ class KafkaData extends DataPoint {
 	                        if(e == null){
 	                           // No Exception
 	                        }else{
-	    						ovLogger.error("      exception at " + " " + aMsg.key() + ". Exit here!");
-	    						ovLogger.error(e);
+	    						logger.error("      exception at " + " " + aMsg.key() + ". Exit here!");
+	    						logger.error(e);
 	    						//set the aMsg.key and exit. Question: will the loop stop when encounter this exception?
 	    						//metaData.setRefreshSeqThis(aMsg.key());
 	    						metaData.getMiscValues().put("thisJournalSeq", aMsg.key());
@@ -168,10 +168,10 @@ class KafkaData extends DataPoint {
 				}
 			}
 			rtc=0;
-			ovLogger.info("   last Journal Seq #: " + seq);
+			logger.info("   last Journal Seq #: " + seq);
 			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getTableDetails().get("SRC_TABLE")+" value=" + seq + "\n");
 		} catch (SQLException e) {
-			ovLogger.error("   failed to retrieve from DB2: " + e);
+			logger.error("   failed to retrieve from DB2: " + e);
 			rtc=0;   // ignore this one, and move on to the next one.
 		} finally {
 			srcData.releaseRSandSTMT();
@@ -206,7 +206,7 @@ class KafkaData extends DataPoint {
 			// ConsumerRecords<Long, String> records = consumerx.poll(0);
 			if (records.count() == 0) {  //no record? try again, after consective "giveUp" times.
 				noRecordsCount++;
-				ovLogger.info("    consumer poll cnt: " + noRecordsCount);
+				logger.info("    consumer poll cnt: " + noRecordsCount);
 				if (noRecordsCount > giveUp)
 					break; // no more records. exit
 				else
@@ -221,7 +221,7 @@ class KafkaData extends DataPoint {
 				//	break;
 				//}
 			}
-			ovLogger.info("    read total msg: " + (cntRRN-1));
+			logger.info("    read total msg: " + (cntRRN-1));
 		}
 		//consumer.commitSync();  //TODO: little risk here. Ideally, that should happen after data is save in tgt.
 		//consumer.close();       //   so to be called in the end of sync
@@ -246,9 +246,6 @@ class KafkaData extends DataPoint {
 		return msgKeyList;
 	}
 
-	public void setupSink() {
-		createKafkaProducer();
-	}
 
 	// ------ AVRO related; TODO: need to be consolidated--------------------------------------------------
 	//https://dev.to/de_maric/guide-to-apache-avro-and-kafka-46gk
@@ -289,7 +286,90 @@ class KafkaData extends DataPoint {
 			//      checking and handling . Weird !!!
 		return prod;
 	}
-  
+	/**************************************/
+	/*It is a sink, because it put msg to Kafka topic(s).
+	 *  May need two version: one for DCC, with is <String, String>
+	 *                        one is for bus. data, in AVRO  
+	 */
+	String topic;
+	int msgCnt;
+	ArrayList<Integer> fldType;
+	Schema schema;
+	long tempNum;
+	Object tempO;
+	GenericData.Record record;
+	Producer<Long, byte[]> byteProducer;
+	public void setupSink() {   
+		createKafkaProducer();
+
+		fldType = metaData.getFldJavaType();
+
+		topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		
+		String jsonSch = metaData.getAvroSchema();
+		schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
+		//schema = new Schema.Parser().parse(new File("user.avsc"));
+		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
+		byteProducer = createKafkaAVROProducer();
+	}
+	public void sinkARec(ResultSet rs) {
+ 	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!   
+ 	   try {
+		for (int i = 0; i < fldType.size(); i++) {  //The last column is the internal key.
+			/* Can't use getObject() for simplicity. :(
+			 *   1. Oracle ROWID, is a special type, not String as expected
+			 *   2. For NUMBER, it returns as BigDecimal, which Java has no proper way for handling and 
+			 *      AVRO has problem with it as well.
+			 */
+			//record.put(i, rs.getObject(i+1));
+			switch(fldType.get(i)) {
+			case 1:
+				record.put(i, rs.getString(i+1));
+				break;
+			case 4:
+				record.put(i, rs.getLong(i+1));
+				break;
+			case 7:
+			case 6:
+				tempO=rs.getDate(i+1);
+				if(tempO==null)
+					record.put(i, null);
+				else {
+					//record.put(i, tempO); // class java.sql.Date cannot be cast to class java.lang.Long
+				tempNum = rs.getDate(i+1).getTime();
+				//record.put(i, new java.util.Date(tempNum));  //class java.util.Date cannot be cast to class java.lang.Number 
+				//record.put(i, tempNum);  //but that will show as long on receiving!
+				record.put(i, tempO.toString());  
+				}
+		//		break;
+		//	case 6:
+		//		record.put(i, new java.util.Timestamp(rs.getTimestamp(i+1).getTime()));
+				break;
+			default:
+				logger.warn("unknow data type!");
+				record.put(i, rs.getString(i+1));
+				break;
+			}
+			
+	   		byte[] myvar = avroToBytes(record, schema);
+	   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
+	   		//producer.send(new ProducerRecord<Long, byte[]>(topic, (long) 1, myvar),new Callback() {  //TODO: what key to send?
+	   		byteProducer.send(new ProducerRecord<Long, byte[]>(topic,  myvar),
+	   			new Callback() {             //      For now, no key
+	   				public void onCompletion(RecordMetadata recordMetadata, Exception e) {   //execute everytime a record is successfully sent or exception is thrown
+	   					if(e == null){
+	   						}else{
+	   							logger.error(e);
+	   						}
+	   					}
+	   			});
+	   			msgCnt++;
+				}
+ 	   	}catch (SQLException e) {
+		  logger.error(e);
+ 	   	}
+	}
+	/**************************************/
 	public int syncAvroDataFrom(DataPoint srcData) {
 		int rtc=2;
 		int cnt=0;
@@ -341,7 +421,7 @@ Object tempO;
 				//		record.put(i, new java.util.Timestamp(rs.getTimestamp(i+1).getTime()));
 						break;
 					default:
-						ovLogger.warn("unknow data type!");
+						logger.warn("unknow data type!");
 						record.put(i, rs.getString(i+1));
 						break;
 					}
@@ -361,14 +441,14 @@ Object tempO;
                         //execute everytime a record is successfully sent or exception is thrown
                     	if(e == null){
                         }else{
-    						ovLogger.error(e);
+    						logger.error(e);
                         }
                     }
                 });
 		   		cnt++;
 	       }
 		  } catch (SQLException e) {
-			  ovLogger.error(e);
+			  logger.error(e);
 		  }
 		  //return cnt;
 		  return rtc;
@@ -389,7 +469,7 @@ Object tempO;
 			out.close();
 		    myvar = out.toByteArray();
 		  } catch (IOException e) {
-	  		ovLogger.error(e);
+	  		logger.error(e);
 	  	}
 		return myvar;
 	  }
@@ -513,7 +593,7 @@ public void close() {
 		consumer.close();
 		producer.close();
 		}catch(NullPointerException e) {
-			ovLogger.info("      nothing to close.");
+			logger.info("      nothing to close.");
 		}
 	}
 }

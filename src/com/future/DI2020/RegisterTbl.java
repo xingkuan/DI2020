@@ -21,7 +21,7 @@ import java.io.IOException;
 import java.io.File;
 
 public class RegisterTbl {
-	private static final Logger ovLogger = LogManager.getLogger();
+	private static final Logger logger = LogManager.getLogger();
 	private static final MetaData metaData = MetaData.getInstance();
 
 	private static int tblID;

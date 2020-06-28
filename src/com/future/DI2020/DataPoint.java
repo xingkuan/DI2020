@@ -25,7 +25,7 @@ public class DataPoint {
 	protected String passPWD;
 	protected String dbType, dbCat;
 
-	protected static final Logger ovLogger = LogManager.getLogger();
+	public static final Logger logger = LogManager.getLogger();
 	protected static final MetaData metaData = MetaData.getInstance();
 	protected static final Conf conf = Conf.getInstance();
 	protected static final Metrix metrix = Metrix.getInstance();
@@ -36,7 +36,7 @@ public class DataPoint {
 	protected int totalErrCnt = 0, totalInsCnt = 0, totalDelCnt = 0, totalSynCnt=0;
 
 	public DataPoint() {
-        ovLogger.info("implicit DataPointer constructor.");
+        logger.info("implicit DataPointer constructor.");
 	}
 	//public DataPointer(String dbid) throws SQLException {
 	public DataPoint(JSONObject jo, String role) {
@@ -97,53 +97,53 @@ public class DataPoint {
 		return db;
 	}
 	protected void crtSrcResultSet(List<String >keys) {
-		ovLogger.info("   Need implementation in child.");
+		logger.info("   Need implementation in child.");
 	}
 	protected int dropStaleRowsOfList(List<String> keys) {
-		ovLogger.info("   Need implementation in child.");
+		logger.info("   Need implementation in child.");
 		return 0;
 	}
 	protected int getDccCnt() {
-		ovLogger.info("   Need implementation in child.");
+		logger.info("   Need implementation in child.");
 		return 0;
 	}
 
 	protected void crtAuxSrcAsList() {
 	}
 	protected boolean crtSrcAuxResultSet() {
-		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return true;
 	}
 	//where clause is to be build from catalog
 	protected int crtSrcResultSet(int actId, JSONArray jo) {
-		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return -1;
 	}
 	protected int crtSrcResultSet(int actId, JSONArray jo, DataPoint aux) {
-		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return -1;
 	}
 	//where clause compose of the parameter
 	protected ResultSet getSrcResultSet(String qry) {
-		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return null;
 	}
 	protected ResultSet getSrcResultSet() {
-		ovLogger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return null;
 	}
 	protected List<String> getDCCKeyList(){
-		ovLogger.info("   empty getSrcResultList() in DataPointer.");
+		logger.info("   empty getSrcResultList() in DataPointer.");
 		return null;
 	}
 	protected void releaseRSandSTMT() {
-		ovLogger.info("   empty releaseRSandSTMT() in DataPointer.");
+		logger.info("   empty releaseRSandSTMT() in DataPointer.");
 	}
 	protected void commit() {
-		ovLogger.info("   should be implemented in child.");
+		logger.info("   should be implemented in child.");
 	}
 	protected void rollback() {
-		ovLogger.info("   should be implemented in child.");
+		logger.info("   should be implemented in child.");
 	}
 	protected int initDataFrom(DataPoint dt) {
 		return 0;
@@ -153,18 +153,26 @@ public class DataPoint {
 		return true;
 	}
 	protected void setupSink() {
-		ovLogger.info("   An empty setupSink() in DataPointer.");
+		logger.info("   An empty setupSink() in DataPointer.");
+	}
+	public void copyTo(DataPoint tgt) {
+	}
+	public void copyToVia(DataPoint tgt, DataPoint src) {
+	}
+	public void sinkARec(ResultSet rs) {  
+	}
+	public void finishCopy() {
 	}
 	protected boolean ready() {
 		// TODO Auto-generated method stub
 		return false;
 	}
 	protected boolean beginDCC(){
-		ovLogger.info("   should be implemented in child class.");
+		logger.info("   should be implemented in child class.");
 		return false;
 	}
 	protected void afterSync(int actId, JSONArray aftSQLs){
-		ovLogger.info("   should be implemented in child class.");
+		logger.info("   should be implemented in child class.");
 	}
 	protected void close() {
 		
@@ -198,7 +206,7 @@ public class DataPoint {
 		return false;
 	}
 	public long getThisRefreshSeq() {
-		ovLogger.info("   An empty method in DataPointer: getThisRefreshSeq()");
+		logger.info("   An empty method in DataPointer: getThisRefreshSeq()");
 		// TODO Auto-generated method stub
 		return 0;
 	}

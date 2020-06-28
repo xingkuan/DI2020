@@ -26,17 +26,13 @@ class VerticaData extends JDBCData {
 	private boolean stmtOpen;
 	private ResultSet sRset;
 
-	private static final Logger ovLogger = LogManager.getLogger();
+	private static final Logger logger = LogManager.getLogger();
 
 	//public VerticaData(String dbid) throws SQLException {
 	public VerticaData(JSONObject dbid, String role) throws SQLException {
 		super(dbid, role);
 	}
 
-	public void setupSinkData() {
-		// TODO Auto-generated method stub
-
-	}
 
 	public boolean miscPrep(String jobTempId) {
 		// TODO Auto-generated method stub
@@ -77,7 +73,7 @@ class VerticaData extends JDBCData {
 			stmt.close();
 			dbConn.commit();
 		} catch (SQLException e) {
-			ovLogger.error(e);
+			logger.error(e);
 		} 
 		return true;
 	}
@@ -135,8 +131,8 @@ class VerticaData extends JDBCData {
 				try {
 					delStmt.setString(1, key);
 				} catch (Exception e) {
-					ovLogger.error("   " + e.toString());
-					ovLogger.error("    The key of problem: " + key);
+					logger.error("   " + e.toString());
+					logger.error("    The key of problem: " + key);
 					//rtc = -1; //will keep going!
 				}
 				delStmt.addBatch();
@@ -147,9 +143,9 @@ class VerticaData extends JDBCData {
 						batchDel = delStmt.executeBatch();
 
 						curRecCnt = 0;
-						ovLogger.info("   batch - " + totalSynCnt);
+						logger.info("   batch - " + totalSynCnt);
 					} catch (BatchUpdateException e) {
-						ovLogger.error("   Batch Error: " + e);
+						logger.error("   Batch Error: " + e);
 						return -1;  //just error out
 					}
 				}
@@ -158,7 +154,7 @@ class VerticaData extends JDBCData {
 			try {
 				batchDel = delStmt.executeBatch();
 			} catch (BatchUpdateException e) {
-				ovLogger.error("   Batch Error: " + e);
+				logger.error("   Batch Error: " + e);
 				return -1;  //just error out
 			}
 			//commit(); //to be called at the end of sync
@@ -166,7 +162,7 @@ class VerticaData extends JDBCData {
 		} catch (SQLException e) {
 			rtc = -1;
 			//rollback();  //to be called at the end of sync
-			ovLogger.error(e);
+			logger.error(e);
 		}
 		return rtc;
 	}
@@ -198,11 +194,11 @@ class VerticaData extends JDBCData {
 			ResultSet rsltSet = srcData.getSrcResultSet();
 			rtc = syncDataFromV2(rsltSet, 2);
 			if(rtc<0) {
-				ovLogger.error("Error happened. There is the risk of data being out of sync for " + metaData.getTableDetails().get("src_schema") + metaData.getTableDetails().get("src_table"));
+				logger.error("Error happened. There is the risk of data being out of sync for " + metaData.getTableDetails().get("src_schema") + metaData.getTableDetails().get("src_table"));
 			}
 
 		}else {
-			ovLogger.info("   No changes!");
+			logger.info("   No changes!");
 		}
 		
 		return rtc;
@@ -225,7 +221,7 @@ class VerticaData extends JDBCData {
 			// ConsumerRecords<Long, String> records = consumerx.poll(0);
 			if (records.count() == 0) {
 				noRecordsCount++;
-				ovLogger.info("    consumer poll cnt: " + noRecordsCount);
+				logger.info("    consumer poll cnt: " + noRecordsCount);
 				if (noRecordsCount > giveUp)
 					break; // no more records. exit
 				else
@@ -248,7 +244,7 @@ class VerticaData extends JDBCData {
 
 				cntRRN++;
 			}
-			ovLogger.info("    processing to: " + cntRRN);
+			logger.info("    processing to: " + cntRRN);
 		//	rtc = replicateRowList(srcData, rrnList);
 		//	if (!success)
 		//		break;
@@ -300,11 +296,11 @@ class VerticaData extends JDBCData {
 					//RowIDs[curRecCnt] = srcRset.getString(metaData.getPK());
 					RowIDs[curRecCnt] = rsltSet.getString(javaType.size());
 				} catch (Exception e) {
-					ovLogger.error("initLoadType1 Exception.");
-					ovLogger.error("   " + e.toString());
-					ovLogger.error("    ****************************");
-					ovLogger.error("    rowid: " + rsltSet.getString(metaData.getPK()));
-					ovLogger.error("    fieldno: " + i + "  " + fldNames.get(i));
+					logger.error("initLoadType1 Exception.");
+					logger.error("   " + e.toString());
+					logger.error("    ****************************");
+					logger.error("    rowid: " + rsltSet.getString(metaData.getPK()));
+					logger.error("    fieldno: " + i + "  " + fldNames.get(i));
 					rtc = -1;
 				}
 				
@@ -318,18 +314,18 @@ class VerticaData extends JDBCData {
 						batchIns = insStmt.executeBatch();
 
 						curRecCnt = 0;
-						ovLogger.info("   addied batch - " + totalSynCnt);
+						logger.info("   addied batch - " + totalSynCnt);
 					} catch (BatchUpdateException e) {
-						ovLogger.error("   Batch Error... ");
-						ovLogger.error(e);
+						logger.error("   Batch Error... ");
+						logger.error(e);
 						for (i = 1; i <= fldNames.size(); i++) {
-							ovLogger.error("   " + rsltSet.getString(i));
+							logger.error("   " + rsltSet.getString(i));
 						}
 						//int[] iii;
 						//iii = e.getUpdateCounts();
 						for (i = 0; i < batchSize; i++) {
 							if (batchIns[i] == Statement.EXECUTE_FAILED) {
-								ovLogger.info("   " +  RowIDs[i]);
+								logger.info("   " +  RowIDs[i]);
 								putROWID(RowIDs[i]);
 								totalErrCnt++;
 							}
@@ -341,12 +337,12 @@ class VerticaData extends JDBCData {
 			try {
 				batchIns = insStmt.executeBatch();
 			} catch (BatchUpdateException e) {
-				ovLogger.error("   Error... rolling back");
-				ovLogger.error(e.getMessage());
+				logger.error("   Error... rolling back");
+				logger.error(e.getMessage());
 
 				for (i = 0; i < batchSize; i++) {
 					if (batchIns[i] == Statement.EXECUTE_FAILED) {
-						ovLogger.info("   " +  RowIDs[i]);
+						logger.info("   " +  RowIDs[i]);
 						putROWID(RowIDs[i]);
 						totalErrCnt++;
 					}
@@ -358,44 +354,13 @@ class VerticaData extends JDBCData {
 		} catch (SQLException e) {
 			rtc = -1;
 			// rollback();  //to be called at the end of sync
-			ovLogger.error(e.getMessage());
+			logger.error(e.getMessage());
 		}
 
 		return rtc;
 	}
 	
 	
-//------------------
-	public int getRecordCount() {
-		int rtv = 0;
-
-		ResultSet lrRset;
-		int i;
-		  String sql;
-	      if(dbRole.equals("SRC")) {
-	    	  sql="select count(*) from " + metaData.getTableDetails().get("src_schema").toString() 
-			  		+ "." + metaData.getTableDetails().get("src_table").toString();
-	      }else if(dbRole.equals("TGT")) {
-	    	  sql="select count(*) from " + metaData.getTableDetails().get("tgt_schema").toString() 
-			  		+ "." + metaData.getTableDetails().get("tgt_table").toString();
-	      }else {
-	    	  ovLogger.error("invalid DB role assignment.");
-	    	  return -1;
-	      }
-
-		try {
-			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			lrRset = sqlStmt.executeQuery(sql);
-			if (lrRset.next()) {
-				rtv = Integer.parseInt(lrRset.getString(1));
-			}
-			lrRset.close();
-		} catch (SQLException e) {
-			ovLogger.error("  error count tbl rows: " + e);
-		}
-		return rtv;
-	}
-
 	public ResultSet getSrcResultSet() {
 		return sRset;
 	}
@@ -427,77 +392,10 @@ class VerticaData extends JDBCData {
 			sqlStmt.close();
 			dbConn.close();
 		} catch (Exception e) {
-			ovLogger.info("   TODO: nothing to close for " + dbID);
+			logger.info("   TODO: nothing to close for " + dbID);
 		}
-		ovLogger.info("   closed src db conn: " + dbID);
+		logger.info("   closed src db conn: " + dbID);
 	}
 
-	private int deleteRowsBatch(ResultSet rs) throws SQLException {
-		int rtc = 0;
-		String delSQL = metaData.getSQLDelTgt();
-		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
-
-		int[] batchResults = null;
-		int i = 0, curRecCnt = 0;
-
-		PreparedStatement tgtPStmt;
-
-//		((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
-		tgtPStmt = dbConn.prepareStatement(delSQL);
-		try {
-			while (rs.next()) {
-				tgtPStmt.setObject(i, rs.getObject(0));
-				tgtPStmt.addBatch();
-
-				if (curRecCnt == batchSize) {
-					batchResults = tgtPStmt.executeBatch();
-					if (!ckeckBatch(batchResults)) {
-						ovLogger.error("   delete batch has problem.");
-					}
-				curRecCnt = 0;
-				ovLogger.info("   delete batch - " + totalSynCnt);
-			}
-			curRecCnt++;
-		}
-		// the last batch
-		batchResults = tgtPStmt.executeBatch();
-		if (!ckeckBatch(batchResults)) {
-			ovLogger.error("   delete batch has problem.");
-		}
-		//commit();  //to be called at the end of sync
-		} catch (SQLException e) {
-			ovLogger.error(e);
-			//rollback();  //to be called at the end of sync
-			rtc=-1;
-		}
-		return rtc;
-	}
-	//even if found prblem, keeps going, but report in log 
-	private boolean ckeckBatch(int[] batch) {
-		boolean good=true;
-		totalDelCnt=0;
-		for (int b: batch) { 
-        	if (b>0)
-        		totalDelCnt++;
-        	else {
-        		good=false;
-        		//break;
-        	}
-		}
- 		return good;
-	}
-	private void putROWID(String rowid) {
-		try {
-			// . FileWriter fstream = new FileWriter(metaData.getInitLogDir() + "/" +
-			// metaData.getTgtSchema() + "." + metaData.getTgtTable() + ".row", true);
-			FileWriter fstream = new FileWriter(
-					logDir + metaData.getTableDetails().get("tgt_sch").toString() + "." + metaData.getTableDetails().get("tgt_tbl").toString()  + ".row", true);
-			BufferedWriter out = new BufferedWriter(fstream);
-			out.write(rowid + "\n");
-			out.close();
-		} catch (Exception e) {
-			ovLogger.error(e.getMessage());
-		}
-	}
 	
 }
