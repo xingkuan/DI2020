@@ -397,5 +397,16 @@ class VerticaData extends JDBCData {
 		logger.info("   closed src db conn: " + dbID);
 	}
 
-	
+	/******** Registration APIs **********/
+	@Override
+	public boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
+		//do nothing for Oracle trig based.
+		return true;
+	}
+	@Override
+	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		return null;
+	}
+	/***************************************************/
+
 }

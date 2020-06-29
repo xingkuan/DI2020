@@ -95,6 +95,21 @@ insert into META_DB (
   DB_ID,
   DB_CAT, DB_TYPE,
   DB_USR, DB_PWD,
+  DB_DRIVER, DB_CONN,
+  DB_INFO)
+values (
+'DB2T', 
+'RDBMS', 'DB2/AS400',
+'VERTSYNC', 'G123UESS', 
+'com.ibm.as400.access.AS400JDBCDriver',
+'jdbc:as400://XXXX:2551/XXX', 
+'DB2/AS400 Test')
+;
+
+insert into META_DB (
+  DB_ID,
+  DB_CAT, DB_TYPE,
+  DB_USR, DB_PWD,
   DB_DRIVER,
   DB_CONN,
   DB_INFO)

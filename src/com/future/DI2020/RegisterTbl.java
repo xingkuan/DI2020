@@ -52,10 +52,14 @@ public class RegisterTbl {
 			System.out.println(
 					"   or:   RegisterTbl rrn D2V_ sdbID ssch stbl EXT jrnl tdbid tsch ttbl dccDB topic opath poolID tblID");
 			return;
-			//eg 1 (tID:2,3): DB2RRN D2V_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
-			//eg 2 (tID:  5): ORARID O2V ORA1 VERTSNAP TESTO VERTSNAP.TESTO_DCCTRG VERTSNAP.TESTO_DCCLOG VERTX TEST TESTO na na c:/users/johnlee/ 9 
-			//eg 3 (tID:  6): ORARID O2K ORA1 VERTSNAP TESTOK VERTSNAP.TESTOK_DCCTRG VERTSNAP.TESTOK_DCCLOG KAFKA1 TEST TESTOK na na c:/users/johnlee/ 9 
-			//eg 4 (tID:7,8): DB2RRN D2K_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN KAFKA1 TEST AVROTESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
+			/*eg 1 (tID:2,3): DB2RRN D2V_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
+			 *eg 2 (tID:  5): ORARID O2V ORA1 VERTSNAP TESTO VERTSNAP.TESTO_DCCTRG VERTSNAP.TESTO_DCCLOG VERTX TEST TESTO na na c:/users/johnlee/ 9 
+			 *eg 3 (tID:  6): ORARID O2K ORA1 VERTSNAP TESTOK VERTSNAP.TESTOK_DCCTRG VERTSNAP.TESTOK_DCCLOG KAFKA1 TEST TESTOK na na c:/users/johnlee/ 9 
+			 *eg 4 (tID:7,8): DB2RRN D2K_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN KAFKA1 TEST AVROTESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
+			 *eg 5 MM510LIB.INVAUD, ITHAB1JRN.B1JRNE
+			 *  1. DB2RRN D2K_ DB2T MM510LIB INVAUD EXT ITHAB1JRN.B1JRNE KAFKA1 TEST AVROINVAUD KAFKA1 DCCINVAUD c:/users/johnlee/ 9 2
+			 *  2. data from kafka to ES
+			 */  
 		}
 //		DB2RRN DB2D JOHNLEE2 TESTTBL2 JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
 		String strPK = args[0];
@@ -76,32 +80,25 @@ public class RegisterTbl {
 
 		System.out.println(Arrays.toString(args));
 		System.out.println(outPath);
-		RegisterTbl regTbl = new RegisterTbl();
-
-		srcDB = DataPoint.dataPtrCreater(srcDBid, "SRC");
-
-		if(dccLog.equals("EXT") ) {    //TODO: So far, that is modeled after DB2/AS400 journal only. May not be that good idea!
-			if(!srcDB.regTblMisc(srcSch, srcTbl, dccLog)) {
-			System.out.println("Is the journal for " + srcSch + "." + srcTbl + ": " + dccLog + " right?");
-			return;
-			}
-		}
-
 		if (tblID == 0) {
-			tblID = regTbl.getNextTblID();
+			tblID = metaData.getNextTblID();
 		}
+		
+		if(!metaData.preRegistCheck(tblID, srcDBid, srcSch, srcTbl)) {
+			//Stop; do nothing.
+			return;
+		}
+		srcDB = DataPoint.dataPtrCreater(srcDBid, "SRC");
+		if(!srcDB.regTblCheck(srcSch, srcTbl, dccLog)) {
+			//Stop; do nothing.
+			return;
+		}
+
+
+		
 		String sqlStr;
 		FileWriter fWriter;
 
-		// make sure tableID is not used
-		if (metaData.isNewTblID(tblID)) {
-			try {
-				sqlStr = "select 'exit already!!!', tbl_id from meta_table where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
-						+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
-				fWriter = new FileWriter(new File(outPath + hadRegister));
-				fWriter.write(sqlStr);
-				fWriter.close();
-				
 				sqlStr = "insert into META_TABLE \n" 
 						+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
 						+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
@@ -118,36 +115,18 @@ public class RegisterTbl {
 						+ "'" + dccPgm + "', '" + dccLog + "', \n" 
 						+ "'" + dccDBid + "', '" + srcSch + "." + srcTbl + "', \n"
 						+ "now()) \n;";
-				fWriter = new FileWriter(new File(outPath + repTblIns));
-				fWriter.write(sqlStr);
-				fWriter.close();
+				metaData.runRegSQL(sqlStr);
 
 				JSONObject json = srcDB.genRegSQLs(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
 				// ...
 				sqlStr = json.get("repTblFldDML").toString();
-				fWriter = new FileWriter(new File(outPath + repFldIns));
-				fWriter.write(sqlStr);
-				fWriter.close();
+				metaData.runRegSQL(sqlStr);
+
+				// push the details to tgtDB
 				sqlStr = json.get("tgtTblDDL").toString();
-				fWriter = new FileWriter(new File(outPath + crtTblSQL));
-				fWriter.write(sqlStr);
-				fWriter.close();
-				//
-				Object tempO = json.get("repDCCDML");
-				if(tempO!=null) {
-					fWriter = new FileWriter(new File(outPath + crtTblSQL));
-					sqlStr = json.get("repDCCDML").toString();
-					fWriter.write(sqlStr);
-					fWriter.close();
-				}
-				//
-				tempO = json.get("srcSQLs");
-				if(tempO!=null) {
-					sqlStr = tempO.toString();
-					fWriter = new FileWriter(new File(outPath + srcSQLs));
-					fWriter.write(sqlStr);
-					fWriter.close();
-				}
+				tgtDB.retCrtTgt(sqlStr);
+				//Kafka, ES, JDBC ...
+				// eg Kafka, run the following:
 				sqlStr = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " 
 						+ srcSch + "."	+ srcTbl + "\n\n" 
 						+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
@@ -158,19 +137,24 @@ public class RegisterTbl {
 						+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
 						+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
 						+ "--topic " + tgtSch + "." + tgtTbl + " \n";
-				fWriter = new FileWriter(new File(outPath + kafka));
-				fWriter.write(sqlStr);
-				fWriter.close();
-			}catch(IOException e) {
-				e.printStackTrace();
-			}
-		} else {
-			System.out.println("TableID " + tblID + " has been used already!");
-		}
+
+				
+				// push the details too dccDB
+				Object tempO = json.get("repDCCDML");
+				if(tempO!=null) {
+					fWriter = new FileWriter(new File(outPath + crtTblSQL));
+					sqlStr = json.get("repDCCDML").toString();
+					dccDB.regSetup(sqlStr);
+				}
+				
+				//srcDB: push the detail to srcDB!
+				tempO = json.get("srcSQLs");
+				if(tempO!=null) {
+					sqlStr = tempO.toString();
+					srcDB.regSetup(sqlStr);
+				}
 	}
 
-	private int getNextTblID() {
-		return metaData.getNextTblID();
-	}
+	
 
 }

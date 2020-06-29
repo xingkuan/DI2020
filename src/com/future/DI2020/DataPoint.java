@@ -202,9 +202,15 @@ public class DataPoint {
 	public ResultSet getFieldMeta(String srcSch, String srcTbl, String journal){
 		return null;
 	}
-	protected boolean regTblMisc(String srcSch, String srcTbl, String srcLog) {
+	/******** registrationg APIs ********/
+	protected boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
 		return false;
 	}
+	protected JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
+		return null;
+	}
+	/***************************************/
+	
 	public long getThisRefreshSeq() {
 		logger.info("   An empty method in DataPointer: getThisRefreshSeq()");
 		// TODO Auto-generated method stub
@@ -212,9 +218,5 @@ public class DataPoint {
 	}
 
 	
-	// ......
-	protected JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
-		return null;
-	}
 	
 }

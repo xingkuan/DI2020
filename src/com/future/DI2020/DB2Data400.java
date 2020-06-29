@@ -327,7 +327,57 @@ class DB2Data400 extends JDBCData {
 	}
 
 
-// methods for registration
+	/******** Registration APIs **********/
+	@Override
+	public boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
+		boolean rslt = false;
+		String[] res = srcLog.split("[.]", 0);
+		String jLibName = res[0];
+		String jName = res[1];
+
+		Statement stmt;
+		ResultSet rset = null;
+
+		try {
+			String rLib = "", rName = ""; // all receiver?
+			// try to read journal of the last 4 hours(I know I'm using the client time;
+			// that does not matter)
+			Calendar cal = Calendar.getInstance();
+			cal.add(Calendar.HOUR_OF_DAY, -4);
+
+			//stmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
+			stmt = dbConn.createStatement();
+
+			String strTS = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(cal.getTime());
+			String sqlStmt = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR"
+					+ " FROM table (Display_Journal('" + jLibName + "', '" + jName + "', " + "   '" + rLib + "', '"
+					+ rName + "', " + "   cast('" + strTS + "' as TIMESTAMP), " // pass-in the start timestamp;
+					+ "   cast(null as decimal(21,0)), " // starting SEQ #
+					+ "   'R', " // JOURNAL CODE:
+					+ "   ''," // JOURNAL entry:UP,DL,PT,PX
+					+ "   '" + srcSch + "', '" + srcTbl + "', '*QDDS', ''," // Object library, Object name, Object type,
+																			// Object member
+					+ "   '', '', ''" // User, Job, Program
+					+ ") ) as x order by 2 asc";
+
+			rset = stmt.executeQuery(sqlStmt);
+
+			if (rset.next()) {
+				// rslt = true;
+			}
+			rslt = true;
+
+			rset.close();
+			stmt.close();
+		} catch (SQLException e) {
+			rslt = false;
+			logger.error("DB2/AS400 regTblCheck() failed.");
+			logger.error(e.getMessage());
+		}
+
+		return rslt;
+	}
+	@Override
 	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		Statement stmt;
 		ResultSet rset = null;
@@ -451,54 +501,7 @@ class DB2Data400 extends JDBCData {
 
 		return json;
 	}
-
-	public boolean regTblMisc(String srcSch, String srcTbl, String srcLog) {
-		boolean rslt = false;
-		String[] res = srcLog.split("[.]", 0);
-		String jLibName = res[0];
-		String jName = res[1];
-
-		Statement stmt;
-		ResultSet rset = null;
-
-		try {
-			String rLib = "", rName = ""; // all receiver?
-			// try to read journal of the last 4 hours(I know I'm using the client time;
-			// that does not matter)
-			Calendar cal = Calendar.getInstance();
-			cal.add(Calendar.HOUR_OF_DAY, -4);
-
-			//stmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-			stmt = dbConn.createStatement();
-
-			String strTS = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(cal.getTime());
-			String sqlStmt = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR"
-					+ " FROM table (Display_Journal('" + jLibName + "', '" + jName + "', " + "   '" + rLib + "', '"
-					+ rName + "', " + "   cast('" + strTS + "' as TIMESTAMP), " // pass-in the start timestamp;
-					+ "   cast(null as decimal(21,0)), " // starting SEQ #
-					+ "   'R', " // JOURNAL CODE:
-					+ "   ''," // JOURNAL entry:UP,DL,PT,PX
-					+ "   '" + srcSch + "', '" + srcTbl + "', '*QDDS', ''," // Object library, Object name, Object type,
-																			// Object member
-					+ "   '', '', ''" // User, Job, Program
-					+ ") ) as x order by 2 asc";
-
-			rset = stmt.executeQuery(sqlStmt);
-
-			if (rset.next()) {
-				// rslt = true;
-			}
-			rslt = true;
-
-			rset.close();
-			stmt.close();
-		} catch (SQLException e) {
-			rslt = false;
-			logger.error(e.getMessage());
-		}
-
-		return rslt;
-	}
+	/***************************************************/
 	
 	public boolean beginDCC(){
 		logger.info("   not applicable to DB2/AS400.");

@@ -883,41 +883,32 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		return tblID + 1;
 	}
 
-	public boolean isNewTblID(int tblID) {
-		Statement lrepStmt = null;
-		ResultSet lrRset;
-		String strSQL;
-		boolean rslt = true;
-
-		strSQL = "select TBL_ID from meta_table where tbl_id = " + tblID;
-
-		try {
-			lrepStmt = repConn.createStatement();
-			lrRset = repStmt.executeQuery(strSQL);
-			if (lrRset.next()) {
-				rslt = false;
-			}
-			lrRset.close();
-			lrepStmt.close();
-		} catch (SQLException se) {
-			logger.error(se);
-		} catch (Exception e) {
-			// Handle errors for Class.forName
-			logger.error(e);
-		} 
-
-		return rslt;
+	public String getAvroSchema(){
+		return avroSchema;
 	}
-/*
-	public boolean isDCCJob() {
-		if (tblDetailJSON.get("tgt_schema").toString().equals("*"))
-			return true;
-		else
+	/**** Registration APIs ****/
+	public boolean preRegistCheck(int tblID, String srcDBid, String srcSch, String srcTbl) {
+		String sql;
+		JSONArray rslt;
+		
+		sql = "select TBL_ID from meta_table where tbl_id = " + tblID;
+		rslt = (JSONArray) SQLtoJSONArray(sql);
+		if(rslt.size()>0) {
+			logger.error("Table ID is already used!");
 			return false;
-	}
-*/
-   public String getAvroSchema(){
-	   return avroSchema;
-	   }
+		}
+		sql = "select 'exit already!!!', tbl_id from meta_table where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
+				+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
+		rslt = (JSONArray) SQLtoJSONArray(sql);
+		if(rslt.size()>0) {
+			logger.error("Table is already registered!");
+			return false;
+		}
 
+		return true;
+	}
+	public void runRegSQL(String sql) {
+		runUpdateSQL(sql);
+	}
+	/*************************************/
 }
