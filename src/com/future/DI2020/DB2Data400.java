@@ -329,9 +329,9 @@ class DB2Data400 extends JDBCData {
 
 	/******** Registration APIs **********/
 	@Override
-	public boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
+	public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		boolean rslt = false;
-		String[] res = srcLog.split("[.]", 0);
+		String[] res = jurl.split("[.]", 0);
 		String jLibName = res[0];
 		String jName = res[1];
 
@@ -378,7 +378,7 @@ class DB2Data400 extends JDBCData {
 		return rslt;
 	}
 	@Override
-	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	public boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		Statement stmt;
 		ResultSet rset = null;
 		JSONObject json = new JSONObject();
@@ -387,13 +387,11 @@ class DB2Data400 extends JDBCData {
 		String lName = res[0];
 		String jName = res[1];
 
-		String sqlFields = "insert into META_TABLE_FIELD \n"
-				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, TGT_FIELD, TGT_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
+		String sql = null;
+		String sqlFields = "insert into SYNC_TABLE_FIELD \n"
+				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
 				+ " values \n";
 		String sqlCrtTbl = "create table " + tgtSch + "." + tgtTbl + "\n ( ";
-		String sqlFieldsDCC = "insert into META_TABLE_FIELD \n"
-				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
-				+ " values \n";
 
 		try {
 			stmt = dbConn.createStatement();
@@ -421,60 +419,56 @@ class DB2Data400 extends JDBCData {
 				sDataType = rset.getString("data_type");
 
 				if (sDataType.equals("VARCHAR")) {
-					strDataSpec = "VARCHAR(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
 					xType = 1;
 					aDataType = "string";
 				} else if (sDataType.equals("DATE")) {
-					strDataSpec = "DATE";
 					xType = 7;
 					aDataType = "int\", \"logicalType\": \"date";
 				} else if (sDataType.equals("TIMESTMP")) {
-					strDataSpec = "TIMESTAMP";
 					xType = 6;
 					aDataType = "timestamp_micros";
 				} else if (sDataType.equals("NUMERIC")) {
-					scal = rset.getInt("numeric_scale");
-					if (scal > 0) {
-						strDataSpec = "NUMBER(" + rset.getInt("length") + ", " + rset.getInt("numeric_scale") + ")";
-						xType = 4; // was 5; but let's make them all DOUBLE
-					} else {
-						strDataSpec = "NUMBER(" + rset.getInt("length") + ")";
-						xType = 1; // or 2
-					}
+					xType = 4; // was 5; but let's make them all DOUBLE
 					aDataType = "double";
 				} else if (sDataType.equals("CHAR")) {
-					strDataSpec = "CHAR(" + 2 * rset.getInt("length") + ")"; // simple double it to handle UTF string
 					xType = 1;
 					aDataType = "string";
 				} else {
-					strDataSpec = sDataType;
 					xType = 1;
 					aDataType = "string";
 				}
-				sqlCrtTbl = sqlCrtTbl + "\"" + rset.getString("column_name") + "\" " + strDataSpec + ",\n";  //""" is needed because column name can contain space!
 
-				sqlFields = sqlFields 
+				sql = sqlFields 
 						+ "(" + tblID + ", " + rset.getInt("ordinal_position") + ", '"  
-						+ rset.getString("column_name") + "', '" + sDataType + "', '"
-						+ rset.getString("column_name") + "', '" + strDataSpec + "', "
+						+ rset.getString("column_name") + "', '" + sDataType + "', "
+						+ rset.getInt("length") + ", " + rset.getInt("numeric_scale") + ", "
 						+ xType + ", '" + aDataType + "'),\n";
 			}
 			sqlCrtTbl = sqlCrtTbl + " " + PK + " long ) \n;";
-
+			metaData.runRegSQL(sql);
+			
 			fieldCnt++;
-			sqlFields = sqlFields
+			sql = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'RRN(a) as DB2RRN', 'bigint', "
 					+ "'"+ PK + "', 'bigint', "
 					+ "1, 'dbl') \n;";
-			
+			metaData.runRegSQL(sql);
 			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-	
-		String repDCCTbl = "insert into META_TABLE \n"
+	return true;
+	}
+	@Override
+	public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//DB2/AS400, instead of using trigger for DCC, it uses external PGM to caprure physical PK (RNN) to the corresponding Kafka topic
+		String[] temp = jurl.split("\\.");
+		String lName=temp[0];
+		String jName=temp[1];
+
+		String sql = "insert into SYNC_TABLE \n"
 				+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
 				+ "POOL_ID, \n" 
 				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
@@ -487,19 +481,23 @@ class DB2Data400 extends JDBCData {
 				+ "'" + dccDBid + "', '*', '*', \n"
 				+ "now())\n"
 				+ "on conflict (src_db_id, src_schema, src_table) do nothing"
-				+ ";\n\n";
+				;
+		metaData.runRegSQL(sql);
 
-		sqlFieldsDCC = sqlFieldsDCC
-				+ "("+ (tblID+1) +", " + 1 + ", " 
+		sql = "insert into SYNC_TABLE_FIELD \n"
+				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
+				+ " values \n"
+				+ "("+ (tblID+1) +", 1, " 
 				+ "'" + PK + "', 'bigint', "
-				+ "1, 'dbl') \n;";
-		
-		json.put("tgtTblDDL", sqlCrtTbl);
-		json.put("repTblFldDML", sqlFields);
-		json.put("repDCCDML", repDCCTbl + sqlFieldsDCC);
-		//json.put("repDCCTblFld", sqlFieldsDCC);
+				+ "1, 'dbl')";
+		metaData.runRegSQL(sql);
 
-		return json;
+		return true;
+	}
+	@Override
+	public boolean regDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//not used for DB2 so far.
+		return true;
 	}
 	/***************************************************/
 	

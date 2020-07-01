@@ -10,6 +10,7 @@ import oracle.jdbc.*;
 import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
 import com.vertica.jdbc.VerticaConnection;
@@ -399,13 +400,48 @@ class VerticaData extends JDBCData {
 
 	/******** Registration APIs **********/
 	@Override
-	public boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
-		//do nothing for Oracle trig based.
+	public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//do nothing for now.
 		return true;
 	}
 	@Override
-	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-		return null;
+	public boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//not Vertica is not used as src so far.
+		return false;
+	}
+	@Override
+	public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//not Vertica is not used as src so far.
+		return false;
+	}
+	public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//finish where the main registration unfinish on SYNC_TABLE_FIELD
+		String sql = "update SYNC_TABLE_FIELD set " + 
+				"tgt_field=regexp_replace(src_field, '^.* as ', ''), " + 
+				"tgt_field_type=case " + 
+				"when src_field_type like '%CHAR%' then 'VARCHAR('||2*src_field_len||')' " + 
+				"when src_field_type like '%NUMBER%' then 'NUMBER('||src_field_len||','||coalesce(src_field_scale,0)||')' " + 
+				"when src_field_type like 'DATE%' then 'DATE' " + 
+				"when src_field_type like 'TIMEST%' then 'TIMESTAMP' " +  //DB2/AS400 is TIMESTMP 
+				"else src_field_type " + 
+				"END " + 
+				"where tbl_id=" + tblID;
+		metaData.runRegSQL(sql);
+		
+		//create tgt table
+		sql="select tgt_field, tgt_field_type from SYNC_TABLE_FIELD where tbl_id="+tblID+" order by field_id asc";
+		JSONArray jarr=metaData.SQLtoJSONArray(sql);
+		sql="create table "+tgtSch+"."+tgtTbl+"(";
+		JSONObject jo;
+		for (int i=0; i < jarr.size()-1; i++) {
+		    jo= (JSONObject) jarr.get(i);
+		    sql = sql+ jo.get("tgt_field") + jo.get("tgt_field_type") + ",";
+		}
+		jo= (JSONObject) jarr.get(jarr.size()-1);
+	    sql = sql+ jo.get("tgt_field") + jo.get("tgt_field_type") + ")";
+		runUpdateSQL(sql);
+
+		return true;
 	}
 	/***************************************************/
 

@@ -203,11 +203,20 @@ public class DataPoint {
 		return null;
 	}
 	/******** registrationg APIs ********/
-	protected boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
+	protected boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		return false;
 	}
-	protected JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
-		return null;
+	protected boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
+		return false;
+	}
+	protected boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
+		return false;
+	}
+	protected boolean regDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
+		return false;
+	}
+	protected boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
+		return false;
 	}
 	/***************************************/
 	

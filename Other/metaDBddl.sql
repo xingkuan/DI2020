@@ -2,7 +2,7 @@ create database didb;
 
 \c didb
 
-CREATE TABLE META_DB
+CREATE TABLE DATA_POINT
 (
   DB_ID         VARCHAR(15)   PRIMARY KEY,
   DB_CAT        VARCHAR(15),
@@ -15,7 +15,7 @@ CREATE TABLE META_DB
 )
 ;
 -- Let's explicitly know that the DB are RDBMS or KAFKA, for both SRC, TGT and DCC
-CREATE TABLE META_TABLE
+CREATE TABLE SYNC_TABLE
 (
   TBL_ID              INTEGER PRIMARY KEY,
   TEMP_ID			  VARCHAR(20),  --DJ2K, D2V, O2V, D2K, O2K...
@@ -47,12 +47,14 @@ CREATE TABLE META_TABLE
 )
 ; 
 
-CREATE TABLE META_TABLE_FIELD
+CREATE TABLE SYNC_TABLE_FIELD
 (
-  TBL_ID 			INTEGER ,
+  TBL_ID 			INTEGER,
   FIELD_ID          INTEGER,
   SRC_FIELD         VARCHAR(50),
   SRC_FIELD_TYPE    VARCHAR(20),
+  SRC_FIELD_LEN     INTEGER,
+  SRC_FIELD_SCALE   INTEGER,
   TGT_FIELD         VARCHAR(50),
   TGT_FIELD_TYPE    VARCHAR(20),
   JAVA_TYPE         INT,
@@ -60,8 +62,7 @@ CREATE TABLE META_TABLE_FIELD
   primary key (tbl_id, field_id)
 )
 ;
-
-CREATE TABLE META_TEMPLATE
+CREATE TABLE SYNC_TEMPLATE
 (
   TEMP_ID    VARCHAR(20),  --DJ2K, D2V, O2V, D2K, O2K...
   ACT_ID     INTEGER,      --0: enable(trigger, jurl extr); 1: init tbl; 2: dcc; 3: syn; 4: syn via kafka
@@ -71,104 +72,91 @@ CREATE TABLE META_TEMPLATE
 )
 ;
 
+-- Simple transformation. target field and the transformation function,
+-- between AVRO (or JSON) records
+CREATE TABLE AVRO
+(
+   AVRO_ID varchar(50) PRIMARY KEY, 
+   AVRO_SCHEMA jsonb
+);
+
+INSERT INTO avro_schema (avro_id, avro_schema ) 
+VALUES ('user',  
+'{"namespace": "example.avro", 
+ "type": "record", 
+ "name": "User", 
+ "fields": [ 
+     {"name": "name", "type": "string"}, 
+     {"name": "favorite_number",  "type": ["int", "null"]}, 
+     {"name": "favorite_color", "type": ["string", "null"]} 
+ ]  
+}');
+
+
+CREATE TABLE XFORM0  (
+   X_ID        INTEGER PRIMARY KEY,
+   SRC_DB_ID   CARCHAR(50),
+   SRC_NAME    VARCHAR(50),
+   SRC_AVRO_ID CARCHAR(50),
+   TGT_DB_ID   VARCHAR(15),
+   TGT_NAME    VARCHAR(50),
+   TGT_AVRO    JSON,
+   XFORM0      JSON
+)
+;
+
 create user repuser password 'passwd';
 grant connect on database didb to repuser;
 grant all privileges on database didb to repuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES in schema public to repuser;
 
 ---------------------------------------------------
-insert into META_DB (
+insert into DATA_POINT (
   DB_ID,
   DB_CAT, DB_TYPE,
   DB_USR, DB_PWD,
   DB_DRIVER, DB_CONN,
   DB_INFO)
-values (
-'DB2D', 
-'RDBMS', 'DB2/AS400',
-'johnlee2', 'C3line1998', 
-'com.ibm.as400.access.AS400JDBCDriver',
-'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
-'DB2/AS400 Dev')
-;
-insert into META_DB (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
-  DB_DRIVER, DB_CONN,
-  DB_INFO)
-values (
-'DB2T', 
-'RDBMS', 'DB2/AS400',
-'VERTSYNC', 'G123UESS', 
-'com.ibm.as400.access.AS400JDBCDriver',
-'jdbc:as400://XXXX:2551/XXX', 
-'DB2/AS400 Test')
-;
-
-insert into META_DB (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
-  DB_DRIVER,
-  DB_CONN,
-  DB_INFO)
-values (
-'VERTX', 
-'RDBMS', 'VERTICA',
-'dbadmin', 'Bre@ker321', 
-'com.vertica.jdbc.Driver',
-'jdbc:vertica://vertx1:5433/vertx', 
-'Vert x')
-;
-insert into META_DB (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
-  DB_DRIVER,
-  DB_CONN,
-  DB_INFO)
-values (
-'KAFKA1', 
-'MQ', 'KAFKA',
-'xxx', 'xxx', 
-'',
-'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
-'kafka 1')
-;
-insert into META_DB (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
-  DB_DRIVER, DB_CONN,
-  DB_INFO)
-values (
-'ORA1', 
-'RDBMS', 'ORACLE',
-'johnlee', 'johnlee213', 
-'oracle.jdbc.OracleDriver',
-'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
-'Oracle Dev')
-;
---For testing, use schem VERTSNAP.
-insert into META_DB (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
-  DB_DRIVER,
-  DB_CONN,
-  DB_INFO)
-values (
-'ES1', 
-'Search Engine', 'ES',
-'xxx', 'xxx', 
-'',
-'http://dbatool02:9200', 
-'ElasticSearch')
+values 
+('DB2D', 
+ 'RDBMS', 'DB2/AS400',
+ 'johnlee2', 'C3line1998', 
+ 'com.ibm.as400.access.AS400JDBCDriver',
+ 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
+ 'DB2/AS400 Dev'),
+('DB2T', 
+ 'RDBMS', 'DB2/AS400',
+ 'VERTSYNC', 'G123UESS', 
+ 'com.ibm.as400.access.AS400JDBCDriver',
+ 'jdbc:as400://XXXX:2551/XXX', 
+ 'DB2/AS400 Test'),
+('VERTX', 
+ 'RDBMS', 'VERTICA',
+ 'dbadmin', 'Bre@ker321', 
+ 'com.vertica.jdbc.Driver',
+ 'jdbc:vertica://vertx1:5433/vertx', 
+ 'Vert x'),
+('KAFKA1', 
+ 'MQ', 'KAFKA',
+ 'xxx', 'xxx', 
+ '',
+ 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'kafka 1'),
+('ORA1', 
+ 'RDBMS', 'ORACLE',
+ 'johnlee', 'johnlee213', 
+ 'oracle.jdbc.OracleDriver',
+ 'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
+ 'Oracle Dev'),
+('ES1', 
+ 'Search Engine', 'ES',
+ 'xxx', 'xxx', 
+ '',
+ 'http://dbatool02:9200', 
+ 'ElasticSearch')
 ;
 
-
-insert into META_TEMPLATE
+insert into SYNC_TEMPLATE
 (
   TEMP_ID, ACT_ID, INFO
 ) values 
@@ -193,22 +181,7 @@ insert into META_TEMPLATE
 ('K2E', 2, 'Kafak topic to ES doc')
 ;
 
-
-
-create table avro_schema(avro_id varchar(50), avro_schema jsonb);
-grant all on avro_schema to myavro;
-INSERT INTO avro_schema (avro_id, avro_schema ) 
-VALUES ('user',  
-'{"namespace": "example.avro", 
- "type": "record", 
- "name": "User", 
- "fields": [ 
-     {"name": "name", "type": "string"}, 
-     {"name": "favorite_number",  "type": ["int", "null"]}, 
-     {"name": "favorite_color", "type": ["string", "null"]} 
- ]  
-}');
-
+---------------------
 create table dp_job(job_id varchar(30), job_desc varchar(100), job_stmt jsonb);
 grant all on dp_job to myavro;
 INSERT INTO dp_job (job_id, job_desc, job_stmt) 

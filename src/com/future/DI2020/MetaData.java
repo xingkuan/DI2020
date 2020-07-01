@@ -159,7 +159,7 @@ class MetaData {
 	// return db details as a simpleJSON object, (instead of a cumbersome POJO).
 	public JSONObject readDBDetails(String dbid) {
 		String sql= "select db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd "
-					+ " from meta_db " + " where db_id='" + dbid + "'";
+					+ " from DATA_POINT " + " where db_id='" + dbid + "'";
 		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
 		return jo;
 	}
@@ -169,7 +169,7 @@ class MetaData {
 		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
 					"pool_id, init_dt, init_duration, curr_state, src_dcc_pgm, src_dcc_tbl, dcc_db_id, \n" + 
 					"dcc_store, ts_regist, ts_last_ref, seq_last_ref, db_type "
-							+ " from meta_table a, meta_db b " + " where a.src_db_id=b.db_id and tbl_id=" + tableID;
+							+ " from SYNC_TABLE a, DATA_POINT b " + " where a.src_db_id=b.db_id and tbl_id=" + tableID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
 			logger.error("tableId does not exist.");
@@ -185,7 +185,7 @@ class MetaData {
 			lName=temp[0]; jName=temp[1];
 			
 			sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
-					+ " from meta_table " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
+					+ " from SYNC_TABLE " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
 					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 			jo = SQLtoJSONArray(sql);
 			if(jo.isEmpty()) {
@@ -195,7 +195,7 @@ class MetaData {
 			dccDetailJSON = (JSONObject) jo.get(0);
 		}
 		
-		sql= "select info, stmts from meta_template where temp_id='" 
+		sql= "select info, stmts from SYNC_TEMPLATE where temp_id='" 
 					+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
@@ -207,7 +207,13 @@ class MetaData {
 		return 0;
 	}
 
-	private JSONArray SQLtoJSONArray(String sql) {
+//	public JSONArray getDCCsByPoolID(int poolID) {
+//	String sql = "select src_db_id, tgt_db_id, src_jurl_name from SYNC_TABLE where pool_id = " + poolID;
+//
+//	JSONArray jRslt = SQLtoJSONArray(sql);
+//	return jRslt;
+//}
+	public JSONArray SQLtoJSONArray(String sql) {
 		JSONArray jArray = new JSONArray();
 		JSONObject jsonObject = null;
 
@@ -307,7 +313,7 @@ class MetaData {
 	}
 
 	private void updateCurrState(int st) {
-		String sql = "update meta_table set curr_state = " + st 
+		String sql = "update SYNC_TABLE set curr_state = " + st 
 				+ " where tbl_id = " + tableID;
 		runUpdateSQL(sql);
 	}
@@ -331,7 +337,7 @@ class MetaData {
 
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		String sql = "update meta_table set init_dt = now() "
+		String sql = "update SYNC_TABLE set init_dt = now() "
 				+ ", init_duration = " + duration 
 				//+ ", curr_state = " + currState
 				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
@@ -359,7 +365,7 @@ class MetaData {
 
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		String sql = "update meta_table set"
+		String sql = "update SYNC_TABLE set"
 				//+ " curr_sate = " + currState
 				+ " ts_last_ref = now(),"
 				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
@@ -386,7 +392,7 @@ class MetaData {
 
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		String sql = "update meta_table set init_dt = now()" 
+		String sql = "update SYNC_TABLE set init_dt = now()" 
 				+ " init_duration = " + duration 
 				+ " where tbl_id = " + tableID;
 		runUpdateSQL(sql);
@@ -423,7 +429,7 @@ class MetaData {
 
 		i = 0;
 		lrRset = lrepStmt.executeQuery(
-			  "select src_field, src_field_type, tgt_field, java_type, avro_type from meta_table_field "
+			  "select src_field, src_field_type, tgt_field, java_type, avro_type from SYNC_TABLE_FIELD "
 			+ " where tbl_id=" + tableID + " order by field_id");
 
 		//first line
@@ -757,7 +763,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		Statement lrepStmt = null;
 		ResultSet lrRset=null;
 
-		strSQL = "select src_schema||'.'||src_table from meta_table where src_db_id ='" + dbID
+		strSQL = "select src_schema||'.'||src_table from SYNC_TABLE where src_db_id ='" + dbID
 				+ "' and src_dcc_tbl='" + journal + "' and tgt_schema !='*' order by 1";
 
 		// This shortterm solution is only for Oracle databases (as the source)
@@ -830,13 +836,6 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		return getTblsByPoolID(-1);
 	}
 
-	public JSONArray getDCCsByPoolID(int poolID) {
-		String sql = "select src_db_id, tgt_db_id, src_jurl_name from meta_table where pool_id = " + poolID;
-
-		JSONArray jRslt = SQLtoJSONArray(sql);
-		return jRslt;
-	}
-
 // ... move to MetaData ?
 	public void setThisRefreshHostTS() {
 		tsThisRefesh = new Timestamp(System.currentTimeMillis());
@@ -870,7 +869,7 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 
 		try {
 			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-			rRset = repStmt.executeQuery("select max(tbl_id) from meta_table ");
+			rRset = repStmt.executeQuery("select max(tbl_id) from SYNC_TABLE ");
 
 			rRset.next();
 			tblID = rRset.getInt(1);
@@ -891,13 +890,13 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		String sql;
 		JSONArray rslt;
 		
-		sql = "select TBL_ID from meta_table where tbl_id = " + tblID;
+		sql = "select TBL_ID from SYNC_TABLE where tbl_id = " + tblID;
 		rslt = (JSONArray) SQLtoJSONArray(sql);
 		if(rslt.size()>0) {
 			logger.error("Table ID is already used!");
 			return false;
 		}
-		sql = "select 'exit already!!!', tbl_id from meta_table where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
+		sql = "select 'exit already!!!', tbl_id from SYNC_TABLE where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
 				+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
 		rslt = (JSONArray) SQLtoJSONArray(sql);
 		if(rslt.size()>0) {

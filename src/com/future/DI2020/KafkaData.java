@@ -23,6 +23,11 @@ import org.apache.avro.io.DatumReader;
 import org.apache.avro.io.DatumWriter;
 import org.apache.avro.io.DecoderFactory;
 import org.apache.avro.io.EncoderFactory;
+import org.apache.kafka.clients.admin.AdminClient;
+import org.apache.kafka.clients.admin.AdminClientConfig;
+import org.apache.kafka.clients.admin.CreateTopicsResult;
+import org.apache.kafka.clients.admin.KafkaAdminClient;
+import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -32,6 +37,7 @@ import org.apache.kafka.clients.producer.Producer;
 import org.apache.kafka.clients.producer.ProducerConfig;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.clients.producer.RecordMetadata;
+import org.apache.kafka.common.errors.TopicExistsException;
 import org.apache.kafka.common.serialization.LongSerializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.apache.logging.log4j.LogManager;
@@ -600,14 +606,85 @@ public void close() {
 
 /******** Registration APIs **********/
 @Override
-public boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
-	//do nothing for Oracle trig based.
+public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	//do nothing for now.
+	return true;
+}
+public boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	//not Vertica is not used as src so far.
+	return false;
+}
+@Override
+public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	//not Vertica is not used as src so far.
+	return false;
+}
+@Override
+public boolean regDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	/*
+	cmdLine = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " 
+			+ srcSch + "."	+ srcTbl + "\n\n" 
+			+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
+			+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
+			+ "--topic " + srcSch + "." + srcTbl + " \n\n";
+	sqlStr += "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " 
+			+ tgtSch + "."	+ srcTbl + "\n\n" 
+			+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
+			+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
+			+ "--topic " + tgtSch + "." + tgtTbl + " \n";
+	*/
+	int partitions=2;
+	short replicationFactor=2;
+	String topicName=srcSch + "." + srcTbl;
+	try (final AdminClient adminClient = createKafkaAdmin()) {
+        try {
+            // Define topic
+            final NewTopic newTopic = new NewTopic(topicName, partitions, replicationFactor);
+
+            // Create topic, which is async call.
+            final CreateTopicsResult createTopicsResult = adminClient.createTopics(Collections.singleton(newTopic));
+            // Since the call is Async, Lets wait for it to complete.
+            createTopicsResult.values().get(topicName).get();
+            
+        } catch (InterruptedException | ExecutionException e) {
+            if (!(e.getCause() instanceof TopicExistsException)) {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+        }
+    }
 	return true;
 }
 @Override
-public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-	return null;
+public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	int partitions=2;
+	short replicationFactor=2;
+	String topicName=tgtSch + "." + tgtTbl;
+	try (final AdminClient adminClient = createKafkaAdmin()) {
+        try {
+            // Define topic
+            final NewTopic newTopic = new NewTopic(topicName, partitions, replicationFactor);
+
+            // Create topic, which is async call.
+            final CreateTopicsResult createTopicsResult = adminClient.createTopics(Collections.singleton(newTopic));
+            // Since the call is Async, Lets wait for it to complete.
+            createTopicsResult.values().get(topicName).get();
+            
+        } catch (InterruptedException | ExecutionException e) {
+            if (!(e.getCause() instanceof TopicExistsException)) {
+                throw new RuntimeException(e.getMessage(), e);
+            }
+        }
+    }
+	return true;
 }
+public AdminClient createKafkaAdmin() {
+	Properties adminProps = new Properties();
+	adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, urlString);
+
+	AdminClient admin = AdminClient.create(adminProps);
+	return admin;
+}
+
 /***************************************************/
 
 }

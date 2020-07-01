@@ -20,13 +20,13 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.File;
 
-public class RegisterTbl {
+public class RegSyncTbl {
 	private static final Logger logger = LogManager.getLogger();
 	private static final MetaData metaData = MetaData.getInstance();
 
 	private static int tblID;
 
-	static DataPoint srcDB;
+	static DataPoint srcDB, tgtDB, dccDB;
 
 	static String srcSQLs = "srcDDL.sql";
 	static String crtTblSQL = "tgtTblDDL.sql";
@@ -89,70 +89,52 @@ public class RegisterTbl {
 			return;
 		}
 		srcDB = DataPoint.dataPtrCreater(srcDBid, "SRC");
-		if(!srcDB.regTblCheck(srcSch, srcTbl, dccLog)) {
+		if(!srcDB.regSrcCheck(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid)) {
 			//Stop; do nothing.
 			return;
 		}
-
-
 		
 		String sqlStr;
-		FileWriter fWriter;
+		sqlStr = "insert into SYNC_TABLE \n" 
+				+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
+				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
+				+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
+				+ "POOL_ID, CURR_STATE, \n" 
+				+ "SRC_DCC_PGM, SRC_DCC_TBL, \n"
+				+ "DCC_DB_ID, DCC_STORE, \n" 
+				+ "TS_REGIST) \n" 
+				+ "values \n"
+				+ "(" + tblID + ", '" + strTempId +"', '" + strPK + "', \n" 
+				+ "'" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
+				+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
+				+ poolID + ", 0, \n"
+				+ "'" + dccPgm + "', '" + dccLog + "', \n" 
+				+ "'" + dccDBid + "', '" + srcSch + "." + srcTbl + "', \n"
+				+ "now()) \n;";
+		metaData.runRegSQL(sqlStr);
 
-				sqlStr = "insert into META_TABLE \n" 
-						+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
-						+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
-						+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
-						+ "POOL_ID, CURR_STATE, \n" 
-						+ "SRC_DCC_PGM, SRC_DCC_TBL, \n"
-						+ "DCC_DB_ID, DCC_STORE, \n" 
-						+ "TS_REGIST) \n" 
-						+ "values \n"
-						+ "(" + tblID + ", '" + strTempId +"', '" + strPK + "', \n" 
-						+ "'" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
-						+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
-						+ poolID + ", 0, \n"
-						+ "'" + dccPgm + "', '" + dccLog + "', \n" 
-						+ "'" + dccDBid + "', '" + srcSch + "." + srcTbl + "', \n"
-						+ "now()) \n;";
-				metaData.runRegSQL(sqlStr);
+		boolean rslt;
+		//ask srcDB to populate table_field, and whatever
+		rslt = srcDB.regSrc(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
+		rslt = srcDB.regSrcDcc(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
 
-				JSONObject json = srcDB.genRegSQLs(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
-				// ...
-				sqlStr = json.get("repTblFldDML").toString();
-				metaData.runRegSQL(sqlStr);
+		//Ask tgtDB to do whatever is needed
+		//sqlStr = json.get("tgtTblDDL").toString();
+		tgtDB = DataPoint.dataPtrCreater(tgtDBid, "TGT");
+		tgtDB.regTgt(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
+		//Kafka, ES, JDBC ...
+		// eg Kafka, run the following:
 
-				// push the details to tgtDB
-				sqlStr = json.get("tgtTblDDL").toString();
-				tgtDB.retCrtTgt(sqlStr);
-				//Kafka, ES, JDBC ...
-				// eg Kafka, run the following:
-				sqlStr = "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " 
-						+ srcSch + "."	+ srcTbl + "\n\n" 
-						+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
-						+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
-						+ "--topic " + srcSch + "." + srcTbl + " \n\n";
-				sqlStr += "/opt/kafka/bin/kafka-topics.sh --zookeeper usir1xrvkfk02:2181 --delete --topic " 
-						+ tgtSch + "."	+ srcTbl + "\n\n" 
-						+ "/opt/kafka/bin/kafka-topics.sh --create " + "--zookeeper usir1xrvkfk02:2181 "
-						+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
-						+ "--topic " + tgtSch + "." + tgtTbl + " \n";
-
+		
+		//If sync via Kafka, we also ask the dccDB to create the needed topic, and register in meta DB.
+		//Object tempO = json.get("repDCCDML");
+		if(!dccDBid.equals("na")) {
+			dccDB = DataPoint.dataPtrCreater(dccDBid, "DCC");
+			//sqlStr = json.get("repDCCDML").toString();
+			//dccDB.regSetup(sqlStr);
+			dccDB.regDcc(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
+		}
 				
-				// push the details too dccDB
-				Object tempO = json.get("repDCCDML");
-				if(tempO!=null) {
-					fWriter = new FileWriter(new File(outPath + crtTblSQL));
-					sqlStr = json.get("repDCCDML").toString();
-					dccDB.regSetup(sqlStr);
-				}
-				
-				//srcDB: push the detail to srcDB!
-				tempO = json.get("srcSQLs");
-				if(tempO!=null) {
-					sqlStr = tempO.toString();
-					srcDB.regSetup(sqlStr);
-				}
 	}
 
 	

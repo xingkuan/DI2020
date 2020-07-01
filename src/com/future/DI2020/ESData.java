@@ -203,7 +203,7 @@ class ESData extends DataPoint{
 	                  String.format("/%s/_doc/%d", 
 	                                "index", 2));
 	       request.setJsonEntity(e);
-		 restClient.performRequestAsync(request, listener);
+		   restClient.performRequestAsync(request, listener);
 	     });
 	   try {
 	     latch.await(); //wait for all the threads to finish
@@ -282,13 +282,79 @@ class ESData extends DataPoint{
    
 	/******** Registration APIs **********/
 	@Override
-	public boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
+	public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		//do nothing for Oracle trig based.
 		return true;
 	}
 	@Override
-	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-		return null;
+	public boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//not Vertica is not used as src so far.
+		return false;
+	}
+	@Override
+	public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//not Vertica is not used as src so far.
+		return false;
+	}
+	@Override
+	public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	/*
+	 * 
+PUT /test
+{
+ "settings" : {
+    "number_of_shards" : 1
+    "number_of_replicas" : 2
+  },
+  "mappings" : {
+    "properties" : {
+      "field1" : { "type" : "text" }
+    }
+  }
+}
+	 */
+		String indxName = tgtSch+tgtTbl;
+		connect();
+		Response response;
+
+		Request request = new Request(
+			    "PUT",  
+			    "/"+indxName);   
+		
+		String mappingStr="{\n" + 
+				" \"settings\" : {\n" + 
+				"    \"number_of_shards\" : 1\n" + 
+				"    \"number_of_replicas\" : 2\n" + 
+				"  },\n" + 
+				"  \"mappings\" : {\n" + 
+				"    \"properties\" : {\n" + 
+				"      \"field1\" : { \"type\" : \"text\" }\n" + 
+				"    }\n" + 
+				"  }\n" + 
+				"}\n" ;
+		
+		   HttpEntity entity = new NStringEntity(
+				   mappingStr, ContentType.APPLICATION_JSON);
+
+		     request.setEntity(entity);
+
+		
+		   try {
+			   response = restClient.performRequest(request);
+			   System.out.println(response.toString());
+			   
+			   System.out.println(EntityUtils.toString(response.getEntity()));
+			   System.out.println("Host -" + response.getHost() );
+			   System.out.println("RequestLine -"+ response.getRequestLine() );
+
+			   restClient.close();
+		   } catch (IOException e) {
+			// TODO Auto-generated catch block
+			   e.printStackTrace();
+		   }
+	
+		
+		return true;
 	}
 	/***************************************************/
 

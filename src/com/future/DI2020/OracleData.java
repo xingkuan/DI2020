@@ -86,24 +86,30 @@ class OracleData extends JDBCData{
    
 	/******** Registration APIs **********/
 	@Override
-	public boolean regTblCheck(String srcSch, String srcTbl, String srcLog) {
-		//do nothing for Oracle trig based.
+	public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+        //if log table "jurl" exist, return false;	
+		//select TABLE_NAME from dba_tables where owner||'.'||TABLE_NAME='VERTSNAP.TESTO_DCCLOG';
+		String sql="select TABLE_NAME from dba_tables where OWNER||'.'||TABLE_NAME='" + jurl + "'";
+		if(SQLtoResultSet(sql))
+			return false;
+		
+		//trigger name "dccPgm" exist, return false
+		//select TRIGGER_NAME from dba_triggers where owner||'.'||TRIGGER_NAME='VERTSNAP.TESTOK_DCCTRG'
+		sql="select TRIGGER_NAME from dba_triggers where owner||'.'||TRIGGER_NAME='"+ dccPgm + "'";
+		if(SQLtoResultSet(sql))
+			return false;
+
 		return true;
 	}
 	@Override
-	public JSONObject genRegSQLs(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+	protected boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		Statement stmt;
 		ResultSet rset = null;
-		JSONObject json = new JSONObject();
-		//jurl is not used.
-		//String[] res = jurl.split("[.]", 0);
-		//String lName = res[0];
-		//String jName = res[1];
-
-		String sqlFields = "insert into META_TABLE_FIELD \n"
-				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, TGT_FIELD, TGT_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
+		//JSONObject json = new JSONObject();
+		String sql="";
+		String sqlFields = "insert into SYNC_TABLE_FIELD \n"
+				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
 				+ " values \n";
-		String sqlCrtTbl = "create table " + tgtSch + "." + tgtTbl + "\n ( ";
 
 		try {
 			stmt = dbConn.createStatement();
@@ -127,78 +133,80 @@ class OracleData extends JDBCData{
 				sDataType = rset.getString("data_type");
 
 				if (sDataType.equals("VARCHAR2")) {
-					strDataSpec = "VARCHAR(" + 2*rset.getInt("data_length") + ")"; // simple double it to handle UTF string
 					xType = 1;
 					aDataType = "[\"string\", \"null\"]";
 				} else if (sDataType.equals("DATE")) {
-					strDataSpec = "DATE";
 					xType = 7;
 					aDataType = "\"int\", \"logicalType\": \"date\"";
 				} else if (sDataType.contains("TIMESTAMP")) {
-					strDataSpec = "TIMESTAMP";
 					xType = 6;
-					aDataType = "\"int\", \"logicalType\": \"timestamp-micros\"";
+					aDataType = "\"string\", \"logicalType\": \"timestamp-micros\"";
 				} else if (sDataType.equals("NUMBER")) {
 					scal = rset.getInt("data_scale");
 					if (scal > 0) {
-						strDataSpec = "NUMBER(" + rset.getInt("data_length") + ", " + rset.getInt("data_scale") + ")";
 						xType = 4; // was 5; but let's make them all DOUBLE
 						//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
 						//+ "\"scale\": " + scal;
 					} else {
-						strDataSpec = "NUMBER(" + rset.getInt("data_length") + ")";
 						xType = 4; // or 2
 						//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
 						//+ "\"scale\": " + 0;
 					}
 					aDataType = "\"long\"";   //BigDecimal is what getObject returns; but it can't work with AVRO.
 				} else if (sDataType.equals("CHAR")) {
-					strDataSpec = "CHAR(" + 2 * rset.getInt("data_length") + ")"; // simple double it to handle UTF string
 					xType = 1;
 					aDataType = "[\"string\", \"null\"]";
 				} else {
-					strDataSpec = sDataType;
 					xType = 1;
 					aDataType = "\"string\"";
 				}
-				sqlCrtTbl = sqlCrtTbl + "\"" + rset.getString("column_name") + "\" " + strDataSpec + ",\n";  //""" is needed because column name can contain space!
 
-				sqlFields = sqlFields 
+				sql = sqlFields 
 						+ "(" + tblID + ", " + rset.getInt("column_id") + ", '"  
-						+ rset.getString("column_name") + "', '" + sDataType + "', '"
-						+ rset.getString("column_name") + "', '" + strDataSpec + "', "
-						+ xType + ", '\"type\": " + aDataType + "'),\n";
+						+ rset.getString("column_name") + "', '" + sDataType + ", '"
+						+ rset.getInt("data_length") + ", " + rset.getInt("data_scale") + ", "
+						+ xType + ", '\"type\": " + aDataType + "')";
 			}
-			sqlCrtTbl = sqlCrtTbl + " " + PK + " varchar(20) ) \n;";
+			metaData.runRegSQL(sql);
 
 			fieldCnt++;
-			sqlFields = sqlFields
+			sql = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
-					+ "'rowid as " + PK + "', 'varchar(20)', "
-					+ "'" + PK + "', 'varchar(20)', "
-					+ "1, 'string') \n;";
-			
-			
+					+ "'rowid as " + PK + "', 'varchar2(20)', "  //Please keep it lower case!!!
+					+ "20, 0, "
+					+ "1, 'string') ";
+			metaData.runRegSQL(sqlFields);
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
 	
-		json.put("tgtTblDDL", sqlCrtTbl);
-		json.put("repTblFldDML", sqlFields);
+		//json.put("repTblFldDML", sqlFields);
 		//json.put("repDCCTbl", repDCCTbl);
 		//json.put("repDCCTblFld", sqlFieldsDCC);
-		String srcSQLs="CREATE TABLE " + jurl
-				+ " (" + PK + " VARCHAR2(20),  DCC_TS DATE) TABLESPACE DCC_TABLESPACE\n\n;"
-				+ "CREATE OR REPLACE TRIGGER " + dccPgm + " \n"  
+		//return json;
+		return true;
+	}
+	@Override
+	public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		String sql="CREATE TABLE " + jurl
+				+ " (" + PK + " VARCHAR2(20),  DCC_TS DATE) TABLESPACE DCC_TABLESPACE";
+		if(runUpdateSQL(sql)==-1)
+			return false;		
+		sql =  "CREATE OR REPLACE TRIGGER " + dccPgm + " \n"  
 				+ " AFTER  INSERT OR UPDATE OR DELETE ON " + srcSch+"."+srcTbl + "\n" 
 				+ "  FOR EACH ROW\n" 
 				+ "    BEGIN  INSERT INTO " + jurl + "(" + PK + ", DCC_TS )\n"  
 				+ "     VALUES ( :new.rowid, sysdate   );  END;\n\n"  
 				+ "alter trigger " + dccPgm + " disable;\n\n";
-		json.put("srcSQLs", srcSQLs);
-
-		return json;
+		if(runUpdateSQL(sql)==-1)
+			return false;		
+		return true;
+	}
+	@Override
+	public boolean regDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
+		//not use for Oracle so far.
+		return true;
 	}
 	/***************************************************/
 	
@@ -238,6 +246,7 @@ class OracleData extends JDBCData{
 			dbConn.commit();
 		} catch (SQLException e) {
 			logger.error(e);
+			rslt=-1;
 		} 
 		return rslt;
 	}
