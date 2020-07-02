@@ -32,9 +32,9 @@ class MetaData {
 	private int tableID;
 	private String keyFeildType;
 
-	private String sqlSelectSource;
-	private String sqlInsertTarget;
-	private String sqlDeleteTarget;
+	//private String sqlSelectSource;
+	//private String sqlInsertTarget;
+	//private String sqlDeleteTarget;
 	
 	private int fldCnt;
 
@@ -168,8 +168,8 @@ class MetaData {
 		JSONArray jo;
 		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
 					"pool_id, init_dt, init_duration, curr_state, src_dcc_pgm, src_dcc_tbl, dcc_db_id, \n" + 
-					"dcc_store, ts_regist, ts_last_ref, seq_last_ref, db_type "
-							+ " from SYNC_TABLE a, DATA_POINT b " + " where a.src_db_id=b.db_id and tbl_id=" + tableID;
+					"dcc_store, ts_regist, ts_last_ref, seq_last_ref, db_type,src_stmt0, tgt_stmt0 "
+					+ " from SYNC_TABLE a, DATA_POINT b " + " where a.src_db_id=b.db_id and tbl_id=" + tableID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
 			logger.error("tableId does not exist.");
@@ -434,9 +434,6 @@ class MetaData {
 
 		//first line
 		if (lrRset.next()) {
-			sqlSelectSource = "select a." + lrRset.getString("src_field");
-			sqlInsertTarget = "insert into " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table")
-				+ "(\""+ lrRset.getString("tgt_field") + "\""	;
 			//fldType[i] = lrRset.getInt("java_type");
 			//fldNames[i] = lrRset.getString("src_field");
 			fldType.add(lrRset.getInt("java_type"));
@@ -450,21 +447,14 @@ class MetaData {
 		while (lrRset.next() ) {   
 			if( lrRset.isLast()) {                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
 				if(tblDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
-				sqlSelectSource += ", " + lrRset.getString("src_field");
 				avroSchema = avroSchema 
 						+ ", {\"name\": \"DB2RRN\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 				}if(tblDetailJSON.get("db_type").toString().contains("ORACLE")){
-					sqlSelectSource += ", a." + lrRset.getString("src_field");
 					avroSchema = avroSchema 
 							+ ", {\"name\": \"ORARID\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 				}
 				keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 			}else {
-				sqlSelectSource += ", a." + lrRset.getString("src_field");
-	
-				sqlInsertTarget += ", " + "\"" + lrRset.getString("tgt_field") + "\"";
-				//fldType[i] = lrRset.getInt("java_type");
-				//fldNames[i] = lrRset.getString("src_field");
 				keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 				avroSchema = avroSchema 
 						+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
@@ -478,19 +468,6 @@ class MetaData {
 		fldCnt=i;
 		lrRset.close();
 		lrepStmt.close();
-		
-		sqlSelectSource += " \n from " + tblDetailJSON.get("src_schema") + "." + tblDetailJSON.get("src_table") + " a";
-		sqlInsertTarget += ") \n    Values ( ";
-		for (i = 1; i <= fldCnt; i++) {
-			if (i == 1) {
-				sqlInsertTarget += "?";
-			} else {
-				sqlInsertTarget += ",?";
-			}
-		}
-		sqlInsertTarget += ") ";
-		sqlDeleteTarget = "delete from " + tblDetailJSON.get("tgt_schema") + "." + tblDetailJSON.get("tgt_table") 
-				+ " where " + tblDetailJSON.get("tbl_pk") + "=?";
 		
 		avroSchema = avroSchema 
 				+ "] }";
@@ -509,7 +486,8 @@ public ArrayList<String> getFldNames() {
 	return fldNames;
 }
 	public String getSQLInsTgt() {
-		return sqlInsertTarget;
+		//return sqlInsertTarget;
+		return tblDetailJSON.get("tgt_stmt0").toString();
 	}
 	//Need to return the right list of SQLs in order to create the needed Resultset:
 	/* - for ACT_ID=1: 
@@ -565,7 +543,7 @@ public ArrayList<String> getFldNames() {
 	private JSONObject getAct1SQLs() {
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
-		pre.add(1, sqlSelectSource );
+		pre.add(1, getBareSrcSQL() );
 		jo.put("PRE", pre);
 		
 		return jo;
@@ -574,7 +552,7 @@ public ArrayList<String> getFldNames() {
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
 		pre.add("update " + tblDetailJSON.get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-		pre.add(sqlSelectSource + ", " + tblDetailJSON.get("src_dcc_tbl") 
+		pre.add(getBareSrcSQL() + ", " + tblDetailJSON.get("src_dcc_tbl") 
 				+ " b where b.dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') "
 				+ " and a.rowid=b."+tblDetailJSON.get("tbl_pk"));
 		jo.put("PRE", pre);
@@ -595,7 +573,7 @@ public ArrayList<String> getFldNames() {
 				+" NOT LOGGED"; 
 		pre.add(sql);
 		pre.add("INSERT INTO qtemp.DCC" + tableID + " VALUES (?)" );
-		sql = sqlSelectSource + ", qtemp.DCC"+tableID + " b "
+		sql = getBareSrcSQL() + ", qtemp.DCC"+tableID + " b "
 				+ " where a..rrn(a)=b." +tblDetailJSON.get("tbl_pk");  //TOTO: may have problem!
 		pre.add(sql)
 ;
@@ -604,6 +582,7 @@ public ArrayList<String> getFldNames() {
 		return jo;
 	}
 	public JSONObject getDJ2Kact2SQLs(boolean fast, boolean relaxed) {  //"public" as an hacker
+	//TODO: pushed to DB field src_stmt0
 		long lasDCCSeq = getDCCSeqLastRefresh();
 		String extWhere="";
 		
@@ -657,9 +636,9 @@ public ArrayList<String> getFldNames() {
 
 		return jo;
 	}
-	public String getSQLDelTgt() {
-		return sqlDeleteTarget;
-	}
+//	public String getSQLDelTgt() {
+//		return sqlDeleteTarget;
+//	}
 
 public String getSrcDCCThisSeqSQL(boolean fast) {
 	String currStr;
@@ -725,7 +704,8 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 	}
 
 	public String getBareSrcSQL() {
-		return sqlSelectSource;
+		//return sqlSelectSource;
+		return tblDetailJSON.get("src_stmt0").toString();
 	}
 
 	public int getCurrState() {

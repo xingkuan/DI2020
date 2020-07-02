@@ -49,6 +49,8 @@ class DB2Data400 extends JDBCData {
 		return srcRS;
 	}
 	public int crtSrcResultSet(int act, JSONArray jaSQLs) {
+		TODO: add little more logic here, so DISPLAY_JOURNAL can try a 2nd strategy
+		{"sqlStmt": "xxxxx", "retry":"xxxxx plus yyyy"}
 		String sql;
 		for (int i = 0; i < jaSQLs.size()-1; i++) {
 			sql = jaSQLs.get(i).toString();
@@ -387,6 +389,8 @@ class DB2Data400 extends JDBCData {
 		String lName = res[0];
 		String jName = res[1];
 
+		String srcSQLstmt="select ";
+
 		String sql = null;
 		String sqlFields = "insert into SYNC_TABLE_FIELD \n"
 				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
@@ -416,6 +420,8 @@ class DB2Data400 extends JDBCData {
 			while (rset.next()) {
 				fieldCnt++;
 
+				srcSQLstmt = srcSQLstmt + "a." + rset.getString("column_name") + ", ";
+				
 				sDataType = rset.getString("data_type");
 
 				if (sDataType.equals("VARCHAR")) {
@@ -454,7 +460,13 @@ class DB2Data400 extends JDBCData {
 					+ "'"+ PK + "', 'bigint', "
 					+ "1, 'dbl') \n;";
 			metaData.runRegSQL(sql);
-			
+
+			//setup the src select SQL statement
+			srcSQLstmt = srcSQLstmt + "RRN(a) as  as " + PK 
+					+ " from " + srcSch + "." + srcTbl + " a ";
+			sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
+					+ " where tbl_id="+tblID;
+			metaData.runRegSQL(sql);
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
@@ -490,6 +502,41 @@ class DB2Data400 extends JDBCData {
 				+ "("+ (tblID+1) +", 1, " 
 				+ "'" + PK + "', 'bigint', "
 				+ "1, 'dbl')";
+		metaData.runRegSQL(sql);
+
+		//setup the src select SQL statement
+String srcSQLstmt="select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, "
+		+ "trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL "
+		+ "FROM table (Display_Journal('" 
+		+ tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") 
+		+ "', " + "   '', '" + currStr + "', " 
+		+ "   cast(null as TIMESTAMP), " 
+		+ "   cast(null as decimal(21,0)), "
+		+ "   'R', " 
+		+ "   ''," + "   '', '', '*QDDS', ''," 
+		+ "   '', '', ''"
+		+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
+		+ extWhere 
+		+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
+									 // number seems not takining effect
+or:
+String srcSQLstmt= "select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, "
+		+ "trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
+	 	+ " FROM table (Display_Journal('" 
+		+ tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table")
+		+ "', " + "   '', '" + currStr + "', "
+		+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
+		+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
+		+ "   'R', " // JOURNAL CODE: record operation
+		+ "   ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
+		+ "   '', '', '*QDDS', ''," // Object library, Object name, Object type, Object member
+		+ "   '', '', ''" // User, Job, Program
+		+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
+		+ extWhere
+		+ " order by 2 asc";
+		
+		sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
+				+ " where tbl_id="+tblID+1;
 		metaData.runRegSQL(sql);
 
 		return true;

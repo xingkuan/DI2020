@@ -29,11 +29,11 @@ CREATE TABLE SYNC_TABLE
   SRC_TABLE           VARCHAR(50),
   SRC_DCC_PGM         VARCHAR(30), --either trigger name as sch.trig or EXT
   SRC_DCC_TBL         VARCHAR(30), --either sch.tbl or jrnl_lib.jrnl_member(for DB2)
-  --SRC_STMTS			  JSONB, --{"init": {"setup": ... ,"teardown": ...},"syn": {"setup":... "teardown":...}}
+  SRC_STMT0			  VARCHAR(1000), --select c1, c2 ... 
   TGT_DB_ID           VARCHAR(15),
   TGT_SCHEMA          VARCHAR(25),
   TGT_TABLE           VARCHAR(50),
-  --TGT_STMTS			  JSONB, --{"init": {"setup": ... ,"teardown": ...},"syn": {"setup":... "teardown":...}}
+  TGT_STMT0			  VARCHAR(1000), --insert into ...
   DCC_DB_ID           VARCHAR(15),  -- eith SRC_DB_ID or a KAFKA. More likely KAFKA only!!!
                                     -- SRC_STMTS will pull in this field (and the next one)
                                     -- to compose the steps for extract src data.    

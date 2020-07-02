@@ -203,60 +203,6 @@ class JDBCData extends DataPoint{
 		return true;
 	}
 
-	private int deleteRowsBatch(ResultSet rs) throws SQLException {
-		int rtc = 0;
-		String delSQL = metaData.getSQLDelTgt();
-		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
-
-		int[] batchResults = null;
-		int i = 0, curRecCnt = 0;
-		PreparedStatement tgtPStmt;
-
-//			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
-		tgtPStmt = dbConn.prepareStatement(delSQL);
-		try {
-			while (rs.next()) {
-				tgtPStmt.setObject(i, rs.getObject(0));
-				tgtPStmt.addBatch();
-
-				if (curRecCnt == batchSize) {
-				batchResults = tgtPStmt.executeBatch();
-				if (!ckeckBatch(batchResults)) {
-					logger.error("   delete batch has problem.");
-				}
-				curRecCnt = 0;
-				logger.info("   delete batch - " + totalSynCnt);
-			}
-			curRecCnt++;
-		}
-		// the last batch
-		batchResults = tgtPStmt.executeBatch();
-		if (!ckeckBatch(batchResults)) {
-			logger.error("   delete batch has problem.");
-		}
-		//commit();  //to be called at the end of sync
-		} catch (SQLException e) {
-			logger.error(e);
-			//rollback();  //to be called at the end of sync
-			rtc=-1;
-		}
-		return rtc;
-	}
-	//even if found prblem, keeps going, but report in log 
-	private boolean ckeckBatch(int[] batch) {
-		boolean good=true;
-		totalDelCnt=0;
-		for (int b: batch) { 
-	       	if (b>0)
-	       		totalDelCnt++;
-	       	else {
-	       		good=false;
-	       		//break;
-	       	}
-		}
-		return good;
-	}
-
 	protected void putROWID(String rowid) {
 		try {
 			// . FileWriter fstream = new FileWriter(metaData.getInitLogDir() + "/" +

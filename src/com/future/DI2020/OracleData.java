@@ -106,7 +106,8 @@ class OracleData extends JDBCData{
 		Statement stmt;
 		ResultSet rset = null;
 		//JSONObject json = new JSONObject();
-		String sql="";
+		String srcSQLstmt="";
+		String sql="select ";
 		String sqlFields = "insert into SYNC_TABLE_FIELD \n"
 				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
 				+ " values \n";
@@ -130,6 +131,8 @@ class OracleData extends JDBCData{
 			while (rset.next()) {
 				fieldCnt++;
 
+				srcSQLstmt = srcSQLstmt + "a." + rset.getString("column_name") + ", ";
+				
 				sDataType = rset.getString("data_type");
 
 				if (sDataType.equals("VARCHAR2")) {
@@ -160,7 +163,7 @@ class OracleData extends JDBCData{
 					xType = 1;
 					aDataType = "\"string\"";
 				}
-
+				
 				sql = sqlFields 
 						+ "(" + tblID + ", " + rset.getInt("column_id") + ", '"  
 						+ rset.getString("column_name") + "', '" + sDataType + ", '"
@@ -168,7 +171,7 @@ class OracleData extends JDBCData{
 						+ xType + ", '\"type\": " + aDataType + "')";
 			}
 			metaData.runRegSQL(sql);
-
+			//lastly, add the internal rowID
 			fieldCnt++;
 			sql = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
@@ -176,6 +179,14 @@ class OracleData extends JDBCData{
 					+ "20, 0, "
 					+ "1, 'string') ";
 			metaData.runRegSQL(sqlFields);
+			
+			srcSQLstmt = srcSQLstmt + "a.rowid as " + PK 
+					+ " from " + srcSch + "." + srcTbl + " a ";
+			//setup the src select SQL statement
+			sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
+					+ " where tbl_id="+tblID;
+			metaData.runRegSQL(sqlFields);
+			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

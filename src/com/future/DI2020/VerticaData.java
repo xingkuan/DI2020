@@ -117,6 +117,61 @@ class VerticaData extends JDBCData {
 		
 		return rtc;
 	}
+	private int deleteRowsBatch(ResultSet rs) throws SQLException {
+		int rtc = 0;
+		String delSQL = "delete from " + metaData.getTableDetails().get("tgt_schema") + "." + metaData.getTableDetails().get("tgt_table") 
+		+ " where " + metaData.getTableDetails().get("tbl_pk") + "=?";
+
+		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
+
+		int[] batchResults = null;
+		int i = 0, curRecCnt = 0;
+		PreparedStatement tgtPStmt;
+
+//			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
+		tgtPStmt = dbConn.prepareStatement(delSQL);
+		try {
+			while (rs.next()) {
+				tgtPStmt.setObject(i, rs.getObject(0));
+				tgtPStmt.addBatch();
+
+				if (curRecCnt == batchSize) {
+				batchResults = tgtPStmt.executeBatch();
+				if (!ckeckBatch(batchResults)) {
+					logger.error("   delete batch has problem.");
+				}
+				curRecCnt = 0;
+				logger.info("   delete batch - " + totalSynCnt);
+			}
+			curRecCnt++;
+		}
+		// the last batch
+		batchResults = tgtPStmt.executeBatch();
+		if (!ckeckBatch(batchResults)) {
+			logger.error("   delete batch has problem.");
+		}
+		//commit();  //to be called at the end of sync
+		} catch (SQLException e) {
+			logger.error(e);
+			//rollback();  //to be called at the end of sync
+			rtc=-1;
+		}
+		return rtc;
+	}
+	//even if found prblem, keeps going, but report in log 
+	private boolean ckeckBatch(int[] batch) {
+		boolean good=true;
+		totalDelCnt=0;
+		for (int b: batch) { 
+	       	if (b>0)
+	       		totalDelCnt++;
+	       	else {
+	       		good=false;
+	       		//break;
+	       	}
+		}
+		return good;
+	}
 	public int dropStaleRowsOfList(List<String> keys) {
 		int rtc = 2;
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
@@ -125,9 +180,12 @@ class VerticaData extends JDBCData {
 		int i = 0, curRecCnt = 0;
 		PreparedStatement delStmt;
 
+		String sql = "delete from " + metaData.getTableDetails().get("tgt_schema") + "." + metaData.getTableDetails().get("tgt_table") 
+		+ " where " + metaData.getTableDetails().get("tbl_pk") + "=?";
+
 		try {
 			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
-			delStmt = dbConn.prepareStatement(metaData.getSQLDelTgt());
+			delStmt = dbConn.prepareStatement(sql);
 			for (String key: keys) {
 				try {
 					delStmt.setString(1, key);
@@ -433,14 +491,26 @@ class VerticaData extends JDBCData {
 		JSONArray jarr=metaData.SQLtoJSONArray(sql);
 		sql="create table "+tgtSch+"."+tgtTbl+"(";
 		JSONObject jo;
+		String sqlTgtIns = "insert into "+tgtSch+"."+tgtTbl + "(";
+		String sqlTgtInsVal = "(";
 		for (int i=0; i < jarr.size()-1; i++) {
 		    jo= (JSONObject) jarr.get(i);
 		    sql = sql+ jo.get("tgt_field") + jo.get("tgt_field_type") + ",";
+		    
+		    sqlTgtIns = sqlTgtIns + jo.get("tgt_field") + ","; 
+		    sqlTgtInsVal = sqlTgtInsVal + "?,";
 		}
 		jo= (JSONObject) jarr.get(jarr.size()-1);
 	    sql = sql+ jo.get("tgt_field") + jo.get("tgt_field_type") + ")";
+	    //create tgt table
 		runUpdateSQL(sql);
-
+		
+		//update SYNC_TABLE.tgt_stmt0
+		sqlTgtIns = sqlTgtIns + jo.get("tgt_field") + ") values ("
+				+ sqlTgtInsVal + "?)";
+		sql="update SYNC_TABLE set tgt_stmt0='" + sqlTgtIns + "' where tbl_id="+tblID;
+		runUpdateSQL(sql);
+				
 		return true;
 	}
 	/***************************************************/
