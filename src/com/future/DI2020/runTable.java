@@ -37,10 +37,10 @@ class runTable {
 	private int pollWaitMil;
 
 	/* actId:
-	 *     0: enable
-	 *     1: initial copy
-	 *     2: sync
-	 *     9: audit
+	 *     0: enable   ;    templates: {"0Enab"}
+	 *     1: initial copy; templates: {"1Init"}
+	 *     2: sync     ;    templates: {"2Data", "2DCC", "2DATA_"} 
+	 *     9: audit    ;    templates: {"9Audit"}
 	 */
 	/* test parms:
 	 *      tbl 2 2[..]     -- DB2 to Vertica, via Kafka, sync[..]
@@ -75,274 +75,126 @@ class runTable {
         }
 	}
 	static void actOnTable(int tID, int actId) {
+		int syncSt = 2; //the desired table state: "2"
+		
 		logger.info("    BEGIN.");
+		JSONObject tblDetail = metaData.getTableDetails();
 
+		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
+			logger.error("Exit without doing anything.");
+			return ;
+		}
+		logger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
+		
+		metaData.begin();
 		//based on jobDetail, do the corresponding...
 		switch(actId){
 			case 0:  //enable table to be actionable.
 				jobID = "enableTbl";
-				actType0(tID, actId);
+				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+				srcData.miscPrep();  
+				logger.info("   src ready: " + metaData.getTableDetails().get("src_table"));
+
+									 //For Oracle (to V), it is enable trigger and curr_state=2;
+				srcData.beginDCC();	 //For DB2/AS400 log (to K), set the seq_last_ref, and curr_state=2;
+									 //For DB2/AS400 tbl (to V), curr_state=2
 				break;
 			case 1:  //initial copying of data from src to tgt
 				jobID = "initTbl";
-				actType1(tID, actId);
+				//String tempId="1";
+				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+				srcData.miscPrep();  
+				logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+
+				tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+				tgtData.miscPrep();
+				tgtData.setupSink();
+
+				srcData.crtSrcResultSet();
+				tgtData.setupSink();
+				srcData.copyTo(tgtData);
+				//*******
+				//srcData.cleanup(actId, aftSQLs);
 				break;
 			case 2:   //sync DCC, and tbl as well 
 				jobID = "syncTbl";
-				actType2(tID, actId);
+
+				String tempId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+				switch(tempId) {
+					case "2DCC":
+					case "2DATA":
+						srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+						srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
+						logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+						int dccCnt = srcData.getDccCnt();
+						if(dccCnt==0) {
+							logger.info("   no dcc.");
+							return ;  
+						}
+
+						syncSt=srcData.crtSrcResultSet();
+						if(syncSt<0) {
+							logger.info("    error in source.");
+						}else {
+							tgtData.setupSink();
+							srcData.copyTo(tgtData);
+						}
+						break;
+					case "2DATA_":
+						String auxDBstr = tblDetail.get("dcc_db_id").toString();
+						auxData = DataPoint.dataPtrCreater(auxDBstr, "AUX");
+						auxData.miscPrep();
+						dccCnt = auxData.getDccCnt();
+						if(dccCnt==0) {
+							logger.info("   no dcc.");
+							return ;  
+						}
+						logger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
+						srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+						srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
+						logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+
+						tgtData.setupSink();
+						srcData.copyToVia(tgtData,auxData);  
+						break;
+					default:
+						logger.error("wrong template ID");
+						break;
+				}
+				srcData.afterSync();
+				tgtData.afterSync();
+				
 				break;
 			case 9:   //audit
-				actType9(tID, actId);
+				//actType9(tID, actId);
+				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+				srcData.miscPrep();  
+				logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+
+				tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+				tgtData.miscPrep();
+				tgtData.setupSink();
+
+				int srcRC=srcData.getRecordCount();
+				int tgtRC=tgtData.getRecordCount();
 				break;
 			default:
 				logger.info("unkown action");
 				break;
 		}
-		logger.info("    End.");
-	}
-
-	private static int setupAct(int tblID, int actId) { 
-		tableID=tblID;
-		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
-			logger.error("Exit without doing anything.");
-			return -1;
-		}
-		logger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
-
-		JSONObject tblDetail = metaData.getTableDetails();
-		String actTemp = tblDetail.get("temp_id").toString();
-		
-		switch(actId) {
-		case 0:
-			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
-			break;
-		case 1:
-		case 9:
-			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
-
-			tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-			tgtData.miscPrep(actTemp);
-			tgtData.setupSink();
-			logger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
-		}
-		
-		return 0;
-   }
-	/* Setup data sources, so job can be. But also try to do the minimum: 
-	 * - If {count of DCC} == 0: don't do the rest.
-	 * - If {count of DCC} >  0: prepare the needed data sources.
-	 * - If {count of DCC} <  0: something is wrong; skip the rest.
-	 */
-	private static int setupAct2(int tblID, int actId) {  //TODO: too ugly!
-		int dccCnt=0;
-		
-		tableID=tblID;
-		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
-			logger.error("Exit without doing anything.");
-			return -1;
-		}
-		logger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
-
-		JSONObject tblDetail = metaData.getTableDetails();
-		String actTemp = tblDetail.get("temp_id").toString();
-		switch(actTemp) {
-		case "O2K":   //replicate Oracle records to kafka.
-		case "D2K":   //          DB2/AS400 records to kafka.
-		case "K2E":   //          Kafka data to Elasticsearch.
-		case "O2V":   //          
-		case "DJ2K":  //replicate key to kafka
-			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
-			dccCnt = srcData.getDccCnt();
-			if(dccCnt==0) {
-				logger.info("   no dcc.");
-				return 0;  
-			}
-			break;
-		case "D2K_":   //replicate records to kafka, via keys in Kafka
-		case "D2V_":
-			String auxDBstr = tblDetail.get("dcc_db_id").toString();
-			auxData = DataPoint.dataPtrCreater(auxDBstr, "DCC");
-			auxData.miscPrep(actTemp);
-			dccCnt = auxData.getDccCnt();
-			if(dccCnt==0) {
-				logger.info("   no dcc.");
-				return 0;  
-			}
-			logger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
-			srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-			srcData.miscPrep(actTemp);  //parm is to avoid reading max jrnal seq num when not needed
-			logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
-			break;
-		default:
-			logger.error("Not a valid template: " + actTemp);
-			break;
-		}
-		
-
-		tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-		tgtData.miscPrep(actTemp);
-		tgtData.setupSink();
-		logger.info("   tgt ready: " + metaData.getTableDetails().get("tgt_table").toString());
-		
-		return dccCnt;
-   }
-	
-	private static void actType0(int tID, int actId) {
-		int syncSt=2;
-
-		if(setupAct(tID, 0)==-1) {
-			return;   // something is not right. Do nothing.
-		}else {
-			metaData.begin();
-	
-			srcData.beginDCC();  //For Oracle (to V), it is enable trigger and curr_state=2;
-								 //For DB2/AS400 log (to K), set the seq_last_ref, and curr_state=2;
-								 //For DB2/AS400 tbl (to V), curr_state=2
-			metaData.end(syncSt);
-			metaData.saveSyncStats();
-		}
-	}
-	private static void actType1(int tID, int actId) {
-		int syncSt=2;
-
-		if(setupAct(tID, actId)==-1) {
-			return;   // something is not right. Do nothing.
-		}else {
-			metaData.begin();
-			//get the PRE and AFT sqls from meta:
-			JSONArray preSQLs, aftSQLs;
-			JSONObject sqlJO = metaData.getSrcSQLs(actId, false, false);
-			if((sqlJO==null)||(sqlJO.isEmpty())){
-				logger.error("no SQL found for src resultset.");
-				return;
-			}
-			preSQLs = (JSONArray) sqlJO.get("PRE");
-			//aftSQLs = (JSONArray) sqlJO.get("AFT");
-			
-			//srcData.crtSrcResultSet(actId, preSQLs);
-			//int state = tgtData.initDataFrom(srcData);
-			//*******
-			tgtData.setupSink();
-			srcData.copyTo(tgtData);
-			//*******
-			//srcData.cleanup(actId, aftSQLs);
-	
-			srcData.close();
-			tgtData.close();
-	
-			metaData.end(syncSt);
-			metaData.saveSyncStats();
-			tearDown();
-		}
-	}
-	private static void actType2(int tID, int actId) {
-		int syncSt=2;
-
-		if(setupAct2(tID, actId)<=0) {
-			// 1. 0: If count of DCC is 0, don't do anything.
-			// 2. -1: If something is wrong,
-			// 3. >0: the number of DCC
-			return;   // something is not right. Do nothing.
-		}else {
-			metaData.begin();
-			//get the PRE and AFT sqls from meta:
-			JSONArray preSQLs, aftSQLs;
-			JSONObject sqlJO = metaData.getSrcSQLs(actId, false, false);
-			if((sqlJO==null)||(sqlJO.isEmpty())){
-				logger.error("no SQL found for src resultset.");
-				syncSt=2;
-				metaData.end(syncSt);
-				return;
-			}
-			preSQLs = (JSONArray) sqlJO.get("PRE");
-			aftSQLs = (JSONArray) sqlJO.get("AFT");
-			
-			String tempId = metaData.getTableDetails().get("temp_id").toString();
-			switch(tempId) {
-			case "O2V":    //no aux (kafka in between).
-			case "D2K":   //          DB2/AS400 records to kafka.
-			case "K2E":   //          Kafka data to Elasticsearch.
-			case "O2K":
-			case "D2V":
-			case "DJ2K":
-				syncSt=srcData.crtSrcResultSet(actId, preSQLs);
-				if(syncSt<0) {
-					logger.info("    error in source.");
-				}else {
-					//TODO:  for test. need re-org!
-					if(tempId.equals("O2K"))
-						syncSt = tgtData.syncAvroDataFrom(srcData);
-					else
-						//syncSt = tgtData.syncDataFrom(srcData);
-						////srcData.afterSync(actId, aftSQLs);
-						//*******
-						tgtData.setupSink();
-						srcData.copyTo(tgtData);
-						//*******
-				}
-				break;
-			case "D2V_":   //sync with DCC keys from kafka
-				////auxData.crtAuxSrcAsList();  //This is done in setupAct2() already!
-				//syncSt = tgtData.syncDataViaV2(srcData, auxData);  //crtSrcResultSet() is pushed into this call. 
-																   //TODO: ugly code.
-				//*******
-				tgtData.setupSink();
-				srcData.copyToVia(tgtData,auxData);  
-				//*******
-
-				break;
-			default:
-				logger.error("wrong template ID");
-				break;
-		}
-		if(aftSQLs != null)	
-			srcData.afterSync(actId, aftSQLs);	
-	
-		if(syncSt==2){
-			srcData.commit();
-			tgtData.commit();
-			if(aftSQLs != null)	
-				srcData.commit();	
-		}else {
-			srcData.rollback();
-			tgtData.rollback();
-			if(aftSQLs != null)	
-				srcData.rollback();	
-		}
 		metaData.end(syncSt);
 		metaData.saveSyncStats();
 		tearDown();
-		}
-	}
-	private static void actType9(int tID, int actId) {
-		int syncSt=2;
 
-		if(setupAct(tID, actId)==-1) {
-			return;   // something is not right. Do nothing.
-		}else {
-			metaData.begin();
-		
-	      int srcRC=srcData.getRecordCount();
-	      int tgtRC=tgtData.getRecordCount();
-	
-			srcData.close();
-			tgtData.close();
-	
-			metaData.end(syncSt);
-			metaData.saveSyncStats();
-			tearDown();
-		}
+		logger.info("    End.");
 	}
-	
 	private static void tearDown() {
-		srcData.close();
-		tgtData.close();
+		if(!(srcData==null))
+			srcData.close();
+		if(!(tgtData==null))
+			tgtData.close();
+		if(!(auxData==null))
+			auxData.close();
 		metaData.close();
 		logger.info("Completed "+jobID+": " +  metaData.getTableID());
 	}

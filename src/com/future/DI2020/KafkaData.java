@@ -183,12 +183,15 @@ class KafkaData extends DataPoint {
 			srcData.releaseRSandSTMT();
 		}
         return rtc;
-}
-	
-	protected boolean miscPrep(String jobTempID) {
-		super.miscPrep(jobTempID);
+	}
+	@Override
+	protected boolean miscPrep() {
+		super.miscPrep();
 
-		if(metaData.getTableDetails().get("temp_id").toString().equals("D2V_")) {
+		//String jTemp=metaData.getTableDetails().get("temp_id").toString();
+		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id"); 
+		//if(jTemp.equals("D2V_")) {
+		if(jTemp.equals("2DATA_")) {
 			String topic = metaData.getTableDetails().get("src_schema")+"."
 				+metaData.getTableDetails().get("src_table");
 			createKafkaConsumer(topic);

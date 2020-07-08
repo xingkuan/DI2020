@@ -22,12 +22,13 @@ class OracleData extends JDBCData{
    public OracleData(JSONObject dbID, String role) throws SQLException {
 		super(dbID, role);
    }
-   protected void initializeFrom(DataPoint dt) {
-		logger.info("   not needed yet");
-   }
-	public boolean miscPrep(String jTemp) {
+//   protected void initializeFrom(DataPoint dt) {
+//		logger.info("   not needed yet");
+//  }
+   @Override
+	public boolean miscPrep() {
 		boolean rtc=true;
-		super.miscPrep(jTemp);
+		super.miscPrep();
 		//if(jTemp.equals("DJ2K")) { 
 		//	rtc=initThisRefreshSeq();
 		//}
@@ -48,7 +49,38 @@ class OracleData extends JDBCData{
 
 		return cnt;
 	}
-	public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
+	/********** Synch APIs *********************************/
+	@Override
+	protected JSONObject getSrcSqlStmts(String template) {
+	//from metaData private JSONObject getO2Vact2SQLs() {
+		JSONObject jo = new JSONObject();
+		JSONArray pre = new JSONArray();
+		switch(template) {
+			case "1":    //case: read the whole table
+				pre.add(1, metaData.getBareSrcSQL() );
+				jo.put("PRE", pre);
+			case "2TRIG":   //read the changed rows. Original O2V, O2K
+				pre.add("update " + metaData.getTableDetails().get("src_dcc_tbl") 
+						+ " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
+				pre.add(metaData.getBareSrcSQL() + ", " + metaData.getTableDetails().get("src_dcc_tbl") 
+						+ " b where b.dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') "
+						+ " and a.rowid=b."+metaData.getTableDetails().get("tbl_pk"));
+				jo.put("PRE", pre);
+				JSONArray aft = new JSONArray();
+				aft.add("delete from " + metaData.getTableDetails().get("src_dcc_tbl") 
+						+ " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
+				jo.put("AFT", aft);
+				break;
+		}
+		
+		return jo;
+	}
+	//public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
+	@Override
+	public int crtSrcResultSet() {
+		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+
+		JSONArray jaSQLs=(JSONArray) getSrcSqlStmts(template).get("PRE");
 		String sql;
 		for (int i = 0; i < jaSQLs.size()-1; i++) {
 			sql = jaSQLs.get(i).toString();
@@ -82,7 +114,19 @@ class OracleData extends JDBCData{
 
 		return keyList;
 	}
+	@Override
+	//protected void afterSync(int actId, JSONArray jaSQLs){
+	protected void afterSync(){
+		String templateId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
 
+		JSONObject jaSQLs = getSrcSqlStmts(templateId);
+
+		String sql;
+		for (int i = 0; i < jaSQLs.size(); i++) {
+			sql = jaSQLs.get(i).toString();
+			runUpdateSQL(sql);
+		}
+	}
    
 	/******** Registration APIs **********/
 	@Override
@@ -219,8 +263,9 @@ class OracleData extends JDBCData{
 		//not use for Oracle so far.
 		return true;
 	}
-	/***************************************************/
 	
+	/**************** starting DCC (that is: enable trigger) *******************************/
+	@Override
 	public boolean beginDCC(){
 	   Statement sqlStmt;
 	   try {
@@ -237,14 +282,8 @@ class OracleData extends JDBCData{
 		
 	   return true;
 	}
-	protected void afterSync(int actId, JSONArray jaSQLs){
-		String sql;
-		for (int i = 0; i < jaSQLs.size(); i++) {
-			sql = jaSQLs.get(i).toString();
-			runUpdateSQL(sql);
-		}
-	}
-
+	
+	/**************** internal helpers *********************/
 	private int runUpdateSQL(String sql) {
 		int rslt=0;
 		// Save to MetaRep:

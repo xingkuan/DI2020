@@ -96,23 +96,9 @@ public class DataPoint {
 		}
 		return db;
 	}
+	/********** Synch APIs****************************/
 	protected void crtSrcResultSet(List<String >keys) {
 		logger.info("   Need implementation in child.");
-	}
-	protected int dropStaleRowsOfList(List<String> keys) {
-		logger.info("   Need implementation in child.");
-		return 0;
-	}
-	protected int getDccCnt() {
-		logger.info("   Need implementation in child.");
-		return 0;
-	}
-
-	protected void crtAuxSrcAsList() {
-	}
-	protected boolean crtSrcAuxResultSet() {
-		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-		return true;
 	}
 	//where clause is to be build from catalog
 	protected int crtSrcResultSet(int actId, JSONArray jo) {
@@ -132,6 +118,22 @@ public class DataPoint {
 		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return null;
 	}
+
+	protected int dropStaleRowsOfList(List<String> keys) {
+		logger.info("   Need implementation in child.");
+		return 0;
+	}
+	protected int getDccCnt() {
+		logger.info("   Need implementation in child.");
+		return 0;
+	}
+
+	protected void crtAuxSrcAsList() {
+	}
+	protected boolean crtSrcAuxResultSet() {
+		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
+		return true;
+	}
 	protected List<String> getDCCKeyList(){
 		logger.info("   empty getSrcResultList() in DataPointer.");
 		return null;
@@ -145,10 +147,18 @@ public class DataPoint {
 	protected void rollback() {
 		logger.info("   should be implemented in child.");
 	}
-	protected int initDataFrom(DataPoint dt) {
-		return 0;
+	/*********** Synch APIs ************/
+	protected JSONObject  getSrcSqlStmts(String template) {
+		return null;
 	}
-	protected boolean miscPrep(String jobTemplate) {
+	public int crtSrcResultSet() {
+		return -1;
+	}
+//	protected int initDataFrom(DataPoint dt) {
+//		return 0;
+//	}
+	//protected boolean miscPrep(String jobTemplate) {
+	protected boolean miscPrep() {
 		totalErrCnt = 0; totalInsCnt = 0; totalDelCnt = 0; totalSynCnt=0;
 		return true;
 	}
@@ -163,15 +173,16 @@ public class DataPoint {
 	}
 	public void finishCopy() {
 	}
-	protected boolean ready() {
-		// TODO Auto-generated method stub
-		return false;
-	}
+//	protected boolean ready() {
+//		// TODO Auto-generated method stub
+//		return false;
+//	}
 	protected boolean beginDCC(){
 		logger.info("   should be implemented in child class.");
 		return false;
 	}
-	protected void afterSync(int actId, JSONArray aftSQLs){
+	//protected void afterSync(int actId, JSONArray aftSQLs){
+	protected void afterSync(){
 		logger.info("   should be implemented in child class.");
 	}
 	protected void close() {

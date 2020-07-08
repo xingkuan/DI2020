@@ -47,7 +47,6 @@ class JDBCData extends DataPoint{
 		}
 	}
 	
-	/*************************************************************************/	
 	int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 	int[] batchDel = null;
 	int[] batchIns = null;
@@ -71,6 +70,8 @@ class JDBCData extends DataPoint{
 		}
 	}
 
+	/**********************Synch APIs************************************/	
+	@Override
 	public void copyTo(DataPoint tgt) {
 		try {
 			while(srcRS.next()) {
@@ -83,6 +84,7 @@ class JDBCData extends DataPoint{
 		//last batch and whatever
 		tgt.finishCopy();
 	}
+	@Override
 	public void copyToVia(DataPoint tgtData, DataPoint auxData) {
 		int rtc = 2;
 		List<String> keys = auxData.getDCCKeyList();
@@ -217,7 +219,8 @@ class JDBCData extends DataPoint{
 		}
 	}
 
-	//---------audit APIs	
+	//---------audit APIs
+	@Override
 	public int getRecordCount(){
 		int rtv;
 		Statement sqlStmt;

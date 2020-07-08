@@ -42,9 +42,12 @@ class ESData extends DataPoint{
    public ESData() {
 	   System.out.println("this constructor is used for testing only");
    }
-	public boolean miscPrep(String jTemp) {
+   @Override
+	public boolean miscPrep() {
 		boolean rtc=true;
-		super.miscPrep(jTemp);
+		super.miscPrep();
+
+		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id"); 
 		//if(jTemp.equals("DJ2K")) { 
 		//	rtc=initThisRefreshSeq();
 		//}

@@ -33,14 +33,15 @@ class VerticaData extends JDBCData {
 	public VerticaData(JSONObject dbid, String role) throws SQLException {
 		super(dbid, role);
 	}
-
-
-	public boolean miscPrep(String jobTempId) {
+	@Override
+	public boolean miscPrep() {
 		// TODO Auto-generated method stub
 		return true;
 	}
 
+	/********** Sync APIs ***************************/
 	// no where clause for initializing
+	/*
 	public int initDataFrom(DataPoint srcData) {
 		int rtc=0;
 		truncateTbl();
@@ -60,6 +61,7 @@ class VerticaData extends JDBCData {
 		
 		return rtc;
 	}
+	*/
 	private void truncateTbl() {
 		String sql = "truncate table " + metaData.getTableDetails().get("tgt_schema") + "."+ metaData.getTableDetails().get("tgt_table");
 		runUpdateSQL(sql);
@@ -78,13 +80,10 @@ class VerticaData extends JDBCData {
 		} 
 		return true;
 	}
-
+/*
 	// when log table is inserted from trigger
 	public int syncDataFrom(DataPoint srcData) {
 		int rtc=0;
-	/* other than the src resultset, also create a KEY list from srcData,
-	 * which is used to delete the stalerows in tgt.
-	 */
 		List<String> keyList = srcData.getDCCKeyList();
 		dropStaleRowsOfList(keyList);
 		
@@ -117,6 +116,7 @@ class VerticaData extends JDBCData {
 		
 		return rtc;
 	}
+*/
 	private int deleteRowsBatch(ResultSet rs) throws SQLException {
 		int rtc = 0;
 		String delSQL = "delete from " + metaData.getTableDetails().get("tgt_schema") + "." + metaData.getTableDetails().get("tgt_table") 
@@ -225,13 +225,10 @@ class VerticaData extends JDBCData {
 		}
 		return rtc;
 	}
-
+/*
 	public int syncDataViaV2(DataPoint srcData, DataPoint auxData) {
 		int rtc = 2;
 		List<String> keys = auxData.getDCCKeyList();
-		/* Drop the idea of using where key in (....) for small list;
-		 *   The code becomes too complicated if I do.
-		 */
 		if(keys.size()>0) {
 			//Thread 1: Ask srdData to select data from the list
 			Runnable srcTask = () -> { 
@@ -262,6 +259,7 @@ class VerticaData extends JDBCData {
 		
 		return rtc;
 	}
+*/
 	// when log table is from kafka
 	// TODO: move the logic into Kafka, at where, messages are read into list and deduplicated.
 /*	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
@@ -321,7 +319,7 @@ class VerticaData extends JDBCData {
 		return rtc;	
 	}
 */
-	private int syncDataFromV2(ResultSet rsltSet, int actId) {
+/*	private int syncDataFromV2(ResultSet rsltSet, int actId) {
 		int rtc = 2;
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 
@@ -418,8 +416,10 @@ class VerticaData extends JDBCData {
 
 		return rtc;
 	}
-	
-	
+	*/
+	@Override
+	protected void afterSync(){
+	}
 	public ResultSet getSrcResultSet() {
 		return sRset;
 	}

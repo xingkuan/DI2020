@@ -34,23 +34,100 @@ class DB2Data400 extends JDBCData {
 	protected void initializeFrom(DataPoint dt) {
 		logger.info("   not needed yet");
 	}
-
-	public boolean miscPrep(String jTemp) {
+	@Override
+	public boolean miscPrep() {
 		boolean rtc=false;
-		super.miscPrep(jTemp);
-//		if(metaData.isDCCJob()) { 
-		if(jTemp.equals("DJ2K")) { //Only  needed when sync DCC to Kafka.
+		super.miscPrep();
+
+		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id"); 
+		if(jTemp.equals("2DCC")) { //was DJ2K; Only  needed when sync DCC to Kafka.
 			rtc=initThisRefreshSeq();
 		}
 		return rtc;
 	}
-
+	/************** Synch APIs ****************************/
 	public ResultSet getSrcResultSet() {
 		return srcRS;
 	}
-	public int crtSrcResultSet(int act, JSONArray jaSQLs) {
-		TODO: add little more logic here, so DISPLAY_JOURNAL can try a 2nd strategy
-		{"sqlStmt": "xxxxx", "retry":"xxxxx plus yyyy"}
+	@Override
+	protected JSONObject getSrcSqlStmts(String template) {
+	//from metaData private JSONObject getO2Vact2SQLs() {
+		JSONObject jo = new JSONObject();
+		JSONArray pre = new JSONArray();
+		switch(template) {
+		case "1":    //case: read the whole table
+			pre.add(1, metaData.getBareSrcSQL() );
+			jo.put("PRE", pre);
+			break;
+		case "2DATA":
+			String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+ metaData.getTableDetails().get("tbl_id") 
+			+ "(" + metaData.getTableDetails().get("tbl_pk") + " " + metaData.getKeyDataType() + ") " 
+					+" NOT LOGGED"; 
+			pre.add(sql);
+			pre.add("INSERT INTO qtemp.DCC" + metaData.getTableDetails().get("tbl_id") + " VALUES (?)" );
+			sql = metaData.getBareSrcSQL() + ", qtemp.DCC"+metaData.getTableDetails().get("tbl_id") + " b "
+					+ " where a..rrn(a)=b." +metaData.getTableDetails().get("tbl_pk");  //TOTO: may have problem!
+			pre.add(sql);
+			jo.put("PRE", pre);
+			break;
+		case "2JURL":
+			sql=DB2DCCsql(true);
+			pre.add(sql );
+			jo.put("PRE", pre);
+		}
+		return jo;
+	}
+	private String DB2DCCsql(boolean prefered) {
+//  spublic JSONObject getDJ2Kact2SQLs(boolean fast, boolean relaxed) {  //"public" as an hacker
+		long lasDCCSeq = metaData.getDCCSeqLastRefresh();
+		String extWhere="";
+		
+		if((lasDCCSeq == -1)||(seqThisFresh <= lasDCCSeq))   
+			return null;   // this is the first time or no data, simply set META_AUX.SEQ_LAST_REF
+	
+		if (seqThisFresh > lasDCCSeq ) {
+			extWhere = " and SEQUENCE_NUMBER <=" + seqThisFresh; 
+		}
+		
+		String sql;
+		String currStr="*CURCHAIN";
+	
+		if(prefered) {
+			sql = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
+					+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" 
+					+ metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+					+ currStr + "', "
+					+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
+					+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
+					+ "   'R', " // JOURNAL CODE: record operation
+					+ "   ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
+					+ "   '', '', '*QDDS', ''," // Object library, Object name, Object type, Object member
+					+ "   '', '', ''" // User, Job, Program
+					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
+					+ extWhere
+					+ " order by 2 asc";
+		}else {
+			sql= " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
+					+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" 
+					+ metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+					+ currStr + "', " 
+					+ "   cast(null as TIMESTAMP), " + "   cast(null as decimal(21,0)), "
+					+ "   'R', " 
+					+ "   ''," + "   '', '', '*QDDS', ''," 
+					+ "   '', '', ''"
+					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
+					+ extWhere 
+					+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
+										 // number seems not takining effect
+		}
+		return sql;
+	}
+	@Override
+	//public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
+	public int crtSrcResultSet() {
+		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+
+		JSONArray jaSQLs=(JSONArray) getSrcSqlStmts(template).get("PRE");
 		String sql;
 		for (int i = 0; i < jaSQLs.size()-1; i++) {
 			sql = jaSQLs.get(i).toString();
@@ -58,10 +135,9 @@ class DB2Data400 extends JDBCData {
 		}
 		sql=jaSQLs.get(jaSQLs.size()-1).toString();
 		if( !SQLtoResultSet(sql) ) {  // DB2AS400 journal, double check with relaxed "display_journal"
-			if(metaData.getTableDetails().get("temp_id").toString().equals("DJ2K")) {
+			if(template.equals("2JURL")) {
 				logger.warn("Failed the 1st trying of initializing src resultset.");
-				JSONArray ja = (JSONArray) metaData.getDJ2Kact2SQLs(false, true).get("PRE");
-				sql=ja.get(0).toString();
+				sql=DB2DCCsql(false);
 				if( !SQLtoResultSet(sql) ) {
 					logger.warn("Failed the 2nd time for src resultset. Giveup");
 					return -1;
@@ -70,6 +146,7 @@ class DB2Data400 extends JDBCData {
 		}
 		return 0;
 	}
+	@Override
 	public void crtSrcResultSet(List<String >keys) {
 		//List<String> msgKeys = dcc.getSrcResultList();
 		int cnt=keys.size();
@@ -126,8 +203,12 @@ class DB2Data400 extends JDBCData {
 			SQLtoResultSet(sql);
 		}
 	}
-	
-	protected void afterSync(int actId, JSONArray jaSQLs){
+	@Override
+	//protected void afterSync(int actId, JSONArray jaSQLs){
+	protected void afterSync(){
+		String templateId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+
+		JSONObject jaSQLs = getSrcSqlStmts(templateId);
 		String sql;
 		for (int i = 0; i < jaSQLs.size(); i++) {
 			sql = jaSQLs.get(i).toString();
@@ -294,7 +375,25 @@ class DB2Data400 extends JDBCData {
 			return true;
 		return false;
 	}
-	private boolean initThisRefreshSeq(boolean fast) {
+	/***************DCC ******************/
+	private String getSrcDCCThisSeqSQL(boolean fast) {
+		String currStr;
+		if(fast)
+			currStr="";
+		else
+			currStr="*CURCHAIN";
+		//return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + lName + "', '" + jName
+		return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" 
+				+ metaData.getTableDetails().get("src_schema") + "', '" + metaData.getTableDetails().get("src_table")
+				+ "', '', '" + currStr + "', " // it looks like possible the journal can be switched and this SQL return no rows
+				+ " cast(null as TIMESTAMP), " // pass-in the start timestamp;
+				+ " cast(null as decimal(21,0)), " // starting SEQ #
+				+ " 'R', " // JOURNAL cat: record operations
+				+ " ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
+				+ " '', '', '*QDDS', ''," + "   '', '', ''" // User, Job, Program
+				+ ") ) as x ";
+	}
+	private boolean initThisRefreshSeq(boolean prefered) {
 		Statement sqlStmt;
 		ResultSet lrRset;
 		boolean rtv=false;
@@ -303,7 +402,7 @@ class DB2Data400 extends JDBCData {
 
 		try {
 			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			strSQL = metaData.getSrcDCCThisSeqSQL(fast);
+			strSQL = getSrcDCCThisSeqSQL(prefered);
 			lrRset = sqlStmt.executeQuery(strSQL);
 			// note: could be empty, perhaps when DB2 just switched log file, which will land us in exception
 			if (lrRset.next()) {
@@ -319,7 +418,7 @@ class DB2Data400 extends JDBCData {
 			lrRset.close();
 			sqlStmt.close();
 		} catch (SQLException e) {
-			if(fast)
+			if(prefered)
 				logger.info("   not able to get current Journal seq. Try the expensive way. " + e);
 			else
 				logger.error("   not able to get current Journal seq. Give up. " + e);
@@ -327,6 +426,7 @@ class DB2Data400 extends JDBCData {
 		
 		return rtv;
 	}
+	/*************************************/
 
 
 	/******** Registration APIs **********/
@@ -505,36 +605,7 @@ class DB2Data400 extends JDBCData {
 		metaData.runRegSQL(sql);
 
 		//setup the src select SQL statement
-String srcSQLstmt="select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, "
-		+ "trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL "
-		+ "FROM table (Display_Journal('" 
-		+ tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") 
-		+ "', " + "   '', '" + currStr + "', " 
-		+ "   cast(null as TIMESTAMP), " 
-		+ "   cast(null as decimal(21,0)), "
-		+ "   'R', " 
-		+ "   ''," + "   '', '', '*QDDS', ''," 
-		+ "   '', '', ''"
-		+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
-		+ extWhere 
-		+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
-									 // number seems not takining effect
-or:
-String srcSQLstmt= "select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, "
-		+ "trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-	 	+ " FROM table (Display_Journal('" 
-		+ tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table")
-		+ "', " + "   '', '" + currStr + "', "
-		+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
-		+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
-		+ "   'R', " // JOURNAL CODE: record operation
-		+ "   ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
-		+ "   '', '', '*QDDS', ''," // Object library, Object name, Object type, Object member
-		+ "   '', '', ''" // User, Job, Program
-		+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
-		+ extWhere
-		+ " order by 2 asc";
-		
+String srcSQLstmt="BYODCCSQL";  //Build Your Own DCC SQL. Not much added value in putting it in meta_data.
 		sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
 				+ " where tbl_id="+tblID+1;
 		metaData.runRegSQL(sql);
@@ -547,7 +618,55 @@ String srcSQLstmt= "select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, "
 		return true;
 	}
 	/***************************************************/
+private String byodccSQL(boolean fast, boolean relaxed)	{
+	long lasDCCSeq = metaData.getDCCSeqLastRefresh();
+	String extWhere="";
 	
+	if((lasDCCSeq == -1)||(seqThisFresh <= lasDCCSeq))   
+		return null;   // this is the first time or no data, simply set META_AUX.SEQ_LAST_REF
+
+	if (seqThisFresh > lasDCCSeq ) {
+		extWhere = " and SEQUENCE_NUMBER <=" + seqThisFresh; 
+	}
+	
+	String sql;
+	String currStr;
+	if(fast)
+		currStr="";
+	else
+		currStr="*CURCHAIN";
+
+	JSONObject jo = new JSONObject();
+	JSONArray pre = new JSONArray();
+	if(relaxed) {
+		sql= " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
+				+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" + metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+				+ currStr + "', " 
+				+ "   cast(null as TIMESTAMP), " 
+				+ "   cast(null as decimal(21,0)), "
+				+ "   'R', " 
+				+ "   ''," + "   '', '', '*QDDS', ''," 
+				+ "   '', '', ''"
+				+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
+				+ extWhere 
+				+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
+									 // number seems not takining effect
+		return sql;
+	}else
+		sql = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
+				+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" + metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+				+ currStr + "', "
+				+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
+				+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
+				+ "   'R', " // JOURNAL CODE: record operation
+				+ "   ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
+				+ "   '', '', '*QDDS', ''," // Object library, Object name, Object type, Object member
+				+ "   '', '', ''" // User, Job, Program
+				+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
+				+ extWhere
+				+ " order by 2 asc";
+		return sql;
+	}
 	public boolean beginDCC(){
 		logger.info("   not applicable to DB2/AS400.");
 		return true;

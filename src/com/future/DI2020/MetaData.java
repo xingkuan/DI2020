@@ -30,7 +30,7 @@ class MetaData {
 	private ResultSet repRSet;
 
 	private int tableID;
-	private String keyFeildType;
+	private String keyDataType;
 
 	//private String sqlSelectSource;
 	//private String sqlInsertTarget;
@@ -195,7 +195,7 @@ class MetaData {
 			dccDetailJSON = (JSONObject) jo.get(0);
 		}
 		
-		sql= "select info, stmts from SYNC_TEMPLATE where temp_id='" 
+		sql= "select temp_id, act_id, info, stmts from SYNC_TEMPLATE where temp_id='" 
 					+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
@@ -280,6 +280,9 @@ class MetaData {
 	}
 	public JSONObject getMiscValues() {
 		return miscValues;
+	}
+	public String getKeyDataType() {
+		return keyDataType;
 	}
 /*	public boolean tblReadyForInit() {
 		boolean rtv=true;
@@ -453,9 +456,9 @@ class MetaData {
 					avroSchema = avroSchema 
 							+ ", {\"name\": \"ORARID\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 				}
-				keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
+				keyDataType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 			}else {
-				keyFeildType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
+				keyDataType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 				avroSchema = avroSchema 
 						+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 			}
@@ -476,15 +479,14 @@ class MetaData {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
-
 	}
-//may not needed later on.
-public ArrayList<Integer> getFldJavaType() {
-	return fldType;
-}
-public ArrayList<String> getFldNames() {
-	return fldNames;
-}
+	//may not needed later on.
+	public ArrayList<Integer> getFldJavaType() {
+		return fldType;
+	}
+	public ArrayList<String> getFldNames() {
+		return fldNames;
+	}
 	public String getSQLInsTgt() {
 		//return sqlInsertTarget;
 		return tblDetailJSON.get("tgt_stmt0").toString();
@@ -510,36 +512,36 @@ public ArrayList<String> getFldNames() {
 	 *      - if count of keys < threshold:
 	 * 			1. add the keys to where clause to the "sqlSelectSource" and return;
 	 */
-	public JSONObject getSrcSQLs(int actId, boolean fast, boolean relaxed) {
-		/*
-		 * The design intention: to be template driving.
-		 *   E. g. 
-		 *   String strTemplate = "something from META_SRC_TEMPLATE '%(value)' in column # %(column)";
-		 *   strTemplate = strTemplate.replace("%(value)", x); // 1
-		 *   strTemplate = strTemplate.replace("%(column)", y); // 2
-		 */
-		if(actId==1) {
-			return getAct1SQLs();
-		}else if (actId==2) {	
-			String tempID=tblDetailJSON.get("temp_id").toString();
-			switch(tempID) {   //TODO: move this func database.
-			case "DJ2K":
-				return getDJ2Kact2SQLs(fast, relaxed); 
-				//break;
-			case "D2V_":
-				return getD2V_act2SQLs(fast, relaxed); 
-			case "O2V":
-			case "O2K":
-				return getO2Vact2SQLs(); 
-			default:
-				logger.error("Invalid template.");
-				return null;
-		}
-		}else {
-			logger.error("Invalid action.");
-			return null;
-		}
-	}
+//	public JSONObject getSrcSQLs(int actId, boolean fast, boolean relaxed) {
+//		/*
+//		 * The design intention: to be template driving.
+//		 *   E. g. 
+//		 *   String strTemplate = "something from META_SRC_TEMPLATE '%(value)' in column # %(column)";
+//		 *   strTemplate = strTemplate.replace("%(value)", x); // 1
+//		 *   strTemplate = strTemplate.replace("%(column)", y); // 2
+//		 */
+//		if(actId==1) {
+//			return getAct1SQLs();
+//		}else if (actId==2) {	
+//			String tempID=tblDetailJSON.get("temp_id").toString();
+//			switch(tempID) {   //TODO: move this func database.
+//			case "DJ2K":
+//				return getDJ2Kact2SQLs(fast, relaxed); 
+//				//break;
+//			case "D2V_":
+//				return getD2V_act2SQLs(fast, relaxed); 
+//			case "O2V":
+//			case "O2K":
+//				return getO2Vact2SQLs(); 
+//			default:
+//				logger.error("Invalid template.");
+//				return null;
+//		}
+//		}else {
+//			logger.error("Invalid action.");
+//			return null;
+//		}
+//	}
 	private JSONObject getAct1SQLs() {
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
@@ -548,7 +550,8 @@ public ArrayList<String> getFldNames() {
 		
 		return jo;
 	}
-	private JSONObject getO2Vact2SQLs() {
+	//moved to Oracle as getSrcSqlStmts(String temp)
+/*	private JSONObject getO2Vact2SQLs() {
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
 		pre.add("update " + tblDetailJSON.get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
@@ -562,6 +565,7 @@ public ArrayList<String> getFldNames() {
 		
 		return jo;
 	}
+	*/
 	private JSONObject getD2V_act2SQLs(boolean fast, boolean relaxed) { 
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
@@ -569,7 +573,7 @@ public ArrayList<String> getFldNames() {
 		//2. either --- skip it (too complicated). Keep only the following b1 and b2.
 		//     a. compose where clause and add to sqlSelectSource
 		//  or b1. declare temp. tbl and batch the keys
-		String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+tableID + "(" + tblDetailJSON.get("tbl_pk") + " " + keyFeildType + ") " 
+		String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+tableID + "(" + tblDetailJSON.get("tbl_pk") + " " + keyDataType + ") " 
 				+" NOT LOGGED"; 
 		pre.add(sql);
 		pre.add("INSERT INTO qtemp.DCC" + tableID + " VALUES (?)" );
@@ -581,8 +585,10 @@ public ArrayList<String> getFldNames() {
 
 		return jo;
 	}
+	/*
 	public JSONObject getDJ2Kact2SQLs(boolean fast, boolean relaxed) {  //"public" as an hacker
-	//TODO: pushed to DB field src_stmt0
+	//TODO: pushed to DB2Data.byodccSQL(xxxx)
+		JSONObject jo = new JSONObject();
 		long lasDCCSeq = getDCCSeqLastRefresh();
 		String extWhere="";
 		
@@ -635,27 +641,13 @@ public ArrayList<String> getFldNames() {
 		jo.put("PRE", pre);
 
 		return jo;
+		
 	}
+	*/
 //	public String getSQLDelTgt() {
 //		return sqlDeleteTarget;
 //	}
 
-public String getSrcDCCThisSeqSQL(boolean fast) {
-	String currStr;
-	if(fast)
-		currStr="";
-	else
-		currStr="*CURCHAIN";
-	//return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + lName + "', '" + jName
-	return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table")
-			+ "', '', '" + currStr + "', " // it looks like possible the journal can be switched and this SQL return no rows
-			+ " cast(null as TIMESTAMP), " // pass-in the start timestamp;
-			+ " cast(null as decimal(21,0)), " // starting SEQ #
-			+ " 'R', " // JOURNAL cat: record operations
-			+ " ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
-			+ " '', '', '*QDDS', ''," + "   '', '', ''" // User, Job, Program
-			+ ") ) as x ";
-}
 	
 	public void setRefreshTS(Timestamp thisRefreshHostTS) {
 		tsThisRef = thisRefreshHostTS;
@@ -772,9 +764,6 @@ public String getSrcDCCThisSeqSQL(boolean fast) {
 		return tList;
 	}
 
-	/*
-	 * 07/24: return list of tbls belongs to a pool
-	 */
 	public List<Integer> getTblsByPoolID(int poolID) {
 		Statement lrepStmt = null;
 		ResultSet lrRset;
