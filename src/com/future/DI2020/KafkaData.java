@@ -31,6 +31,7 @@ import org.apache.avro.io.EncoderFactory;
 import org.apache.kafka.clients.admin.AdminClient;
 import org.apache.kafka.clients.admin.AdminClientConfig;
 import org.apache.kafka.clients.admin.CreateTopicsResult;
+import org.apache.kafka.clients.admin.DeleteTopicsResult;
 import org.apache.kafka.clients.admin.KafkaAdminClient;
 import org.apache.kafka.clients.admin.NewTopic;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -711,6 +712,30 @@ public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String
     }
 	return true;
 }
+@Override
+public boolean unregisterTgt(int tblID) {
+	//delete the topic
+	String theTopic = metaData.getTableDetails().get("tgt_schema")+"."
+			+ metaData.getTableDetails().get("tgt_table");
+	if(!theTopic.equals("*.*")){
+	try (final AdminClient adminClient = createKafkaAdmin()) {
+        DeleteTopicsResult deleteTopicsResult=adminClient.deleteTopics(Arrays.asList(theTopic));
+    }
+}
+	return true;
+}
+@Override
+public boolean unregisterDcc(int tblID) {
+	//delete DCC topic
+	String theTopic = metaData.getTableDetails().get("src_schema")+"."
+			+ metaData.getTableDetails().get("src_table")+"DCC";
+	try (final AdminClient adminClient = createKafkaAdmin()) {
+        DeleteTopicsResult deleteTopicsResult=adminClient.deleteTopics(Arrays.asList(theTopic));
+    }
+	return true;
+}
+
+
 public AdminClient createKafkaAdmin() {
 	Properties adminProps = new Properties();
 	adminProps.put(AdminClientConfig.BOOTSTRAP_SERVERS_CONFIG, urlString);

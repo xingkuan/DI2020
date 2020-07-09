@@ -76,16 +76,16 @@ class runTable {
 	}
 	static void actOnTable(int tID, int actId) {
 		int syncSt = 2; //the desired table state: "2"
-		
-		logger.info("    BEGIN.");
-		JSONObject tblDetail = metaData.getTableDetails();
 
 		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
 			logger.error("Exit without doing anything.");
 			return ;
 		}
 		logger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
-		
+
+		logger.info("    BEGIN.");
+		JSONObject tblDetail = metaData.getTableDetails();
+
 		metaData.begin();
 		//based on jobDetail, do the corresponding...
 		switch(actId){

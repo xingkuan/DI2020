@@ -148,6 +148,10 @@ class MetaData {
 			break;
 		case 21:  //testing code
 			break;
+		case -1:
+			logger.info("unregister table " + tblID + ": "
+					+ tblDetailJSON.get("src_schema")+"."+tblDetailJSON.get("src_table"));
+			break;
 		default:
 			logger.error("unsupported action or just for dev/test purpose.");	
 		}
@@ -196,15 +200,18 @@ class MetaData {
 			dccDetailJSON = (JSONObject) jo.get(0);
 		}
 		
-		sql= "select temp_id, act_id, info, stmts from SYNC_TEMPLATE where temp_id='" 
-					+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
-		jo = SQLtoJSONArray(sql);
-		if(jo.isEmpty()) {
-			logger.error("action not applicable.");
-			return -1;
+		if(actID==-1) {
+			return 0;
+		}else {
+			sql= "select temp_id, act_id, info, stmts from SYNC_TEMPLATE where temp_id='" 
+						+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
+			jo = SQLtoJSONArray(sql);
+			if(jo.isEmpty()) {
+				logger.error("action not applicable.");
+				return -1;
+			}
+			actDetailJSON = (JSONObject) jo.get(0);
 		}
-		actDetailJSON = (JSONObject) jo.get(0);
-
 		return 0;
 	}
 

@@ -263,7 +263,16 @@ class OracleData extends JDBCData{
 		//not use for Oracle so far.
 		return true;
 	}
-	
+	@Override
+	public boolean unregisterSrc(int tblID) {
+		String sql =  "drop TRIGGER " + metaData.getTableDetails().get("src_dcc_pgm");
+		runUpdateSQL(sql);		
+		
+		sql="drop TABLE " + metaData.getTableDetails().get("src_dcc_tbl");
+		runUpdateSQL(sql);
+		
+		return true;
+	}
 	/**************** starting DCC (that is: enable trigger) *******************************/
 	@Override
 	public boolean beginDCC(){

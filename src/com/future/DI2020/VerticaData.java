@@ -472,6 +472,7 @@ class VerticaData extends JDBCData {
 		//not Vertica is not used as src so far.
 		return false;
 	}
+	@Override
 	public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		//finish where the main registration unfinish on SYNC_TABLE_FIELD
 		String sql = "update SYNC_TABLE_FIELD set " + 
@@ -513,6 +514,15 @@ class VerticaData extends JDBCData {
 				
 		return true;
 	}
+	@Override
+	public boolean unregisterTgt(int tblID) {
+		String sql =  "drop table " 
+				+ metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		runUpdateSQL(sql);		
+		
+		return true;
+	}
+
 	/***************************************************/
 
 }

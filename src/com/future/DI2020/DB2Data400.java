@@ -617,6 +617,17 @@ String srcSQLstmt="BYODCCSQL";  //Build Your Own DCC SQL. Not much added value i
 		//not used for DB2 so far.
 		return true;
 	}
+	@Override
+	public boolean unregisterSrc(int tblID) {
+		//nothing to be done
+		return true;
+	}
+	@Override
+	public boolean unregisterDcc(int tblID) {
+		//nothing to be done
+		return true;
+	}
+
 	/***************************************************/
 private String byodccSQL(boolean fast, boolean relaxed)	{
 	long lasDCCSeq = metaData.getDCCSeqLastRefresh();

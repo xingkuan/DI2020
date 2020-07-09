@@ -219,7 +219,7 @@ public class DataPoint {
 	public ResultSet getFieldMeta(String srcSch, String srcTbl, String journal){
 		return null;
 	}
-	/******** registrationg APIs ********/
+	/******** register/unregister APIs ********/
 	protected boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		return false;
 	}
@@ -233,6 +233,15 @@ public class DataPoint {
 		return false;
 	}
 	protected boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
+		return false;
+	}
+	protected boolean unregisterSrc(int tblID) {
+		return false;
+	}
+	protected boolean unregisterTgt(int tblID) {
+		return false;
+	}
+	protected boolean unregisterDcc(int tblID) {
 		return false;
 	}
 	/***************************************/

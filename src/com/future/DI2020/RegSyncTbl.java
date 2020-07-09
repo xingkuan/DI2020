@@ -28,34 +28,23 @@ public class RegSyncTbl {
 
 	static DataPoint srcDB, tgtDB, dccDB;
 
-	static String srcSQLs = "srcDDL.sql";
-	static String crtTblSQL = "tgtTblDDL.sql";
-	static String repTblIns = "metaTblDML.sql";
-	static String repFldIns = "metaFldDML.sql";
-	static String dccDML = "metaDCCDML.sql";
-	static String hadRegister = "hadRegistered.sql";
-	static String kafka = "kafkaTopic.sh";
-	static String db2Journal = "metaDCCDML.sql";
-
-	static String outPath;
-
 	public static void main(String[] args) throws IOException {
 		System.out.println(args.length);
 
-		if (args.length == 14) {
+		if (args.length == 13) {
 			tblID = 0; // have to be set later.
-		} else if (args.length == 15) {
-			tblID = Integer.parseInt(args[14]);
+		} else if (args.length == 14) {
+			tblID = Integer.parseInt(args[13]);
 		} else {
 			System.out.println(
-					"Usage:   RegisterTbl PK TEMPID DB2D JOHNLEE2 TEST1 dccPgm journal VERTX Tsch TEST1 kafka1 topic c:/users/johnlee 0 99");
+					"Usage:   RegisterTbl PK TEMPID DB2D JOHNLEE2 TEST1 dccPgm journal VERTX Tsch TEST1 kafka1 topic 0 99");
 			System.out.println(
-					"   or:   RegisterTbl rrn D2V_ sdbID ssch stbl EXT jrnl tdbid tsch ttbl dccDB topic opath poolID tblID");
+					"   or:   RegisterTbl rrn D2V_ sdbID ssch stbl EXT jrnl tdbid tsch ttbl dccDB topic poolID tblID");
 			return;
-			/*eg 1 (tID:2,3): DB2RRN D2V_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
-			 *eg 2 (tID:  5): ORARID O2V ORA1 VERTSNAP TESTO VERTSNAP.TESTO_DCCTRG VERTSNAP.TESTO_DCCLOG VERTX TEST TESTO na na c:/users/johnlee/ 9 
-			 *eg 3 (tID:  6): ORARID O2K ORA1 VERTSNAP TESTOK VERTSNAP.TESTOK_DCCTRG VERTSNAP.TESTOK_DCCLOG KAFKA1 TEST TESTOK na na c:/users/johnlee/ 9 
-			 *eg 4 (tID:7,8): DB2RRN D2K_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN KAFKA1 TEST AVROTESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 c:/users/johnlee/ 9 2
+			/*eg 1 (tID:2,3): DB2RRN D2V_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN VERTX TEST TESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 9 2
+			 *eg 2 (tID:  5): ORARID O2V ORA1 VERTSNAP TESTO VERTSNAP.TESTO_DCCTRG VERTSNAP.TESTO_DCCLOG VERTX TEST TESTO na na 9 
+			 *eg 3 (tID:  6): ORARID O2K ORA1 VERTSNAP TESTOK VERTSNAP.TESTOK_DCCTRG VERTSNAP.TESTOK_DCCLOG KAFKA1 TEST TESTOK na na 9 
+			 *eg 4 (tID:7,8): DB2RRN D2K_ DB2D JOHNLEE2 TESTTBL2 EXT JOHNLEE2.QSQJRN KAFKA1 TEST AVROTESTTBL2 KAFKA1 JOHNLEE2.TESTTBL2 9 2
 			 *eg 5 MM510LIB.INVAUD, ITHAB1JRN.B1JRNE
 			 *  1. DB2RRN D2K_ DB2T MM510LIB INVAUD EXT ITHAB1JRN.B1JRNE KAFKA1 TEST AVROINVAUD KAFKA1 DCCINVAUD c:/users/johnlee/ 9 2
 			 *  2. data from kafka to ES
@@ -74,12 +63,12 @@ public class RegSyncTbl {
 		String tgtTbl = args[9];
 		String dccDBid = args[10];
 		String dccTopic = args[11];
-		outPath = args[12];
-		int poolID = Integer.parseInt(args[13]);
+
+		int poolID = Integer.parseInt(args[12]);
 		//Note: should have table poolID and DCC poolID. For now, DCC poolID is set to -1. 
 
 		System.out.println(Arrays.toString(args));
-		System.out.println(outPath);
+
 		if (tblID == 0) {
 			tblID = metaData.getNextTblID();
 		}
