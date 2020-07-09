@@ -147,6 +147,7 @@ class MetaData {
 			}
 			break;
 		case 21:  //testing code
+			break;
 		default:
 			logger.error("unsupported action or just for dev/test purpose.");	
 		}

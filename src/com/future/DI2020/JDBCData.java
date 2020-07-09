@@ -75,14 +75,14 @@ class JDBCData extends DataPoint{
 	public void copyTo(DataPoint tgt) {
 		try {
 			while(srcRS.next()) {
-				tgt.sinkARec(srcRS);
+				tgt.write(srcRS);
 			}
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
 			logger.error(e);;
 		}
 		//last batch and whatever
-		tgt.finishCopy();
+		tgt.write();
 	}
 	@Override
 	public void copyToVia(DataPoint tgtData, DataPoint auxData) {
@@ -114,7 +114,8 @@ class JDBCData extends DataPoint{
 		}
 		//return rtc;
 	}
-	public void sinkARec(ResultSet rs) {
+	@Override
+	public void write(ResultSet rs) {
 		for (fldInx = 1; fldInx <= syncFldType.size()-1; fldInx++) {  //The last column is the internal record key.
 														   //for Oracle ROWID, is a special type, let's treat all as String
 														   //for uniformity, so are the others. let's see if that is okay.
@@ -167,8 +168,8 @@ class JDBCData extends DataPoint{
 			}
 		}
 	}
-	public void completeSync() {
-		// the last batch
+	@Override
+	public void write() {  // take care of the last batch
 		try {
 			batchIns = syncInsStmt.executeBatch();
 			//commit();  //to be called at the end of sync

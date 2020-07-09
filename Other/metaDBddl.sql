@@ -18,7 +18,8 @@ CREATE TABLE DATA_POINT
 CREATE TABLE SYNC_TABLE
 (
   TBL_ID              INTEGER PRIMARY KEY,
-  TEMP_ID			  VARCHAR(20),  --DJ2K, D2V, O2V, D2K, O2K...
+  TEMP_ID			  VARCHAR(20),  --DATA, JURL, DATA_(point to sync_template); XFORM<tbl_id> (point to xform_simple).
+                                    --    not very good idea, perhaps.
   TBL_PK              VARCHAR(50),
   POOL_ID             INTEGER,
   INIT_DT	          DATE,
@@ -73,7 +74,8 @@ CREATE TABLE SYNC_TEMPLATE
 ;
 
 -- Simple transformation. target field and the transformation function,
--- between AVRO (or JSON) records
+--                        between AVRO (or JSON) records;
+-- (for more needing transformation, use Sparks-based transformation).
 CREATE TABLE AVRO
 (
    AVRO_ID varchar(50) PRIMARY KEY, 
@@ -93,8 +95,8 @@ VALUES ('user',
 }');
 
 
-CREATE TABLE XFORM0  (
-   X_ID        INTEGER PRIMARY KEY,
+CREATE TABLE XFORM_SIMPLE  (
+   X_ID        VARCHAR(20) PRIMARY KEY,
    SRC_DB_ID   CARCHAR(50),
    SRC_NAME    VARCHAR(50),
    SRC_AVRO_ID CARCHAR(50),

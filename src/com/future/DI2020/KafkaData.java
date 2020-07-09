@@ -4,6 +4,11 @@ import java.io.*;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
+
+import javax.script.ScriptEngine;
+import javax.script.ScriptEngineManager;
+import javax.script.ScriptException;
+
 import java.text.*;
 import java.time.Duration;
 import java.sql.*;
@@ -134,7 +139,7 @@ class KafkaData extends DataPoint {
 
 		return producer;
 	}
-
+/*
 	public int syncDataFrom(DataPoint srcData) {
 		int rtc=2;
 	    int rrn=0;
@@ -184,6 +189,7 @@ class KafkaData extends DataPoint {
 		}
         return rtc;
 	}
+	*/
 	@Override
 	protected boolean miscPrep() {
 		super.miscPrep();
@@ -321,7 +327,8 @@ class KafkaData extends DataPoint {
 		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
 		byteProducer = createKafkaAVROProducer();
 	}
-	public void sinkARec(ResultSet rs) {
+	@Override
+	public void write(ResultSet rs) {
  	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!   
  	   try {
 		for (int i = 0; i < fldType.size(); i++) {  //The last column is the internal key.
@@ -378,8 +385,12 @@ class KafkaData extends DataPoint {
 		  logger.error(e);
  	   	}
 	}
-	/**************************************/
-	public int syncAvroDataFrom(DataPoint srcData) {
+	@Override
+	public void write() {
+		logger.info("not needed for now");
+	}
+/**************************************/
+/*	public int syncAvroDataFrom(DataPoint srcData) {
 		int rtc=2;
 		int cnt=0;
 		ResultSet rs=srcData.getSrcResultSet();
@@ -400,11 +411,11 @@ Object tempO;
 	       while ( rs.next() ) {
 	    	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!      
 				for (int i = 0; i < fldType.size(); i++) {  //The last column is the internal key.
-					/* Can't use getObject() for simplicity. :(
-					 *   1. Oracle ROWID, is a special type, not String as expected
-					 *   2. For NUMBER, it returns as BigDecimal, which Java has no proper way for handling and 
-					 *      AVRO has problem with it as well.
-					 */
+					// Can't use getObject() for simplicity. :(
+					//   1. Oracle ROWID, is a special type, not String as expected
+					//   2. For NUMBER, it returns as BigDecimal, which Java has no proper way for handling and 
+					//      AVRO has problem with it as well.
+					 //
 					//record.put(i, rs.getObject(i+1));
 					switch(fldType.get(i)) {
 					case 1:
@@ -438,9 +449,9 @@ Object tempO;
 				//String temp = rs.getString(fldNames.size());
 				//record.put(fldNames.size()-1, rs.getString(fldNames.size()));
 
-	    	   /*
-	    	    * use byte, instead; ideally, use Confluent's Schena Registry 
-	    	    */
+	    	   //
+	    	   // use byte, instead; ideally, use Confluent's Schena Registry 
+	    	    //
 	    	   //producer.send(new ProducerRecord<Long, GenericRecord>("topica", (long) 1, record));
 		   		byte[] myvar = avroToBytes(record, schema);
 		   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
@@ -462,7 +473,7 @@ Object tempO;
 		  //return cnt;
 		  return rtc;
 	}
-	
+*/	
 	private byte[] avroToBytes(GenericRecord avroRec, Schema schema){
 		byte[] myvar=null;
 			
@@ -482,8 +493,6 @@ Object tempO;
 	  	}
 		return myvar;
 	  }
-
-	
 	
 	private KafkaConsumer<Long, byte[]> createKafkaAVROConsumer() {
 	    Properties propsC = new Properties();
@@ -556,7 +565,11 @@ Object tempO;
 		}
 		//return docList;
 	}
-	public void testConsumer() {
+	public void test() {
+		xformInto(null);
+	}
+	@Override
+	public void xformInto(DataPoint tgtData) {
 		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
 		ConsumerRecords<Long, byte[]> records;
 		GenericRecord a=null, b=null;
@@ -567,6 +580,8 @@ Object tempO;
 		KafkaConsumer<Long, byte[]> kafkaConsumer = createKafkaAVROConsumer();
 		kafkaConsumer.subscribe(Arrays.asList(topic));
 
+		xformEngine jsEngin = new xformEngine();
+		
 		try {
 			DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
 
@@ -589,13 +604,29 @@ Object tempO;
 					System.out.println(a.get(1));
 					System.out.println(a.get(2));  //TODO: still in long, not DATE!?
 					System.out.println(a.get(3)); 
+					if(tgtData!=null) {
+						b = jsEngin.transform(a);
+						tgtData.write(a);
+					}
 				}
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
 	}
-
+	private void testJSGraal() {
+	   ScriptEngine graalEngine = new ScriptEngineManager().getEngineByName("graal.js");
+	   //load the transformation JS script
+	   try {
+			graalEngine.eval("print('Hello Graal World!');");
+			graalEngine.eval("function sum(a,b){return a.concat(b);}");
+		    String v = (String)graalEngine.eval("sum(\"Hello, \", \"the other world!\")");
+		    System.out.println(v);
+	    } catch (ScriptException e) {
+			e.printStackTrace();
+		}   
+	   return ;
+	}
 //--------------------------------------------------------------------------------------------------------
 public void close() {
 		try {

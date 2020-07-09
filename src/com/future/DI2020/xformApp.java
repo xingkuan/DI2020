@@ -1,48 +1,74 @@
 package com.future.DI2020;
 
+import java.util.List;
+
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
-
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
 
-class Test
+class xformApp
 {
-   private static final Metrix metrix = Metrix.getInstance();
-   
+	private static final Logger logger = LogManager.getLogger();
+	private static final Metrix metrix = Metrix.getInstance();
+	private static final MetaData metaData = MetaData.getInstance();
+
+	static DataPoint srcData;
+	static DataPoint tgtData;
+
+	static String jobID ;
+
+   /*
+    * goal: Read data from Kafka that needs only simple Transformation;
+    *       and pump into ElasticSearch.
+    *       The reason for ES is because of its TS nature and Kibana that 
+    *       can answer a lot of business needs 
+    */
    public static void main (String args[]) {   
-	   //metrix.sendMXrest("initDuration,jobId=test,tblID=0 value=6\n");
-	   //metrix.sendMX("initDuration,jobId=test,tblID=0 value=6\n");
-      
-	   //testAVROConsumer();
-	   
-	   //testES();
-	   
-	   //testJSNashorn();
-	   testJSGraal();
-	   
+		System.out.println(args.length);
+
+		if (args.length != 2) {
+			System.out.println("Usage:   xFormData <tbl|pool> id");
+			//return -1;
+		}
+
+		String parmCat = args[0];
+		int parmId = Integer.parseInt(args[1]);
+		
+		if(parmCat.contentEquals("pool"))
+			xFormTables(parmId);
+		else if(parmCat.contentEquals("tbl"))
+			xFormTable(parmId);
+		else 
+			System.out.println("Usage:   syncTable <tbl|pool> oId aId");
+			
+	}
+	static void xFormTables(int poolID) {
+		List<Integer> tblList = metaData.getTblsByPoolID(poolID);
+		for (int i : tblList) {
+           xFormTable(i);
+       }
 	   return ;
    }
-   
-   private static void testES() {
-	   ESData es = new ESData();
-	   es.test();
-   }
-   private static void testAVROConsumer() {
-		int tableID=6;
+	static void xFormTable(int tblId) {
+		jobID = "xForm";
 		MetaData metaData = MetaData.getInstance();
 
-		metaData.setupTableForAction("testConsumeAVRO", tableID, 21);  // actId for dev activities.
+		metaData.setupTableForAction(jobID, tblId, 21);  // actId for dev activities.
 		
 		JSONObject tblDetail = metaData.getTableDetails();
-		String actTemp = tblDetail.get("temp_id").toString();
 
-		KafkaData tgtData = (KafkaData) DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-		tgtData.test();
-
-   }
+		KafkaData srcData = (KafkaData) DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+		//srcData.testConsumer();
+		ESData tgtData = (ESData) DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+		//tgtData.test();
+		srcData.xformInto(tgtData);
+	}
+   
    
    private static void testJSNashorn() {
 	   ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");  //to be deprecated!
@@ -78,28 +104,12 @@ class Test
 	    try {
 			graalEngine.eval("print('Hello Graal World!');");
 
-			graalEngine.eval("function sum(a,b){return a.concat(b);}\n"
-					+ "function fi(a){return 2*a;}");
+			graalEngine.eval("function sum(a,b){return a.concat(b);}");
 		    String v = (String)graalEngine.eval("sum(\"Hello, \", \"the other world!\")");
 		    System.out.println(v);
-		    
-		    Invocable invocable = (Invocable) graalEngine;
-			Object o = invocable.invokeFunction("sum", "this ", "that");
-			System.out.println(o.toString());
-			o = invocable.invokeFunction("fi", 5);
-			System.out.println(o.toString());
 	    } catch (ScriptException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();
-		}    catch (NoSuchMethodException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
+		}   
 	}
-   
-//   private static void testJSGraalContext() {
-//	   try (Context context = Context.create()) {
- //          context.eval("js", "print('Hello JavaScript!');");
-//       }
-//   }  
 }

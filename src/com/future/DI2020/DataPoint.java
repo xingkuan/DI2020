@@ -9,6 +9,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -97,27 +98,30 @@ public class DataPoint {
 		return db;
 	}
 	/********** Synch APIs****************************/
+	protected void xformInto(DataPoint tgtData) {
+	}
+	/********** Synch APIs****************************/
 	protected void crtSrcResultSet(List<String >keys) {
 		logger.info("   Need implementation in child.");
 	}
-	//where clause is to be build from catalog
-	protected int crtSrcResultSet(int actId, JSONArray jo) {
-		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-		return -1;
-	}
-	protected int crtSrcResultSet(int actId, JSONArray jo, DataPoint aux) {
-		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-		return -1;
-	}
+//	//where clause is to be build from catalog
+//	protected int crtSrcResultSet(int actId, JSONArray jo) {
+//		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
+//		return -1;
+//	}
+//	protected int crtSrcResultSet(int actId, JSONArray jo, DataPoint aux) {
+//		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
+//		return -1;
+//	}
 	//where clause compose of the parameter
 	protected ResultSet getSrcResultSet(String qry) {
 		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
 		return null;
 	}
-	protected ResultSet getSrcResultSet() {
-		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-		return null;
-	}
+//	protected ResultSet getSrcResultSet() {
+//		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
+//		return null;
+//	}
 
 	protected int dropStaleRowsOfList(List<String> keys) {
 		logger.info("   Need implementation in child.");
@@ -169,9 +173,11 @@ public class DataPoint {
 	}
 	public void copyToVia(DataPoint tgt, DataPoint src) {
 	}
-	public void sinkARec(ResultSet rs) {  
+	public void write(ResultSet rs) {  
 	}
-	public void finishCopy() {
+	public void write(GenericRecord rec) {  
+	}
+	public void write() {
 	}
 //	protected boolean ready() {
 //		// TODO Auto-generated method stub

@@ -22,6 +22,7 @@ import org.elasticsearch.client.ResponseListener;
 import org.elasticsearch.client.RestClient;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.apache.avro.generic.GenericRecord;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
 import org.apache.http.HttpStatus;
@@ -53,7 +54,7 @@ class ESData extends DataPoint{
 		//}
 		return rtc;
 	}
-/*****************************/
+/********** sync APIs *******************/
 	Request request;
 	StringBuilder bulkRequestBody;
 	public void setupSink() {
@@ -71,21 +72,33 @@ class ESData extends DataPoint{
 		 */
 		bulkRequestBody  = new StringBuilder();
 	}
-	public void sinkARec(ResultSet rs) {
+	@Override
+	public void write(ResultSet rs) {
     	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
     	bulkRequestBody.append("\n");
     	bulkRequestBody.append(rs);   //mem is json, in single line.
     	bulkRequestBody.append("\n");
 	}
-	public void finishCopy() {
+    @Override
+	public void write(GenericRecord rec) {
+	   	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
+	   	bulkRequestBody.append("\n");
+	   	bulkRequestBody.append(rec);   //mem is json, in single line.
+	   	bulkRequestBody.append("\n");
+    }
+    @Override
+	public void write() {
+	   Request request = new Request(
+			   "POST", 
+	           "/myindex/_bulk");
 	    request.setEntity(new NStringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON));
 	    try {
 			Response indexResponse = restClient.performRequest(request);
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
-			logger.error(e);
+			e.printStackTrace();
 		}
-	}
+    }
 /*****************************/
    protected void initializeFrom(DataPoint dt) {
 		logger.info("   not needed yet");
