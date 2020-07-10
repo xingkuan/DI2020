@@ -492,17 +492,17 @@ class VerticaData extends JDBCData {
 		JSONArray jarr=metaData.SQLtoJSONArray(sql);
 		sql="create table "+tgtSch+"."+tgtTbl+"(";
 		JSONObject jo;
-		String sqlTgtIns = "insert into "+tgtSch+"."+tgtTbl + "(";
+		String sqlTgtIns = "insert into "+tgtSch+"."+tgtTbl;
 		String sqlTgtInsVal = "(";
 		for (int i=0; i < jarr.size()-1; i++) {
 		    jo= (JSONObject) jarr.get(i);
-		    sql = sql+ jo.get("tgt_field") + jo.get("tgt_field_type") + ",";
+		    sql = sql+ "\"" + jo.get("tgt_field") +  "\" " + jo.get("tgt_field_type") + ",";
 		    
 		    sqlTgtIns = sqlTgtIns + jo.get("tgt_field") + ","; 
 		    sqlTgtInsVal = sqlTgtInsVal + "?,";
 		}
 		jo= (JSONObject) jarr.get(jarr.size()-1);
-	    sql = sql+ jo.get("tgt_field") + jo.get("tgt_field_type") + ")";
+	    sql = sql+ "\"" + jo.get("tgt_field") + "\" " + jo.get("tgt_field_type") + ")";
 	    //create tgt table
 		runUpdateSQL(sql);
 		
@@ -510,7 +510,7 @@ class VerticaData extends JDBCData {
 		sqlTgtIns = sqlTgtIns + jo.get("tgt_field") + ") values ("
 				+ sqlTgtInsVal + "?)";
 		sql="update SYNC_TABLE set tgt_stmt0='" + sqlTgtIns + "' where tbl_id="+tblID;
-		runUpdateSQL(sql);
+		metaData.runRegSQL(sql);
 				
 		return true;
 	}

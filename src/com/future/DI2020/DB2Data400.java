@@ -134,11 +134,11 @@ class DB2Data400 extends JDBCData {
 			runUpdateSQL(sql);
 		}
 		sql=jaSQLs.get(jaSQLs.size()-1).toString();
-		if( !SQLtoResultSet(sql) ) {  // DB2AS400 journal, double check with relaxed "display_journal"
+		if( SQLtoResultSet(sql)<=0 ) {  // DB2AS400 journal, double check with relaxed "display_journal"
 			if(template.equals("2JURL")) {
 				logger.warn("Failed the 1st trying of initializing src resultset.");
 				sql=DB2DCCsql(false);
-				if( !SQLtoResultSet(sql) ) {
+				if( SQLtoResultSet(sql) <=0 ) {
 					logger.warn("Failed the 2nd time for src resultset. Giveup");
 					return -1;
 				}
@@ -464,7 +464,7 @@ class DB2Data400 extends JDBCData {
 
 			rset = stmt.executeQuery(sqlStmt);
 
-			if (rset.next()) {
+			if (rset.next()) {  //Means it is good if no exception.
 				// rslt = true;
 			}
 			rslt = true;
@@ -548,21 +548,21 @@ class DB2Data400 extends JDBCData {
 						+ "(" + tblID + ", " + rset.getInt("ordinal_position") + ", '"  
 						+ rset.getString("column_name") + "', '" + sDataType + "', "
 						+ rset.getInt("length") + ", " + rset.getInt("numeric_scale") + ", "
-						+ xType + ", '" + aDataType + "'),\n";
+						+ xType + ", '" + aDataType + "')";
+				metaData.runRegSQL(sql);
 			}
 			sqlCrtTbl = sqlCrtTbl + " " + PK + " long ) \n;";
-			metaData.runRegSQL(sql);
-			
+			//Last one, the physical PK 
 			fieldCnt++;
 			sql = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
-					+ "'RRN(a) as DB2RRN', 'bigint', "
-					+ "'"+ PK + "', 'bigint', "
-					+ "1, 'dbl') \n;";
+					+ "'RRN(a) as " + PK + "', 'bigint', "
+					+ "20, 0,"
+					+ "1, 'dbl')";
 			metaData.runRegSQL(sql);
 
 			//setup the src select SQL statement
-			srcSQLstmt = srcSQLstmt + "RRN(a) as  as " + PK 
+			srcSQLstmt = srcSQLstmt + "RRN(a) as " + PK 
 					+ " from " + srcSch + "." + srcTbl + " a ";
 			sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
 					+ " where tbl_id="+tblID;
@@ -605,9 +605,9 @@ class DB2Data400 extends JDBCData {
 		metaData.runRegSQL(sql);
 
 		//setup the src select SQL statement
-String srcSQLstmt="BYODCCSQL";  //Build Your Own DCC SQL. Not much added value in putting it in meta_data.
+		String srcSQLstmt="BYODCCSQL";  //Build Your Own DCC SQL. Not much added value in putting it in meta_data.
 		sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
-				+ " where tbl_id="+tblID+1;
+				+ " where tbl_id="+(tblID+1);
 		metaData.runRegSQL(sql);
 
 		return true;

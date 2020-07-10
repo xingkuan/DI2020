@@ -87,7 +87,7 @@ class OracleData extends JDBCData{
 			runUpdateSQL(sql);
 		}
 		sql=jaSQLs.get(jaSQLs.size()-1).toString();
-		if( !SQLtoResultSet(sql) ) {
+		if( SQLtoResultSet(sql)<=0 ) {
 			return -1;
 		}
 		return 0;
@@ -132,17 +132,17 @@ class OracleData extends JDBCData{
 	@Override
 	public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
         //if log table "jurl" exist, return false;	
-		//select TABLE_NAME from dba_tables where owner||'.'||TABLE_NAME='VERTSNAP.TESTO_DCCLOG';
 		String sql="select TABLE_NAME from dba_tables where OWNER||'.'||TABLE_NAME='" + jurl + "'";
-		if(SQLtoResultSet(sql))
+		if(SQLtoResultSet(sql)>0) {
+			logger.error("log table " + jurl + " exist already!");
 			return false;
-		
+		}
 		//trigger name "dccPgm" exist, return false
-		//select TRIGGER_NAME from dba_triggers where owner||'.'||TRIGGER_NAME='VERTSNAP.TESTOK_DCCTRG'
 		sql="select TRIGGER_NAME from dba_triggers where owner||'.'||TRIGGER_NAME='"+ dccPgm + "'";
-		if(SQLtoResultSet(sql))
+		if(SQLtoResultSet(sql)>0) {
+			logger.error("log trigger " + dccPgm + " exist already!");
 			return false;
-
+		}
 		return true;
 	}
 	@Override
@@ -150,7 +150,7 @@ class OracleData extends JDBCData{
 		Statement stmt;
 		ResultSet rset = null;
 		//JSONObject json = new JSONObject();
-		String srcSQLstmt="";
+		String srcSQLstmt="select ";
 		String sql="select ";
 		String sqlFields = "insert into SYNC_TABLE_FIELD \n"
 				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
@@ -210,26 +210,26 @@ class OracleData extends JDBCData{
 				
 				sql = sqlFields 
 						+ "(" + tblID + ", " + rset.getInt("column_id") + ", '"  
-						+ rset.getString("column_name") + "', '" + sDataType + ", '"
+						+ rset.getString("column_name") + "', '" + sDataType + "', "
 						+ rset.getInt("data_length") + ", " + rset.getInt("data_scale") + ", "
 						+ xType + ", '\"type\": " + aDataType + "')";
+				metaData.runRegSQL(sql);
 			}
-			metaData.runRegSQL(sql);
 			//lastly, add the internal rowID
 			fieldCnt++;
 			sql = sqlFields
 					+ "("+ tblID +", " + fieldCnt + ", " 
-					+ "'rowid as " + PK + "', 'varchar2(20)', "  //Please keep it lower case!!!
+					+ "'rowid as " + PK + "', 'varchar(20)', "  //Please keep it lower case!!!
 					+ "20, 0, "
 					+ "1, 'string') ";
-			metaData.runRegSQL(sqlFields);
-			
+			metaData.runRegSQL(sql);
+			//The bare select statement for reading the source.
 			srcSQLstmt = srcSQLstmt + "a.rowid as " + PK 
 					+ " from " + srcSch + "." + srcTbl + " a ";
 			//setup the src select SQL statement
 			sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
 					+ " where tbl_id="+tblID;
-			metaData.runRegSQL(sqlFields);
+			metaData.runRegSQL(sql);
 			
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -245,7 +245,7 @@ class OracleData extends JDBCData{
 	@Override
 	public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		String sql="CREATE TABLE " + jurl
-				+ " (" + PK + " VARCHAR2(20),  DCC_TS DATE) TABLESPACE DCC_TABLESPACE";
+				+ " (" + PK + " VARCHAR2(20),  DCC_TS DATE) TABLESPACE DCC_TS";
 		if(runUpdateSQL(sql)==-1)
 			return false;		
 		sql =  "CREATE OR REPLACE TRIGGER " + dccPgm + " \n"  

@@ -65,7 +65,7 @@ public class unRegistSyncTbl {
 			tgtData.unregisterTgt(tblID);
 			tgtData.close();
 			String dccDBid = tblDetail.get("dcc_db_id").toString();
-			if(!dccDBid.equals("na")) {
+			if(!( (dccDBid !=null) || (dccDBid.equals("na"))) ) {
 				DataPoint auxData = DataPoint.dataPtrCreater(dccDBid, "DCC");
 				auxData.unregisterDcc(tblID);
 				auxData.close();

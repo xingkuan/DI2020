@@ -181,10 +181,9 @@ class MetaData {
 			return -1;
 		}
 		tblDetailJSON = (JSONObject) jo.get(0);
-		//If DCC data src is involved:
+		//If dccData is involved. (that is Kafka as AUX, for now)
 		Object dccDBIDObj = tblDetailJSON.get("dcc_db_id");
-		if((!dccDBIDObj.toString().equals("")) && (!dccDBIDObj.toString().equals("na"))
-				) {  //only sync via kafka has it.
+		if((!dccDBIDObj.toString().equals("")) && (!dccDBIDObj.toString().equals("na"))) {  
 			String journalName=tblDetailJSON.get("src_dcc_tbl").toString();
 			String[] temp = journalName.split("\\.");
 			lName=temp[0]; jName=temp[1];
@@ -863,7 +862,7 @@ class MetaData {
 		return avroSchema;
 	}
 	/**** Registration APIs ****/
-	public boolean preRegistCheck(int tblID, String srcDBid, String srcSch, String srcTbl) {
+	public boolean preRegistCheck(int tblID, String srcDBid, String srcSch, String srcTbl, String dccDBid) {
 		String sql;
 		JSONArray rslt;
 		
@@ -873,7 +872,7 @@ class MetaData {
 			logger.error("Table ID is already used!");
 			return false;
 		}
-		sql = "select 'exit already!!!', tbl_id from SYNC_TABLE where SRC_DB_ID=" + srcDBid + " and SRC_SCHEMA='"
+		sql = "select 'exit already!!!', tbl_id from SYNC_TABLE where SRC_DB_ID='" + srcDBid + "' and SRC_SCHEMA='"
 				+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
 		rslt = (JSONArray) SQLtoJSONArray(sql);
 		if(rslt.size()>0) {
@@ -881,6 +880,14 @@ class MetaData {
 			return false;
 		}
 
+		if(!dccDBid.equals("na")){ //That means an aux tbl with table ID=tblID+1 need to be created. 
+			sql = "select 'exit already!!!', tbl_id from SYNC_TABLE where tbl_id = " + tblID+1;
+			rslt = (JSONArray) SQLtoJSONArray(sql);
+			if(rslt.size()>0) {
+				logger.error("aux table id " + (tblID+1) + "exist already!");
+				return false;
+			}
+		}
 		return true;
 	}
 	public void runRegSQL(String sql) {

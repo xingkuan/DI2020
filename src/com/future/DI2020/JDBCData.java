@@ -192,18 +192,21 @@ class JDBCData extends DataPoint{
 	}
 
 	/*************************************************************************/	
-	protected boolean SQLtoResultSet(String sql) {
+	protected int SQLtoResultSet(String sql) {
+		int rv=0;
 		try {
 			srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			srcRS = srcSQLStmt.executeQuery(sql);
 			if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
-				logger.info("   opened src recordset: ");
+				rv=1;
+				logger.info("   src recordset ready.");
 			}
 		} catch (SQLException e) {
 			logger.error("   " + e);
-			return false;
+			rv = -1;
 		}
-		return true;
+		//logger.info("   opened src recordset.");
+		return rv;
 	}
 
 	protected void putROWID(String rowid) {
