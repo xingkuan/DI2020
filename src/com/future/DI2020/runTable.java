@@ -22,7 +22,7 @@ class runTable {
 	private static final Metrix metrix = Metrix.getInstance();
 	private static final MetaData metaData = MetaData.getInstance();
 
-	static int tableID;
+	//static int tableID;
 	static DataPoint srcData;
 	static DataPoint tgtData;
 	static DataPoint auxData;
@@ -77,11 +77,11 @@ class runTable {
 	static void actOnTable(int tID, int actId) {
 		int syncSt = 2; //the desired table state: "2"
 
-		if(metaData.setupTableForAction(jobID, tableID, actId)==-1) {
+		if(metaData.setupTableForAction(jobID, tID, actId)==-1) {
 			logger.error("Exit without doing anything.");
 			return ;
 		}
-		logger.info(jobID + " " + tableID + ": " + metaData.getTableDetails().get("src_table").toString());
+		logger.info(jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
 
 		logger.info("    BEGIN.");
 		JSONObject tblDetail = metaData.getTableDetails();
@@ -108,11 +108,11 @@ class runTable {
 
 				tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 				tgtData.miscPrep();
-				tgtData.setupSink();
 
 				srcData.crtSrcResultSet();
 				tgtData.setupSink();
 				srcData.copyTo(tgtData);
+				tgtData.commit();
 				//*******
 				//srcData.cleanup(actId, aftSQLs);
 				break;

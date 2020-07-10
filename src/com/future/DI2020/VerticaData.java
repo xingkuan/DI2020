@@ -40,6 +40,22 @@ class VerticaData extends JDBCData {
 	}
 
 	/********** Sync APIs ***************************/
+	@Override
+	public void setupSink() {
+		syncRowIDs = new String[batchSize];
+		totalSyncCnt = 0; currSyncCnt = 0;
+		syncFldType = metaData.getFldJavaType();
+		syncFldNames = metaData.getFldNames();
+
+		String sql=metaData.getSQLInsTgt();
+		try {
+			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
+			syncInsStmt = dbConn.prepareStatement(sql);
+		} catch (SQLException e) {
+			logger.error(e);
+		}
+	}
+
 	// no where clause for initializing
 	/*
 	public int initDataFrom(DataPoint srcData) {
@@ -74,7 +90,7 @@ class VerticaData extends JDBCData {
 			stmt = dbConn.createStatement();
 			int rslt = stmt.executeUpdate(sql);
 			stmt.close();
-			dbConn.commit();
+			commit();
 		} catch (SQLException e) {
 			logger.error(e);
 		} 
@@ -428,6 +444,7 @@ class VerticaData extends JDBCData {
 		sRset.close();
 	}
 
+	@Override
 	public void commit() {
 		try {
 			dbConn.commit();
@@ -492,8 +509,8 @@ class VerticaData extends JDBCData {
 		JSONArray jarr=metaData.SQLtoJSONArray(sql);
 		sql="create table "+tgtSch+"."+tgtTbl+"(";
 		JSONObject jo;
-		String sqlTgtIns = "insert into "+tgtSch+"."+tgtTbl;
-		String sqlTgtInsVal = "(";
+		String sqlTgtIns = "insert into "+tgtSch+"."+tgtTbl + "(";
+		String sqlTgtInsVal="";
 		for (int i=0; i < jarr.size()-1; i++) {
 		    jo= (JSONObject) jarr.get(i);
 		    sql = sql+ "\"" + jo.get("tgt_field") +  "\" " + jo.get("tgt_field_type") + ",";

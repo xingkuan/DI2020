@@ -56,19 +56,6 @@ class JDBCData extends DataPoint{
 	ArrayList<Integer> syncFldType;
 	ArrayList<String> syncFldNames;
 	PreparedStatement syncInsStmt;
-	public void setupSink() {
-		syncRowIDs = new String[batchSize];
-		totalSyncCnt = 0; currSyncCnt = 0;
-		syncFldType = metaData.getFldJavaType();
-		syncFldNames = metaData.getFldNames();
-
-		try {
-			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
-			syncInsStmt = dbConn.prepareStatement(metaData.getSQLInsTgt());
-		} catch (SQLException e) {
-			logger.error(e);
-		}
-	}
 
 	/**********************Synch APIs************************************/	
 	@Override
@@ -116,23 +103,28 @@ class JDBCData extends DataPoint{
 	}
 	@Override
 	public void write(ResultSet rs) {
-		for (fldInx = 1; fldInx <= syncFldType.size()-1; fldInx++) {  //The last column is the internal record key.
+		Object o;
+		try {
+			for (fldInx = 1; fldInx < syncFldType.size(); fldInx++) {  //The last column is the internal record key.
 														   //for Oracle ROWID, is a special type, let's treat all as String
 														   //for uniformity, so are the others. let's see if that is okay.
-			try {
+				o= rs.getObject(fldInx);
 				syncInsStmt.setObject(fldInx, rs.getObject(fldInx));
-				syncInsStmt.setString(syncFldType.size(), rs.getString(syncFldType.size()));  //this two line assumes the last field is
-				syncRowIDs[currSyncCnt] = rs.getString(syncFldType.size());                   //   the physical key. May not a good idea.TODO.
-
-				syncInsStmt.addBatch();
-			} catch (SQLException e) {
-				//	logger.error("e");
-				//	logger.error("    rowid: " + rs.getString(metaData.getPK()));
-				//	logger.error("    fieldno: " + i + "  " + syncFldNames.get(i));
-				//	rtc = -1;
-				logger.error(e);
+				//syncInsStmt.setString(syncFldType.size(), rs.getString(syncFldType.size()));  //this two line assumes the last field is
 			}
+			//the last field (ORAID) need to be casted to String
+			syncInsStmt.setString(syncFldType.size(), rs.getString(syncFldType.size()));
+			syncInsStmt.addBatch();
+			syncRowIDs[currSyncCnt] = rs.getString(syncFldType.size()); //record the PK. Assumed it is always the last one;
+																		//   May not a good idea.TODO.
+		} catch (SQLException e) {
+			//	logger.error("e");
+			//	logger.error("    rowid: " + rs.getString(metaData.getPK()));
+			//	logger.error("    fieldno: " + i + "  " + syncFldNames.get(i));
+			//	rtc = -1;
+			logger.error(e);
 		}
+
 		// insert batch into target table
 		totalSynCnt++;
 		currSyncCnt++;

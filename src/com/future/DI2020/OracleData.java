@@ -56,9 +56,10 @@ class OracleData extends JDBCData{
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
 		switch(template) {
-			case "1":    //case: read the whole table
-				pre.add(1, metaData.getBareSrcSQL() );
+			case "1DATA":    //case: read the whole table
+				pre.add(metaData.getBareSrcSQL() );
 				jo.put("PRE", pre);
+				break;
 			case "2TRIG":   //read the changed rows. Original O2V, O2K
 				pre.add("update " + metaData.getTableDetails().get("src_dcc_tbl") 
 						+ " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
