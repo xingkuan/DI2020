@@ -108,6 +108,9 @@ class MetaData {
 		}
 	}
 
+	public void setJobName(String jobName) {
+		jobID =jobName;
+	}
 	public int setupTableForAction(String jID, int tblID, int aId) {
 		int rtc;
 		
@@ -308,7 +311,7 @@ class MetaData {
 		return rtv;
 	}*/
 	public int begin() {
-			logger.warn(actDetailJSON.get("info").toString());
+			logger.warn("    Action: " + actDetailJSON.get("info").toString());
 			Calendar cal = Calendar.getInstance();
 			startMS = cal.getTimeInMillis();
 			updateCurrState(1);  //indicating table is being worked on
@@ -330,7 +333,7 @@ class MetaData {
 	public void saveInitStats() {
 		//markEndTime();
 		int duration = (int) (endMS - startMS) / 1000;
-		logger.info(jobID + " duration: " + duration + " sec");
+		logger.info("    " + " duration: " + duration + " sec");
 
 		// report to InfluxDB:
 		metrix.sendMX(
@@ -383,9 +386,10 @@ class MetaData {
 				+ " where tbl_id = " + tableID;
 		runUpdateSQL(sql);
 	}
+	/*
 	public void saveTblInitStats() {
 		int duration = (int) (endMS - startMS) / 1000;
-		logger.info(jobID + " duration: " + duration + " sec");
+		logger.info("    " + " duration: " + duration + " sec");
 
 		// report to InfluxDB:
 		metrix.sendMX(
@@ -407,7 +411,7 @@ class MetaData {
 				+ " where tbl_id = " + tableID;
 		runUpdateSQL(sql);
 	}
-
+*/
 	private boolean runUpdateSQL(String sql) {
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
@@ -450,25 +454,25 @@ class MetaData {
 			fldNames.add(lrRset.getString("src_field"));
 
 			avroSchema = avroSchema 
-					+ "{\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
+					+ "{\"name\": \"" + lrRset.getString("tgt_field") + "\", " + lrRset.getString("avro_type") + "} \n" ;
 			i++;
 		}
 		//rest line (but not the last)
 		while (lrRset.next() ) {   
-			if( lrRset.isLast()) {                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
-				if(tblDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
-				avroSchema = avroSchema 
-						+ ", {\"name\": \"DB2RRN\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
-				}if(tblDetailJSON.get("db_type").toString().contains("ORACLE")){
-					avroSchema = avroSchema 
-							+ ", {\"name\": \"ORARID\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
-				}
+			//if( lrRset.isLast()) {                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
+			//	if(tblDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
+			//	avroSchema = avroSchema 
+			//			+ ", {\"name\": \"DB2RRN\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
+			//	}if(tblDetailJSON.get("db_type").toString().contains("ORACLE")){
+			//		avroSchema = avroSchema 
+			//				+ ", {\"name\": \"ORARID\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
+			//	}
+			//	keyDataType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
+			//}else {
 				keyDataType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
-			}else {
-				keyDataType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
 				avroSchema = avroSchema 
-						+ ", {\"name\": \"" + lrRset.getString("src_field") + "\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
-			}
+						+ ", {\"name\": \"" + lrRset.getString("tgt_field") + "\", " + lrRset.getString("avro_type") + "} \n" ;
+			//}
 			fldType.add(lrRset.getInt("java_type"));
 			fldNames.add(lrRset.getString("src_field"));
 			i++;

@@ -222,7 +222,7 @@ class OracleData extends JDBCData{
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'rowid as " + PK + "', 'varchar(20)', "  //Please keep it lower case!!!
 					+ "20, 0, "
-					+ "1, 'string') ";
+					+ "1, \"type\": \"string\") ";
 			metaData.runRegSQL(sql);
 			//The bare select statement for reading the source.
 			srcSQLstmt = srcSQLstmt + "a.rowid as " + PK 

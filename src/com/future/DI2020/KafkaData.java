@@ -250,7 +250,9 @@ class KafkaData extends DataPoint {
 		metaData.setTotalMsgCnt(cntRRN-1);
 	}
 	public void commit() {
-		consumer.commitSync();  
+		//consumer.commitSync();  
+		//byteProducer.commitTransaction();
+		byteProducer.close();
 		consumer.close();
 	}
 	public void rollback() {
@@ -368,20 +370,20 @@ class KafkaData extends DataPoint {
 				break;
 			}
 			
-	   		byte[] myvar = avroToBytes(record, schema);
-	   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
-	   		//producer.send(new ProducerRecord<Long, byte[]>(topic, (long) 1, myvar),new Callback() {  //TODO: what key to send?
-	   		byteProducer.send(new ProducerRecord<Long, byte[]>(topic,  myvar),
-	   			new Callback() {             //      For now, no key
-	   				public void onCompletion(RecordMetadata recordMetadata, Exception e) {   //execute everytime a record is successfully sent or exception is thrown
-	   					if(e == null){
-	   						}else{
-	   							logger.error(e);
-	   						}
-	   					}
-	   			});
-	   			msgCnt++;
-				}
+		}
+   		byte[] myvar = avroToBytes(record, schema);
+   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
+   		//producer.send(new ProducerRecord<Long, byte[]>(topic, (long) 1, myvar),new Callback() {  //TODO: what key to send?
+   		byteProducer.send(new ProducerRecord<Long, byte[]>(topic,  myvar),
+   			new Callback() {             //      For now, no key
+   				public void onCompletion(RecordMetadata recordMetadata, Exception e) {   //execute everytime a record is successfully sent or exception is thrown
+   					if(e == null){
+   						}else{
+   							logger.error(e);
+   						}
+   					}
+   			});
+   			msgCnt++;
  	   	}catch (SQLException e) {
 		  logger.error(e);
  	   	}
@@ -710,6 +712,21 @@ public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String
             }
         }
     }
+	
+	//also, update meta info:
+	String sql = "update SYNC_TABLE_FIELD set " + 
+			"tgt_field=regexp_replace(src_field, '^.* as ', ''), " + 
+			"tgt_field_type=case " + 
+			"when src_field_type like '%CHAR%' then 'VARCHAR('||2*src_field_len||')' " + 
+			"when src_field_type like '%NUMBER%' then 'NUMBER('||src_field_len||','||coalesce(src_field_scale,0)||')' " + 
+			"when src_field_type like 'DATE%' then 'DATE' " + 
+			"when src_field_type like 'TIMEST%' then 'TIMESTAMP' " +  //DB2/AS400 is TIMESTMP 
+			"else src_field_type " + 
+			"END " + 
+			"where tbl_id=" + tblID;
+	metaData.runRegSQL(sql);
+	
+
 	return true;
 }
 @Override

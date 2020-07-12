@@ -77,13 +77,12 @@ class runTable {
 	static void actOnTable(int tID, int actId) {
 		int syncSt = 2; //the desired table state: "2"
 
-		if(metaData.setupTableForAction(jobID, tID, actId)==-1) {
+		if(metaData.setupTableForAction("tobesetlater", tID, actId)==-1) {
 			logger.error("Exit without doing anything.");
 			return ;
 		}
-		logger.info(jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
 
-		logger.info("    BEGIN.");
+		logger.info("BEGIN.");
 		JSONObject tblDetail = metaData.getTableDetails();
 
 		metaData.begin();
@@ -91,6 +90,8 @@ class runTable {
 		switch(actId){
 			case 0:  //enable table to be actionable.
 				jobID = "enableTbl";
+				metaData.setJobName(jobID);
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
 				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 				srcData.miscPrep();  
 				logger.info("   src ready: " + metaData.getTableDetails().get("src_table"));
@@ -101,6 +102,8 @@ class runTable {
 				break;
 			case 1:  //initial copying of data from src to tgt
 				jobID = "initTbl";
+				metaData.setJobName(jobID);
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
 				//String tempId="1";
 				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 				srcData.miscPrep();  
@@ -118,6 +121,8 @@ class runTable {
 				break;
 			case 2:   //sync DCC, and tbl as well 
 				jobID = "syncTbl";
+				metaData.setJobName(jobID);
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
 
 				String tempId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
 				switch(tempId) {
@@ -167,6 +172,10 @@ class runTable {
 				break;
 			case 9:   //audit
 				//actType9(tID, actId);
+				jobID = "auditTbl";
+				metaData.setJobName(jobID);
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
+
 				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 				srcData.miscPrep();  
 				logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
@@ -186,7 +195,7 @@ class runTable {
 		metaData.saveSyncStats();
 		tearDown();
 
-		logger.info("    End.");
+		logger.info("END.");
 	}
 	private static void tearDown() {
 		if(!(srcData==null))

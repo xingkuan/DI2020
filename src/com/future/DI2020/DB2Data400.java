@@ -526,29 +526,29 @@ class DB2Data400 extends JDBCData {
 
 				if (sDataType.equals("VARCHAR")) {
 					xType = 1;
-					aDataType = "string";
+					aDataType = "\"string\"";
 				} else if (sDataType.equals("DATE")) {
 					xType = 7;
-					aDataType = "int\", \"logicalType\": \"date";
+					aDataType = "\"int\", \"logicalType\": \"date\"";
 				} else if (sDataType.equals("TIMESTMP")) {
 					xType = 6;
-					aDataType = "timestamp_micros";
+					aDataType = "\"timestamp_micros\"";
 				} else if (sDataType.equals("NUMERIC")) {
 					xType = 4; // was 5; but let's make them all DOUBLE
-					aDataType = "double";
+					aDataType = "\"double\"";
 				} else if (sDataType.equals("CHAR")) {
 					xType = 1;
-					aDataType = "string";
+					aDataType = "\"string\"";
 				} else {
 					xType = 1;
-					aDataType = "string";
+					aDataType = "\"string\"";
 				}
 
 				sql = sqlFields 
 						+ "(" + tblID + ", " + rset.getInt("ordinal_position") + ", '"  
 						+ rset.getString("column_name") + "', '" + sDataType + "', "
 						+ rset.getInt("length") + ", " + rset.getInt("numeric_scale") + ", "
-						+ xType + ", '" + aDataType + "')";
+						+ xType + ", '\"type\": " + aDataType + "')";
 				metaData.runRegSQL(sql);
 			}
 			sqlCrtTbl = sqlCrtTbl + " " + PK + " long ) \n;";
@@ -558,7 +558,7 @@ class DB2Data400 extends JDBCData {
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'RRN(a) as " + PK + "', 'bigint', "
 					+ "20, 0,"
-					+ "1, 'dbl')";
+					+ "1, '\"type\": \"double\"')";
 			metaData.runRegSQL(sql);
 
 			//setup the src select SQL statement
