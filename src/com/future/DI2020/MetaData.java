@@ -29,17 +29,12 @@ class MetaData {
 	private Statement repStmt;
 	private ResultSet repRSet;
 
-	private int tableID;
+	private int taskID;
 	private String keyDataType;
 
-	//private String sqlSelectSource;
-	//private String sqlInsertTarget;
-	//private String sqlDeleteTarget;
-	
 	private int fldCnt;
 
 	private Timestamp tsLastAudit;
-//	private Timestamp tsLastRef;
 
 	private int poolID;
 	private long startMS;
@@ -56,9 +51,9 @@ class MetaData {
 
 	private static final Metrix metrix = Metrix.getInstance();
 
-	// encapsulate the details into tblDetailJSON;
-	private JSONObject tblDetailJSON;
-	private JSONObject actDetailJSON;
+	// encapsulate the details into tskDetailJSON;
+	private JSONObject tskDetailJSON;
+	private JSONObject tmpDetailJSON;
 	private JSONObject dccDetailJSON;
 	private JSONObject srcDBDetail;
 	private JSONObject tgtDBDetail;
@@ -67,10 +62,6 @@ class MetaData {
 	
 	private String avroSchema;
 	
-	//may not needed
-	//private Map<Integer, Integer> fldType = new HashMap<>();
-	//int[] fldType = new int[] {}; 
-	//String[] fldNames = new String[] {}; 
 	ArrayList<Integer> fldType = new ArrayList<Integer>();
 	ArrayList<String> fldNames = new ArrayList<String>();
 	
@@ -111,14 +102,14 @@ class MetaData {
 	public void setJobName(String jobName) {
 		jobID =jobName;
 	}
-	public int setupTableForAction(String jID, int tblID, int aId) {
+	public int setupTaskForAction(String jID, int tskID, int aId) {
 		int rtc;
 		
 		jobID = jID;
-		tableID = tblID;
+		taskID = tskID;
 		actID = aId;
 		
-		tblDetailJSON=null;
+		tskDetailJSON=null;
 		dccDetailJSON=null;
 		srcDBDetail=null;
 		tgtDBDetail=null;
@@ -128,16 +119,16 @@ class MetaData {
 		lName=null;
 		jName=null;
 		
-		if(initTableDetails() == -1 ) {  // actDetailJSON is included in initTableDetails();
+		if(initTaskDetails() == -1 ) {  // tmpDetailJSON is included in initTableDetails();
 			rtc = -1;
 			return rtc;
 		}
 		//verify table level status; if ok, finish the setup for action.
-		String currState= tblDetailJSON.get("curr_state").toString();
+		String currState= tskDetailJSON.get("curr_state").toString();
 		switch(aId) {
 		case 0:
 			if (!(currState.equals("")||currState.equals("0") )) {
-				logger.warn("This table is already enabled.");
+				logger.warn("This task is already enabled.");
 				rtc = -1;
 			}
 			rtc = 0;
@@ -145,15 +136,15 @@ class MetaData {
 		case 1:
 		case 2:
 			if (!currState.equals("2")) {
-				logger.warn("This table is not in sync state.");
+				logger.warn("This task is not in sync state.");
 				return -1;
 			}
 			break;
 		case 21:  //testing code
 			break;
 		case -1:
-			logger.info("unregister table " + tblID + ": "
-					+ tblDetailJSON.get("src_schema")+"."+tblDetailJSON.get("src_table"));
+			logger.info("unregister task " + taskID + ": "
+					+ tskDetailJSON.get("src_schema")+"."+tskDetailJSON.get("src_table"));
 			break;
 		default:
 			logger.error("unsupported action or just for dev/test purpose.");	
@@ -172,53 +163,53 @@ class MetaData {
 		return jo;
 	}
 	
-	private int initTableDetails() {
+	private int initTaskDetails() {
 		JSONArray jo;
-		String sql = "select tbl_id, temp_id, tbl_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
+		String sql = "select task_id, template_id, data_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
 					"pool_id, init_dt, init_duration, curr_state, src_dcc_pgm, src_dcc_tbl, dcc_db_id, \n" + 
 					"dcc_store, ts_regist, ts_last_ref, seq_last_ref, db_type,src_stmt0, tgt_stmt0 "
-					+ " from SYNC_TABLE a, DATA_POINT b " + " where a.src_db_id=b.db_id and tbl_id=" + tableID;
+					+ " from task a, DATA_POINT b " + " where a.src_db_id=b.db_id and task_id=" + taskID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
-			logger.error("tableId does not exist.");
+			logger.error("task does not exist.");
 			return -1;
 		}
-		tblDetailJSON = (JSONObject) jo.get(0);
-		//If dccData is involved. (that is Kafka as AUX, for now)
-		Object dccDBIDObj = tblDetailJSON.get("dcc_db_id");
-		if((!dccDBIDObj.toString().equals("")) && (!dccDBIDObj.toString().equals("na"))) {  
-			String journalName=tblDetailJSON.get("src_dcc_tbl").toString();
-			String[] temp = journalName.split("\\.");
-			lName=temp[0]; jName=temp[1];
-			
-			sql="select tbl_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
-					+ " from SYNC_TABLE " + " where src_db_id='" + tblDetailJSON.get("src_db_id") + "' and src_schema='"
-					+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-			jo = SQLtoJSONArray(sql);
-			if(jo.isEmpty()) {
-				logger.error("error in DCC, e. g. DB2/AS400 journal");
-				return -1;
-			}
-			dccDetailJSON = (JSONObject) jo.get(0);
-		}
-		
-		if(actID==-1) {
+		tskDetailJSON = (JSONObject) jo.get(0);
+
+		if(actID==-1) {  //if it is unregistering, skip the rest.
 			return 0;
 		}else {
-			sql= "select temp_id, act_id, info, stmts from SYNC_TEMPLATE where temp_id='" 
-						+ tblDetailJSON.get("temp_id") + "' and act_id=" + actID;
+			sql= "select template_id, act_id, info, stmts from TASK_TEMPLATE where template_id='" 
+						+ tskDetailJSON.get("template_id") + "' and act_id=" + actID;
 			jo = SQLtoJSONArray(sql);
 			if(jo.isEmpty()) {
 				logger.error("action not applicable.");
 				return -1;
 			}
-			actDetailJSON = (JSONObject) jo.get(0);
+			tmpDetailJSON = (JSONObject) jo.get(0);
+		
+			String templateId=tskDetailJSON.get("template_id").toString();
+			if(templateId.equals("DATA_")) {  
+				String journalName=tskDetailJSON.get("src_dcc_tbl").toString();
+				String[] temp = journalName.split("\\.");
+				lName=temp[0]; jName=temp[1];
+				
+				sql="select task_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
+						+ " from task " + " where src_db_id='" + tskDetailJSON.get("src_db_id") + "' and src_schema='"
+						+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
+				jo = SQLtoJSONArray(sql);
+				if(jo.isEmpty()) {
+					logger.error("error in DCC, e. g. DB2/AS400 journal");
+					return -1;
+				}
+				dccDetailJSON = (JSONObject) jo.get(0);
+			}
 		}
 		return 0;
 	}
 
 //	public JSONArray getDCCsByPoolID(int poolID) {
-//	String sql = "select src_db_id, tgt_db_id, src_jurl_name from SYNC_TABLE where pool_id = " + poolID;
+//	String sql = "select src_db_id, tgt_db_id, src_jurl_name from task where pool_id = " + poolID;
 //
 //	JSONArray jRslt = SQLtoJSONArray(sql);
 //	return jRslt;
@@ -282,11 +273,11 @@ class MetaData {
 		return jArray;
 	}
 
-	public JSONObject getTableDetails() {
-		return tblDetailJSON;
+	public JSONObject getTaskDetails() {
+		return tskDetailJSON;
 	}
 	public JSONObject getActDetails() {
-		return actDetailJSON;
+		return tmpDetailJSON;
 	}
 	public JSONObject getMiscValues() {
 		return miscValues;
@@ -294,24 +285,8 @@ class MetaData {
 	public String getKeyDataType() {
 		return keyDataType;
 	}
-/*	public boolean tblReadyForInit() {
-		boolean rtv=true;
-		
-		String srcDBt=srcDBDetail.get("db_type").toString();
-		if(dccDetailJSON != null) {
-			try {
-			if ( Timestamp.valueOf(dccDetailJSON.get("ts_last_ref").toString()).before(
-				Timestamp.valueOf(tblDetailJSON.get("ts_regist").toString())) ) {
-					rtv=false;
-				}
-			}catch(Exception e) {
-				logger.error(e);  //in case of null objects	
-			}
-		}	
-		return rtv;
-	}*/
 	public int begin() {
-			logger.warn("    Action: " + actDetailJSON.get("info").toString());
+			logger.warn("    Action: " + tmpDetailJSON.get("info").toString());
 			Calendar cal = Calendar.getInstance();
 			startMS = cal.getTimeInMillis();
 			updateCurrState(1);  //indicating table is being worked on
@@ -326,8 +301,8 @@ class MetaData {
 	}
 
 	private void updateCurrState(int st) {
-		String sql = "update SYNC_TABLE set curr_state = " + st 
-				+ " where tbl_id = " + tableID;
+		String sql = "update task set curr_state = " + st 
+				+ " where task_id = " + taskID;
 		runUpdateSQL(sql);
 	}
 	public void saveInitStats() {
@@ -337,25 +312,25 @@ class MetaData {
 
 		// report to InfluxDB:
 		metrix.sendMX(
-				"duration,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + duration + "\n");
+				"duration,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + duration + "\n");
 		metrix.sendMX(
-				"insCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalInsCnt + "\n");
+				"insCnt,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + totalInsCnt + "\n");
 		metrix.sendMX(
-				"delCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalDelCnt + "\n");
+				"delCnt,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + totalDelCnt + "\n");
 		metrix.sendMX(
-				"errCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
+				"errCnt,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
 		metrix.sendMX(
-				//"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
-				"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
+				//"JurnalSeq,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+				"JurnalSeq,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
 
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		String sql = "update SYNC_TABLE set init_dt = now() "
+		String sql = "update task set init_dt = now() "
 				+ ", init_duration = " + duration 
 				//+ ", curr_state = " + currState
 				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
 				+ ", seq_last_ref = " + seqThisRef
-				+ " where tbl_id = " + tableID;
+				+ " where task_id = " + taskID;
 		runUpdateSQL(sql);
 	}
 	public void saveSyncStats() {
@@ -365,53 +340,27 @@ class MetaData {
 
 		// report to InfluxDB:
 		metrix.sendMX(
-				"duration,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + duration + "\n");
+				"duration,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + duration + "\n");
 		metrix.sendMX(
-				"insCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalInsCnt + "\n");
+				"insCnt,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + totalInsCnt + "\n");
 		metrix.sendMX(
-				"delCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalDelCnt + "\n");
+				"delCnt,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + totalDelCnt + "\n");
 		metrix.sendMX(
-				"errCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
+				"errCnt,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
 		metrix.sendMX(
-				//"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
-				"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
+				//"JurnalSeq,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
+				"JurnalSeq,jobId=" + jobID + ",taskID=" + taskID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
 
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		String sql = "update SYNC_TABLE set"
+		String sql = "update task set"
 				//+ " curr_sate = " + currState
 				+ " ts_last_ref = now(),"
 				//+ " seq_last_seq = " + miscValues.get("thisJournalSeq")
 				+ " seq_last_ref = " + seqThisRef
-				+ " where tbl_id = " + tableID;
+				+ " where task_id = " + taskID;
 		runUpdateSQL(sql);
 	}
-	/*
-	public void saveTblInitStats() {
-		int duration = (int) (endMS - startMS) / 1000;
-		logger.info("    " + " duration: " + duration + " sec");
-
-		// report to InfluxDB:
-		metrix.sendMX(
-				"duration,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + duration + "\n");
-		metrix.sendMX(
-				"insCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalInsCnt + "\n");
-		metrix.sendMX(
-				"delCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalDelCnt + "\n");
-		metrix.sendMX(
-				"errCnt,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + totalErrCnt + "\n");
-		metrix.sendMX(
-				//"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + miscValues.get("thisJournalSeq") + "\n");
-		"JurnalSeq,jobId=" + jobID + ",tblID=" + tableID + "~" + srcTblAb7 + " value=" + seqThisRef + "\n");
-
-		// Save to MetaRep:
-		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		String sql = "update SYNC_TABLE set init_dt = now()" 
-				+ " init_duration = " + duration 
-				+ " where tbl_id = " + tableID;
-		runUpdateSQL(sql);
-	}
-*/
 	private boolean runUpdateSQL(String sql) {
 		// Save to MetaRep:
 		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
@@ -435,7 +384,7 @@ class MetaData {
 
 		avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
 				    + "\"type\": \"record\", \n" 
-				    + "\"name\": \"" + tblDetailJSON.get("src_schema")+"."+ tblDetailJSON.get("src_table") + "\", \n" 
+				    + "\"name\": \"" + tskDetailJSON.get("src_schema")+"."+ tskDetailJSON.get("src_table") + "\", \n" 
 				    + "\"fields\": [ \n" ;
 		
 		try {
@@ -443,8 +392,8 @@ class MetaData {
 
 		i = 0;
 		lrRset = lrepStmt.executeQuery(
-			  "select src_field, src_field_type, tgt_field, java_type, avro_type from SYNC_TABLE_FIELD "
-			+ " where tbl_id=" + tableID + " order by field_id");
+			  "select src_field, src_field_type, tgt_field, java_type, avro_type from data_field "
+			+ " where task_id=" + taskID + " order by field_id");
 
 		//first line
 		if (lrRset.next()) {
@@ -460,10 +409,10 @@ class MetaData {
 		//rest line (but not the last)
 		while (lrRset.next() ) {   
 			//if( lrRset.isLast()) {                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
-			//	if(tblDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
+			//	if(tskDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
 			//	avroSchema = avroSchema 
 			//			+ ", {\"name\": \"DB2RRN\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
-			//	}if(tblDetailJSON.get("db_type").toString().contains("ORACLE")){
+			//	}if(tskDetailJSON.get("db_type").toString().contains("ORACLE")){
 			//		avroSchema = avroSchema 
 			//				+ ", {\"name\": \"ORARID\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
 			//	}
@@ -500,59 +449,8 @@ class MetaData {
 	}
 	public String getSQLInsTgt() {
 		//return sqlInsertTarget;
-		return tblDetailJSON.get("tgt_stmt0").toString();
+		return tskDetailJSON.get("tgt_stmt0").toString();
 	}
-	//Need to return the right list of SQLs in order to create the needed Resultset:
-	/* - for ACT_ID=1: 
-	 * 		Alway return the sqlSelectSource, generated in initFieldMetaData() 
-	 * - for ACT_ID=2:
-	 * 		For Oracle using trig and log table, (TEMP_ID O2V):
-	 * 			1. update all the log table records
-	 * 			2. add join + where clause to "sqlSelectSource" and return;
-	 * 		  and a statement for cleanup(): delete the processed recoded from the log table;
-	 * - for ACT_ID=2:
-	 * 		For DV2/AS400 journal RRNs to Kafka, (TEMP_ID DJ2K):
-	 * 			return the DISPLAY_JOURNAL sql. 
-	 * 				( need to options to return different versions, for optimal performance reason)
-	 * 		For DV2/AS400 via Kafka, (TEMP_ID D2V_):
-	 *      - if count of keys > threshold:
-	 * 			1. declare a temp_table
-	 * 			2. batch insert the keys into the temp table
-	 * 			3. add the temp_table + to the "sqlSelectSource" and return;
-	 * 		  and a statement for cleanup(): drop the temp_table;
-	 *      - if count of keys < threshold:
-	 * 			1. add the keys to where clause to the "sqlSelectSource" and return;
-	 */
-//	public JSONObject getSrcSQLs(int actId, boolean fast, boolean relaxed) {
-//		/*
-//		 * The design intention: to be template driving.
-//		 *   E. g. 
-//		 *   String strTemplate = "something from META_SRC_TEMPLATE '%(value)' in column # %(column)";
-//		 *   strTemplate = strTemplate.replace("%(value)", x); // 1
-//		 *   strTemplate = strTemplate.replace("%(column)", y); // 2
-//		 */
-//		if(actId==1) {
-//			return getAct1SQLs();
-//		}else if (actId==2) {	
-//			String tempID=tblDetailJSON.get("temp_id").toString();
-//			switch(tempID) {   //TODO: move this func database.
-//			case "DJ2K":
-//				return getDJ2Kact2SQLs(fast, relaxed); 
-//				//break;
-//			case "D2V_":
-//				return getD2V_act2SQLs(fast, relaxed); 
-//			case "O2V":
-//			case "O2K":
-//				return getO2Vact2SQLs(); 
-//			default:
-//				logger.error("Invalid template.");
-//				return null;
-//		}
-//		}else {
-//			logger.error("Invalid action.");
-//			return null;
-//		}
-//	}
 	private JSONObject getAct1SQLs() {
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
@@ -561,22 +459,6 @@ class MetaData {
 		
 		return jo;
 	}
-	//moved to Oracle as getSrcSqlStmts(String temp)
-/*	private JSONObject getO2Vact2SQLs() {
-		JSONObject jo = new JSONObject();
-		JSONArray pre = new JSONArray();
-		pre.add("update " + tblDetailJSON.get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-		pre.add(getBareSrcSQL() + ", " + tblDetailJSON.get("src_dcc_tbl") 
-				+ " b where b.dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') "
-				+ " and a.rowid=b."+tblDetailJSON.get("tbl_pk"));
-		jo.put("PRE", pre);
-		JSONArray aft = new JSONArray();
-		aft.add("delete from " + tblDetailJSON.get("src_dcc_tbl") + " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-		jo.put("AFT", aft);
-		
-		return jo;
-	}
-	*/
 	private JSONObject getD2V_act2SQLs(boolean fast, boolean relaxed) { 
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
@@ -584,81 +466,18 @@ class MetaData {
 		//2. either --- skip it (too complicated). Keep only the following b1 and b2.
 		//     a. compose where clause and add to sqlSelectSource
 		//  or b1. declare temp. tbl and batch the keys
-		String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+tableID + "(" + tblDetailJSON.get("tbl_pk") + " " + keyDataType + ") " 
+		String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+taskID + "(" + tskDetailJSON.get("data_pk") + " " + keyDataType + ") " 
 				+" NOT LOGGED"; 
 		pre.add(sql);
-		pre.add("INSERT INTO qtemp.DCC" + tableID + " VALUES (?)" );
-		sql = getBareSrcSQL() + ", qtemp.DCC"+tableID + " b "
-				+ " where a..rrn(a)=b." +tblDetailJSON.get("tbl_pk");  //TOTO: may have problem!
+		pre.add("INSERT INTO qtemp.DCC" + taskID + " VALUES (?)" );
+		sql = getBareSrcSQL() + ", qtemp.DCC"+taskID + " b "
+				+ " where a..rrn(a)=b." +tskDetailJSON.get("data_pk");  //TOTO: may have problem!
 		pre.add(sql)
 ;
 		jo.put("PRE", pre);
 
 		return jo;
 	}
-	/*
-	public JSONObject getDJ2Kact2SQLs(boolean fast, boolean relaxed) {  //"public" as an hacker
-	//TODO: pushed to DB2Data.byodccSQL(xxxx)
-		JSONObject jo = new JSONObject();
-		long lasDCCSeq = getDCCSeqLastRefresh();
-		String extWhere="";
-		
-		if((lasDCCSeq == -1)||(seqThisRef <= lasDCCSeq))   
-			return null;   // this is the first time or no data, simply set META_AUX.SEQ_LAST_REF
-
-		if (seqThisRef > lasDCCSeq ) {
-			extWhere = " and SEQUENCE_NUMBER <=" + seqThisRef; 
-		}
-		
-		String sql;
-		String currStr;
-		if(fast)
-			currStr="";
-		else
-			currStr="*CURCHAIN";
-
-		JSONObject jo = new JSONObject();
-		JSONArray pre = new JSONArray();
-		if(relaxed) {
-			sql= " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-					+ " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") + "', " + "   '', '"
-					+ currStr + "', " 
-					+ "   cast(null as TIMESTAMP), " + "   cast(null as decimal(21,0)), "
-					+ "   'R', " 
-					+ "   ''," + "   '', '', '*QDDS', ''," 
-					+ "   '', '', ''"
-					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
-					+ extWhere 
-					+ " order by 2 asc" ;// something weird with DB2 function: the starting SEQ
-										 // number seems not takining effect
-			pre.add(1, sql );
-			jo.put("PRE", pre);
-
-			return jo;
-		}else
-			sql = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-					+ " FROM table (Display_Journal('" + tblDetailJSON.get("src_schema") + "', '" + tblDetailJSON.get("src_table") + "', " + "   '', '"
-					+ currStr + "', "
-					+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
-					+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
-					+ "   'R', " // JOURNAL CODE: record operation
-					+ "   ''," // JOURNAL entry: UP,DL,PT,PX,UR,DR,UB
-					+ "   '', '', '*QDDS', ''," // Object library, Object name, Object type, Object member
-					+ "   '', '', ''" // User, Job, Program
-					+ ") ) as x where SEQUENCE_NUMBER > " + lasDCCSeq 
-					+ extWhere
-					+ " order by 2 asc";
-		pre.add(sql );
-		jo.put("PRE", pre);
-
-		return jo;
-		
-	}
-	*/
-//	public String getSQLDelTgt() {
-//		return sqlDeleteTarget;
-//	}
-
 	
 	public void setRefreshTS(Timestamp thisRefreshHostTS) {
 		tsThisRef = thisRefreshHostTS;
@@ -677,21 +496,13 @@ class MetaData {
 		return jobID;
 	}
 
-//	public int getPrcTimeout() {
-//		return prcTimeout;
-//	}
-
 	public Timestamp getLastAudit() {
 		return tsLastAudit;
 	}
 
-//	public Timestamp getLastRefresh() {
-//		return tsLastRef;
-//	}
-
 	public long getDCCSeqLastRefresh() {
 		try {
-			return Long.valueOf(tblDetailJSON.get("seq_last_ref").toString());
+			return Long.valueOf(tskDetailJSON.get("seq_last_ref").toString());
 		}catch (NullPointerException e) {
 			return -1;
 		}
@@ -703,26 +514,21 @@ class MetaData {
 
 
 	public String getPK() {
-		return tblDetailJSON.get("tbl_pk").toString();
+		return tskDetailJSON.get("data_pk").toString();
 	}
 
 	public String getBareSrcSQL() {
 		//return sqlSelectSource;
-		return tblDetailJSON.get("src_stmt0").toString();
+		return tskDetailJSON.get("src_stmt0").toString();
 	}
 
 	public int getCurrState() {
-		return (int) tblDetailJSON.get("curr_state");
+		return (int) tskDetailJSON.get("curr_state");
 	}
 
 	public int getTableID() {
-		return tableID;
+		return taskID;
 	}
-
-//	public void setRefreshCnt(int i) {
-//		refreshCnt = i;
-//	}
-
 
 	public void close() {
 		try {
@@ -739,42 +545,6 @@ class MetaData {
 		return jobID;
 	}
 
-	//// from OVSdb.java
-	public List<String> getDB2TablesOfJournal(String dbID, String journal) {
-		List<String> tList = new ArrayList<String>();
-		String strSQL;
-		Statement lrepStmt = null;
-		ResultSet lrRset=null;
-
-		strSQL = "select src_schema||'.'||src_table from SYNC_TABLE where src_db_id ='" + dbID
-				+ "' and src_dcc_tbl='" + journal + "' and tgt_schema !='*' order by 1";
-
-		// This shortterm solution is only for Oracle databases (as the source)
-		try {
-			lrepStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-			lrRset = lrepStmt.executeQuery(strSQL);
-			while (lrRset.next()) {
-				// Retrieve by column name
-				String tbl = lrRset.getString(1);
-				tList.add(tbl);
-			}
-		} catch (SQLException se) {
-			logger.error("OJDBC driver error: " + se);
-		} catch (Exception e) {
-			// Handle errors for Class.forName
-			logger.error(e);
-		} finally {
-			// make sure the resources are closed:
-			try {
-				lrRset.close();
-				lrepStmt.close();
-			} catch (SQLException se2) {
-			}
-		}
-
-		return tList;
-	}
-
 	public List<Integer> getTblsByPoolID(int poolID) {
 		Statement lrepStmt = null;
 		ResultSet lrRset;
@@ -782,17 +552,16 @@ class MetaData {
 		String strSQL;
 
 		if (poolID < 0)
-			strSQL = "select TABLE_ID,CURR_STATE from sync_table order by t_order";
+			strSQL = "select task_id,curr_state from task order by 1";
 		else
-			strSQL = "select TABLE_ID,CURR_STATE from sync_table where pool_id = " + poolID + " order by t_order";
+			strSQL = "select task_id,curr_state from task where pool_id = " + poolID + " order by 1";
 
-		// This shortterm solution is only for Oracle databases (as the source)
 		try {
 			lrepStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			lrRset = lrepStmt.executeQuery(strSQL);
 			while (lrRset.next()) {
 				// Retrieve by column name
-				int id = lrRset.getInt("TABLE_ID");
+				int id = lrRset.getInt(1);
 				tList.add(id);
 			}
 		} catch (SQLException se) {
@@ -845,50 +614,50 @@ class MetaData {
 		Statement repStmt;
 		ResultSet rRset;
 
-		int tblID = 0;
+		int taskID = 0;
 
 		try {
 			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-			rRset = repStmt.executeQuery("select max(tbl_id) from SYNC_TABLE ");
+			rRset = repStmt.executeQuery("select max(task_id) from task ");
 
 			rRset.next();
-			tblID = rRset.getInt(1);
+			taskID = rRset.getInt(1);
 			rRset.close();
 			repStmt.close();
 		} catch (SQLException e) {
 			logger.error(e);
 		}
 
-		return tblID + 1;
+		return taskID + 1;
 	}
 
 	public String getAvroSchema(){
 		return avroSchema;
 	}
 	/**** Registration APIs ****/
-	public boolean preRegistCheck(int tblID, String srcDBid, String srcSch, String srcTbl, String dccDBid) {
+	public boolean preRegistCheck(int taskID, String srcDBid, String srcSch, String srcTbl, String dccDBid) {
 		String sql;
 		JSONArray rslt;
 		
-		sql = "select TBL_ID from SYNC_TABLE where tbl_id = " + tblID;
+		sql = "select task_id from task where task_id = " + taskID;
 		rslt = (JSONArray) SQLtoJSONArray(sql);
 		if(rslt.size()>0) {
-			logger.error("Table ID is already used!");
+			logger.error("task ID is already used!");
 			return false;
 		}
-		sql = "select 'exit already!!!', tbl_id from SYNC_TABLE where SRC_DB_ID='" + srcDBid + "' and SRC_SCHEMA='"
+		sql = "select task_id from task where SRC_DB_ID='" + srcDBid + "' and SRC_SCHEMA='"
 				+ srcSch + "' and SRC_TABLE='" + srcTbl + "';";
 		rslt = (JSONArray) SQLtoJSONArray(sql);
 		if(rslt.size()>0) {
-			logger.error("Table is already registered!");
+			logger.error("Task is already registered!");
 			return false;
 		}
 
-		if(!dccDBid.equals("na")){ //That means an aux tbl with table ID=tblID+1 need to be created. 
-			sql = "select 'exit already!!!', tbl_id from SYNC_TABLE where tbl_id = " + tblID+1;
+		if(!dccDBid.equals("na")){ //That means an aux tbl with table ID=taskID+1 need to be created. 
+			sql = "select task_id from task where task_id = " + taskID+1;
 			rslt = (JSONArray) SQLtoJSONArray(sql);
 			if(rslt.size()>0) {
-				logger.error("aux table id " + (tblID+1) + "exist already!");
+				logger.error("aux task id " + (taskID+1) + "exist already!");
 				return false;
 			}
 		}

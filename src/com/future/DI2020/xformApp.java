@@ -58,9 +58,9 @@ class xformApp
 		jobID = "xForm";
 		MetaData metaData = MetaData.getInstance();
 
-		metaData.setupTableForAction(jobID, tblId, 21);  // actId for dev activities.
+		metaData.setupTaskForAction(jobID, tblId, 21);  // actId for dev activities.
 		
-		JSONObject tblDetail = metaData.getTableDetails();
+		JSONObject tblDetail = metaData.getTaskDetails();
 
 		KafkaData srcData = (KafkaData) DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 		//srcData.testConsumer();

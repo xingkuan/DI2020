@@ -15,12 +15,13 @@ CREATE TABLE DATA_POINT
 )
 ;
 -- Let's explicitly know that the DB are RDBMS or KAFKA, for both SRC, TGT and DCC
-CREATE TABLE SYNC_TABLE
+CREATE TABLE TASK
 (
-  TBL_ID              INTEGER PRIMARY KEY,
-  TEMP_ID			  VARCHAR(20),  --DATA, JURL, DATA_(point to sync_template); XFORM<tbl_id> (point to xform_simple).
+  TASK_ID             INTEGER PRIMARY KEY,
+  TASK_CAT            VARCHAR(10),
+  TEMPLATE_ID		  VARCHAR(20),  --DATA, JURL, DATA_(point to sync_template); XFORM<tbl_id> (point to xform_simple).
                                     --    not very good idea, perhaps.
-  TBL_PK              VARCHAR(50),
+  DATA_PK             VARCHAR(50),
   POOL_ID             INTEGER,
   INIT_DT	          DATE,
   INIT_DURATION       INTEGER,
@@ -48,9 +49,9 @@ CREATE TABLE SYNC_TABLE
 )
 ; 
 
-CREATE TABLE SYNC_TABLE_FIELD
+CREATE TABLE DATA_FIELD
 (
-  TBL_ID 			INTEGER,
+  TASK_ID 			INTEGER,
   FIELD_ID          INTEGER,
   SRC_FIELD         VARCHAR(50),
   SRC_FIELD_TYPE    VARCHAR(20),
@@ -63,9 +64,9 @@ CREATE TABLE SYNC_TABLE_FIELD
   primary key (tbl_id, field_id)
 )
 ;
-CREATE TABLE SYNC_TEMPLATE
+CREATE TABLE TASK_TEMPLATE
 (
-  TEMP_ID    VARCHAR(20),  --DJ2K, D2V, O2V, D2K, O2K...
+  TEMPLATE_ID    VARCHAR(20),  --DJ2K, D2V, O2V, D2K, O2K...
   ACT_ID     INTEGER,      --0: enable(trigger, jurl extr); 1: init tbl; 2: dcc; 3: syn; 4: syn via kafka
   INFO       VARCHAR(100),
   STMTS		 JSONB,        --ideally, configurable SQLs or whatever
@@ -162,25 +163,25 @@ insert into SYNC_TEMPLATE
 (
   TEMP_ID, ACT_ID, INFO
 ) values 
-('DJ2K', 0, 'set meta_table.SEQ_LAST_REF to a starting seq.'),
-('DJ2K', 2, 'sync(extract) DCC to kafka.'),
-('D2V_', 0, 'simply set meta_table.curr_state=2.'),
-('D2V_', 1, 'intial copy src to tgt.'),
-('D2V_', 2, 'sync src to tgt via kafka'),
-('D2V_', 9, 'audit'),
-('D2V', 1, 'ex. temp: intial copy src to tgt.'),
-('D2V', 2, 'ex. temp: sync src to tgt via trig.'),
-('D2V', 9, 'audit.'),
-('D2K_', 2, 'sync src data to kafka topic via kafka.'),
+('DCC', 0, 'set meta_table.SEQ_LAST_REF to a starting seq.'),
+('DCC', 2, 'sync(extract) DCC to kafka.'),
+('DATA_', 0, 'simply set meta_table.curr_state=2.'),
+('DATA_', 1, 'intial copy src to tgt.'),
+('DATA_', 2, 'sync src to tgt via kafka'),
+('DATA_', 9, 'audit'),
+--('D2V', 1, 'ex. temp: intial copy src to tgt.'),
+--('D2V', 2, 'ex. temp: sync src to tgt via trig.'),
+--('D2V', 9, 'audit.'),
+--('D2K_', 2, 'sync src data to kafka topic via kafka.'),
 ('DATA', 0, 'enable trig'),
 ('DATA', 1, 'initial copy src to tgt'),
 ('DATA', 2, 'sync src to tgt via trig'),
 ('DATA', 9, 'audit'),
-('O2K', 0, 'enable trig'),
-('O2K', 2, 'sync src to tgt(kafka) via trig'),
-('O2K', 21, 'testing code'),
-('O2K_', 2, 'sync src data to kafka topic via kafka.'),
-('K2E', 2, 'Kafak topic to ES doc')
+--('O2K', 0, 'enable trig'),
+--('O2K', 2, 'sync src to tgt(kafka) via trig'),
+--('O2K', 21, 'testing code'),
+--('O2K_', 2, 'sync src data to kafka topic via kafka.'),
+--('K2E', 2, 'Kafak topic to ES doc')
 ;
 
 ---------------------

@@ -74,7 +74,7 @@ class KafkaData extends DataPoint {
 	//public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
 	public void createKafkaConsumer(String topic) {
 		String consumerGrp = metaData.getJobID() + metaData.getTableID();
-		String cientID = metaData.getJobID()+metaData.getTableDetails().get("tbl_id");
+		String cientID = metaData.getJobID()+metaData.getTaskDetails().get("task_id");
 
 		kafkaMaxPollRecords = Integer.parseInt(conf.getConf("kafkaMaxPollRecords"));
 		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));
@@ -148,8 +148,8 @@ class KafkaData extends DataPoint {
 	    String srcTbl;
 		//ProducerRecord<Long, String> aMsg;
 
-	    List<String> tblList = metaData.getDB2TablesOfJournal((String) metaData.getTableDetails().get("src_db_id".toString()), 
-	        		(String) metaData.getTableDetails().get("src_schema")+"."+(String) metaData.getTableDetails().get("src_table"));     
+	    List<String> tblList = metaData.getDB2TablesOfJournal((String) metaData.getTaskDetails().get("src_db_id".toString()), 
+	        		(String) metaData.getTaskDetails().get("src_schema")+"."+(String) metaData.getTaskDetails().get("src_table"));     
 	        
 	    srcData.crtSrcAuxResultSet();  
 	    ResultSet srcRset = srcData.getSrcResultSet();
@@ -181,7 +181,7 @@ class KafkaData extends DataPoint {
 			}
 			rtc=0;
 			logger.info("   last Journal Seq #: " + seq);
-			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getTableDetails().get("SRC_TABLE")+" value=" + seq + "\n");
+			metrix.sendMX("JournalSeq,jobId="+metaData.getJobID()+",journal="+metaData.getTaskDetails().get("SRC_TABLE")+" value=" + seq + "\n");
 		} catch (SQLException e) {
 			logger.error("   failed to retrieve from DB2: " + e);
 			rtc=0;   // ignore this one, and move on to the next one.
@@ -195,12 +195,12 @@ class KafkaData extends DataPoint {
 	protected boolean miscPrep() {
 		super.miscPrep();
 
-		//String jTemp=metaData.getTableDetails().get("temp_id").toString();
-		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id"); 
+		//String jTemp=metaData.getTaskDetails().get("template_id").toString();
+		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id"); 
 		//if(jTemp.equals("D2V_")) {
 		if(jTemp.equals("2DATA_")) {
-			String topic = metaData.getTableDetails().get("src_schema")+"."
-				+metaData.getTableDetails().get("src_table");
+			String topic = metaData.getTaskDetails().get("src_schema")+"."
+				+metaData.getTaskDetails().get("src_table");
 			createKafkaConsumer(topic);
 			crtAuxSrcAsList();
 		}
@@ -252,8 +252,10 @@ class KafkaData extends DataPoint {
 	public void commit() {
 		//consumer.commitSync();  
 		//byteProducer.commitTransaction();
-		byteProducer.close();
-		consumer.close();
+		if(byteProducer!=null)
+			byteProducer.close();
+		if(consumer!=null)
+			consumer.close();
 	}
 	public void rollback() {
 		//consumer.commitSync();  
@@ -322,7 +324,7 @@ class KafkaData extends DataPoint {
 
 		fldType = metaData.getFldJavaType();
 
-		topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
 		
 		String jsonSch = metaData.getAvroSchema();
 		schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
@@ -399,7 +401,7 @@ class KafkaData extends DataPoint {
 		ResultSet rs=srcData.getSrcResultSet();
 		ArrayList<Integer> fldType = metaData.getFldJavaType();
 
-		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		String topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
 		
 		String jsonSch = metaData.getAvroSchema();
 		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
@@ -501,7 +503,7 @@ Object tempO;
 	    Properties propsC = new Properties();
 
 	    String consumerGrp = metaData.getJobID() + metaData.getTableID();
-		String cientID = metaData.getJobID()+metaData.getTableDetails().get("tbl_id");
+		String cientID = metaData.getJobID()+metaData.getTaskDetails().get("task_id");
 
 		kafkaMaxPollRecords = Integer.parseInt(conf.getConf("kafkaMaxPollRecords"));
 		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));
@@ -532,7 +534,7 @@ Object tempO;
 		public void crtSrcResultSet(int actId, String preSQLs) { //parameters are not applicable here :(
 		//List<String> docList = new ArrayList<String>();
 				
-		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		String topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
 		ConsumerRecords<Long, byte[]> records;
 		GenericRecord a=null, b=null;
 		
@@ -573,7 +575,7 @@ Object tempO;
 	}
 	@Override
 	public void xformInto(DataPoint tgtData) {
-		String topic=metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+		String topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
 		ConsumerRecords<Long, byte[]> records;
 		GenericRecord a=null, b=null;
 		
@@ -714,8 +716,8 @@ public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String
     }
 	
 	//also, update meta info:
-	String sql = "update SYNC_TABLE_FIELD set " + 
-			"tgt_field=regexp_replace(src_field, '^.* as ', ''), " + 
+	String sql = "update data_field set " + 
+			"tgt_field=regexp_replace(regexp_replace(src_field, '^.* as ', ''), '#', 'NUM'), " +   //- PK field -and replace # with NUM
 			"tgt_field_type=case " + 
 			"when src_field_type like '%CHAR%' then 'VARCHAR('||2*src_field_len||')' " + 
 			"when src_field_type like '%NUMBER%' then 'NUMBER('||src_field_len||','||coalesce(src_field_scale,0)||')' " + 
@@ -723,7 +725,7 @@ public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String
 			"when src_field_type like 'TIMEST%' then 'TIMESTAMP' " +  //DB2/AS400 is TIMESTMP 
 			"else src_field_type " + 
 			"END " + 
-			"where tbl_id=" + tblID;
+			"where task_id=" + tblID;
 	metaData.runRegSQL(sql);
 	
 
@@ -732,8 +734,8 @@ public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String
 @Override
 public boolean unregisterTgt(int tblID) {
 	//delete the topic
-	String theTopic = metaData.getTableDetails().get("tgt_schema")+"."
-			+ metaData.getTableDetails().get("tgt_table");
+	String theTopic = metaData.getTaskDetails().get("tgt_schema")+"."
+			+ metaData.getTaskDetails().get("tgt_table");
 	if(!theTopic.equals("*.*")){
 	try (final AdminClient adminClient = createKafkaAdmin()) {
         DeleteTopicsResult deleteTopicsResult=adminClient.deleteTopics(Arrays.asList(theTopic));
@@ -744,8 +746,8 @@ public boolean unregisterTgt(int tblID) {
 @Override
 public boolean unregisterDcc(int tblID) {
 	//delete DCC topic
-	String theTopic = metaData.getTableDetails().get("src_schema")+"."
-			+ metaData.getTableDetails().get("src_table")+"DCC";
+	String theTopic = metaData.getTaskDetails().get("src_schema")+"."
+			+ metaData.getTaskDetails().get("src_table")+"DCC";
 	try (final AdminClient adminClient = createKafkaAdmin()) {
         DeleteTopicsResult deleteTopicsResult=adminClient.deleteTopics(Arrays.asList(theTopic));
     }

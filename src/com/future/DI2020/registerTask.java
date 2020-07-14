@@ -20,11 +20,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.File;
 
-public class RegSyncTbl {
+public class registerTask {
 	private static final Logger logger = LogManager.getLogger();
 	private static final MetaData metaData = MetaData.getInstance();
 
-	private static int tblID;
+	private static int taskID;
 
 	static DataPoint srcDB, tgtDB, dccDB;
 
@@ -32,9 +32,9 @@ public class RegSyncTbl {
 		System.out.println(args.length);
 
 		if (args.length == 13) {
-			tblID = 0; // have to be set later.
+			taskID = 0; // have to be set later.
 		} else if (args.length == 14) {
-			tblID = Integer.parseInt(args[13]);
+			taskID = Integer.parseInt(args[13]);
 		} else {
 			System.out.println(
 					"Usage:   RegisterTbl PK TEMPID DB2D JOHNLEE2 TEST1 dccPgm journal VERTX Tsch TEST1 kafka1 topic 0 99");
@@ -64,28 +64,30 @@ public class RegSyncTbl {
 		String dccDBid = args[10];
 		String dccTopic = args[11];
 
+		String taskCat = "COPY";
+		
 		System.out.println(Arrays.toString(args));
 
 		int poolID = Integer.parseInt(args[12]);
 		//Note: should have table poolID and DCC poolID. For now, DCC poolID is set to -1. 
 
-		if (tblID == 0) {
-			tblID = metaData.getNextTblID();
+		if (taskID == 0) {
+			taskID = metaData.getNextTblID();
 		}
 		
-		if(!metaData.preRegistCheck(tblID, srcDBid, srcSch, srcTbl, dccDBid)) {
+		if(!metaData.preRegistCheck(taskID, srcDBid, srcSch, srcTbl, dccDBid)) {
 			//Stop; do nothing.
 			return;
 		}
 		srcDB = DataPoint.dataPtrCreater(srcDBid, "SRC");
-		if(!srcDB.regSrcCheck(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid)) {
+		if(!srcDB.regSrcCheck(taskID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid)) {
 			//Stop; do nothing.
 			return;
 		}
 		
 		String sqlStr;
-		sqlStr = "insert into SYNC_TABLE \n" 
-				+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
+		sqlStr = "insert into task \n" 
+				+ "(TASK_ID, TEMPLATE_ID, TASK_CAT, DATA_PK, \n"
 				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
 				+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
 				+ "POOL_ID, CURR_STATE, \n" 
@@ -93,7 +95,7 @@ public class RegSyncTbl {
 				+ "DCC_DB_ID, DCC_STORE, \n" 
 				+ "TS_REGIST) \n" 
 				+ "values \n"
-				+ "(" + tblID + ", '" + strTempId +"', '" + strPK + "', \n" 
+				+ "(" + taskID + ", '" + strTempId +"', '" + taskCat + "', '" + strPK + "', \n" 
 				+ "'" + srcDBid + "', '" + srcSch + "', '" + srcTbl + "', \n" 
 				+ "'" + tgtDBid + "', '" + tgtSch + "', '" + tgtTbl + "', \n"
 				+ poolID + ", 0, \n"
@@ -104,13 +106,13 @@ public class RegSyncTbl {
 
 		boolean rslt;
 		//ask srcDB to populate table_field, and whatever
-		rslt = srcDB.regSrc(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
-		rslt = srcDB.regSrcDcc(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
+		rslt = srcDB.regSrc(taskID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
+		rslt = srcDB.regSrcDcc(taskID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
 
 		//Ask tgtDB to do whatever is needed
 		//sqlStr = json.get("tgtTblDDL").toString();
 		tgtDB = DataPoint.dataPtrCreater(tgtDBid, "TGT");
-		tgtDB.regTgt(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
+		tgtDB.regTgt(taskID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
 		//Kafka, ES, JDBC ...
 		// eg Kafka, run the following:
 
@@ -121,7 +123,7 @@ public class RegSyncTbl {
 			dccDB = DataPoint.dataPtrCreater(dccDBid, "DCC");
 			//sqlStr = json.get("repDCCDML").toString();
 			//dccDB.regSetup(sqlStr);
-			dccDB.regDcc(tblID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
+			dccDB.regDcc(taskID, strPK, srcSch, srcTbl, dccPgm, dccLog, tgtSch, tgtTbl, dccDBid);
 		}
 				
 	}

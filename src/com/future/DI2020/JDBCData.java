@@ -206,7 +206,7 @@ class JDBCData extends DataPoint{
 			// . FileWriter fstream = new FileWriter(metaData.getInitLogDir() + "/" +
 			// metaData.getTgtSchema() + "." + metaData.getTgtTable() + ".row", true);
 			FileWriter fstream = new FileWriter(
-				logDir + metaData.getTableDetails().get("tgt_sch").toString() + "." + metaData.getTableDetails().get("tgt_tbl").toString()  + ".row", true);
+				logDir + metaData.getTaskDetails().get("tgt_sch").toString() + "." + metaData.getTaskDetails().get("tgt_tbl").toString()  + ".row", true);
 			BufferedWriter out = new BufferedWriter(fstream);
 			out.write(rowid + "\n");
 			out.close();
@@ -225,11 +225,11 @@ class JDBCData extends DataPoint{
 
 		String sql;
 		if(dbRole.equals("SRC")) {
-		  sql="select count(*) from " + metaData.getTableDetails().get("src_schema").toString() 
-		  		+ "." + metaData.getTableDetails().get("src_table").toString();
+		  sql="select count(*) from " + metaData.getTaskDetails().get("src_schema").toString() 
+		  		+ "." + metaData.getTaskDetails().get("src_table").toString();
 		}else if(dbRole.equals("TGT")) {
-		  sql="select count(*) from " + metaData.getTableDetails().get("tgt_schema").toString() 
-		  		+ "." + metaData.getTableDetails().get("tgt_table").toString();
+		  sql="select count(*) from " + metaData.getTaskDetails().get("tgt_schema").toString() 
+		  		+ "." + metaData.getTaskDetails().get("tgt_table").toString();
 		}else {
 		  logger.error("invalid DB role assignment.");
 		  return -1;

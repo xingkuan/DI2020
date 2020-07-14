@@ -40,10 +40,7 @@ class OracleData extends JDBCData{
 	}
 	//should only be sued when TEMP_ID
 	public int getDccCnt() {  //this one is very closely couple with crtSrcResultSet! TODO: any better way for arranging?
-		if(!metaData.getTableDetails().get("temp_id").toString().contains("_")){
-			logger.warn("It does not look like it should be called!");
-		}
-		String sql = "update " + metaData.getTableDetails().get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" ;
+		String sql = "update " + metaData.getTaskDetails().get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" ;
 
 		int cnt = runUpdateSQL(sql);
 
@@ -60,15 +57,16 @@ class OracleData extends JDBCData{
 				pre.add(metaData.getBareSrcSQL() );
 				jo.put("PRE", pre);
 				break;
-			case "2TRIG":   //read the changed rows. Original O2V, O2K
-				pre.add("update " + metaData.getTableDetails().get("src_dcc_tbl") 
-						+ " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-				pre.add(metaData.getBareSrcSQL() + ", " + metaData.getTableDetails().get("src_dcc_tbl") 
+			case "2DATA":   //read the changed rows. Original O2V, O2K
+			// Not needed as it is done in getDccCnt()	
+			//	pre.add("update " + metaData.getTaskDetails().get("src_dcc_tbl") 
+			//			+ " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
+				pre.add(metaData.getBareSrcSQL() + ", " + metaData.getTaskDetails().get("src_dcc_tbl") 
 						+ " b where b.dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') "
-						+ " and a.rowid=b."+metaData.getTableDetails().get("tbl_pk"));
+						+ " and a.rowid=b."+metaData.getTaskDetails().get("data_pk"));
 				jo.put("PRE", pre);
 				JSONArray aft = new JSONArray();
-				aft.add("delete from " + metaData.getTableDetails().get("src_dcc_tbl") 
+				aft.add("delete from " + metaData.getTaskDetails().get("src_dcc_tbl") 
 						+ " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
 				jo.put("AFT", aft);
 				break;
@@ -79,19 +77,20 @@ class OracleData extends JDBCData{
 	//public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
 	@Override
 	public int crtSrcResultSet() {
-		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+		int rtc=0;
+		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
 
 		JSONArray jaSQLs=(JSONArray) getSrcSqlStmts(template).get("PRE");
 		String sql;
 		for (int i = 0; i < jaSQLs.size()-1; i++) {
 			sql = jaSQLs.get(i).toString();
-			runUpdateSQL(sql);
+			rtc = runUpdateSQL(sql);
 		}
 		sql=jaSQLs.get(jaSQLs.size()-1).toString();
 		if( SQLtoResultSet(sql)<=0 ) {
 			return -1;
 		}
-		return 0;
+		return rtc;
 	}
 
 	public List<String> getDCCKeyList(){
@@ -100,7 +99,7 @@ class OracleData extends JDBCData{
 	    Statement stmt1;
  	    ResultSet rs1;
 		String sql1 = "select distinct orarid from " 
-					+ metaData.getTableDetails().get("src_dcc_tbl") 
+					+ metaData.getTaskDetails().get("src_dcc_tbl") 
 					+ " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')";
 		try {
 			stmt1 = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
@@ -118,9 +117,9 @@ class OracleData extends JDBCData{
 	@Override
 	//protected void afterSync(int actId, JSONArray jaSQLs){
 	protected void afterSync(){
-		String templateId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
 
-		JSONObject jaSQLs = getSrcSqlStmts(templateId);
+		JSONArray jaSQLs=(JSONArray) getSrcSqlStmts(template).get("AFT");
 
 		String sql;
 		for (int i = 0; i < jaSQLs.size(); i++) {
@@ -153,8 +152,8 @@ class OracleData extends JDBCData{
 		//JSONObject json = new JSONObject();
 		String srcSQLstmt="select ";
 		String sql="select ";
-		String sqlFields = "insert into SYNC_TABLE_FIELD \n"
-				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
+		String sqlFields = "insert into data_field \n"
+				+ " (TASK_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
 				+ " values \n";
 
 		try {
@@ -185,21 +184,22 @@ class OracleData extends JDBCData{
 					aDataType = "[\"string\", \"null\"]";
 				} else if (sDataType.equals("DATE")) {
 					xType = 7;
-					aDataType = "\"int\", \"logicalType\": \"date\"";
+					aDataType = "[\"string\", \"null\"], \"logicalType\": \"date\"";
 				} else if (sDataType.contains("TIMESTAMP")) {
 					xType = 6;
-					aDataType = "\"string\", \"logicalType\": \"timestamp-micros\"";
+					aDataType = "[\"string\",\"null\"], \"logicalType\": \"timestamp-micros\"";
 				} else if (sDataType.equals("NUMBER")) {
 					scal = rset.getInt("data_scale");
-					if (scal > 0) {
-						xType = 4; // was 5; but let's make them all DOUBLE
-						//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
-						//+ "\"scale\": " + scal;
-					} else {
-						xType = 4; // or 2
-						//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
-						//+ "\"scale\": " + 0;
-					}
+					//if (scal > 0) {
+					//	xType = 4; // was 5; but let's make them all DOUBLE
+					//	//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
+					//	//+ "\"scale\": " + scal;
+					//} else {
+					//	xType = 4; // or 2
+					//	//aDataType = "\"bytes\", \"logicalType\": \"decimal\",\"precision\":" + rset.getInt("data_length")
+					//	//+ "\"scale\": " + 0;
+					//}
+					xType = 4;
 					aDataType = "\"long\"";   //BigDecimal is what getObject returns; but it can't work with AVRO.
 				} else if (sDataType.equals("CHAR")) {
 					xType = 1;
@@ -222,14 +222,14 @@ class OracleData extends JDBCData{
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'rowid as " + PK + "', 'varchar(20)', "  //Please keep it lower case!!!
 					+ "20, 0, "
-					+ "1, \"type\": \"string\") ";
+					+ "1, '\"type\": \"string\"') ";
 			metaData.runRegSQL(sql);
 			//The bare select statement for reading the source.
 			srcSQLstmt = srcSQLstmt + "a.rowid as " + PK 
 					+ " from " + srcSch + "." + srcTbl + " a ";
 			//setup the src select SQL statement
-			sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
-					+ " where tbl_id="+tblID;
+			sql = "update task set src_stmt0='" + srcSQLstmt + "'"
+					+ " where task_id="+tblID;
 			metaData.runRegSQL(sql);
 			
 		} catch (SQLException e) {
@@ -253,8 +253,10 @@ class OracleData extends JDBCData{
 				+ " AFTER  INSERT OR UPDATE OR DELETE ON " + srcSch+"."+srcTbl + "\n" 
 				+ "  FOR EACH ROW\n" 
 				+ "    BEGIN  INSERT INTO " + jurl + "(" + PK + ", DCC_TS )\n"  
-				+ "     VALUES ( :new.rowid, sysdate   );  END;\n\n"  
-				+ "alter trigger " + dccPgm + " disable;\n\n";
+				+ "     VALUES ( :new.rowid, sysdate   ); \n END; \n"  ;
+		if(runUpdateSQL(sql)==-1)
+			return false;		
+		sql = "alter trigger " + dccPgm + " disable";
 		if(runUpdateSQL(sql)==-1)
 			return false;		
 		return true;
@@ -266,11 +268,11 @@ class OracleData extends JDBCData{
 	}
 	@Override
 	public boolean unregisterSrc(int tblID) {
-		String sql =  "drop TRIGGER " + metaData.getTableDetails().get("src_dcc_pgm");
-		runUpdateSQL(sql);		
+		String sql =  "drop TRIGGER " + metaData.getTaskDetails().get("src_dcc_pgm");
+		executeSQL(sql);		
 		
-		sql="drop TABLE " + metaData.getTableDetails().get("src_dcc_tbl");
-		runUpdateSQL(sql);
+		sql="drop TABLE " + metaData.getTaskDetails().get("src_dcc_tbl");
+		executeSQL(sql);
 		
 		return true;
 	}
@@ -280,7 +282,7 @@ class OracleData extends JDBCData{
 	   Statement sqlStmt;
 	   try {
 		   sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-		   String sql="alter trigger "  + metaData.getTableDetails().get("src_dcc_pgm").toString() + " enable";
+		   String sql="alter trigger "  + metaData.getTaskDetails().get("src_dcc_pgm").toString() + " enable";
 		   sqlStmt.executeUpdate(sql);
 		   sqlStmt.close();
 	   } catch (SQLException e) {
@@ -307,6 +309,22 @@ class OracleData extends JDBCData{
 		} catch (SQLException e) {
 			logger.error(e);
 			rslt=-1;
+		} 
+		return rslt;
+	}
+	private boolean executeSQL(String sql) {
+		boolean rslt;
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt=null; 
+		try {
+			stmt = dbConn.createStatement();
+			rslt = stmt.execute(sql);
+			stmt.close();
+			dbConn.commit();
+		} catch (SQLException e) {
+			logger.error(e);
+			rslt=false;
 		} 
 		return rslt;
 	}

@@ -34,10 +34,10 @@ class Test
 		int tableID=6;
 		MetaData metaData = MetaData.getInstance();
 
-		metaData.setupTableForAction("testConsumeAVRO", tableID, 21);  // actId for dev activities.
+		metaData.setupTaskForAction("testConsumeAVRO", tableID, 21);  // actId for dev activities.
 		
-		JSONObject tblDetail = metaData.getTableDetails();
-		String actTemp = tblDetail.get("temp_id").toString();
+		JSONObject tblDetail = metaData.getTaskDetails();
+		String actTemp = tblDetail.get("template_id").toString();
 
 		KafkaData tgtData = (KafkaData) DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 		tgtData.test();

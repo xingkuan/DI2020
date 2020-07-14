@@ -20,11 +20,11 @@ import java.io.FileWriter;
 import java.io.IOException;
 import java.io.File;
 
-public class unRegistSyncTbl {
+public class unRegistTask {
 	private static final Logger logger = LogManager.getLogger();
 	private static final MetaData metaData = MetaData.getInstance();
 
-	private static int tblID;
+	private static int taskID;
 
 	static DataPoint srcDB, tgtDB, dccDB;
 
@@ -50,31 +50,31 @@ public class unRegistSyncTbl {
 			return;
 		}
 
-		tblID = Integer.parseInt(args[0]);
-		metaData.setupTableForAction("Unregist tbl", tblID, -1);
+		taskID = Integer.parseInt(args[0]);
+		metaData.setupTaskForAction("Unregist task", taskID, -1);
 
 		if(!unregister) {  //Just checking ...
-			System.out.println("To really do it:   unregistTbl " + tblID + " -x");
+			System.out.println("To really do it:   unregistTask " + taskID + " -x");
 			return;
 		}else {   //really unregister it
-			JSONObject tblDetail = metaData.getTableDetails();
+			JSONObject tblDetail = metaData.getTaskDetails();
 			DataPoint srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-			srcData.unregisterSrc(tblID);
+			srcData.unregisterSrc(taskID);
 			srcData.close();
 			DataPoint tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-			tgtData.unregisterTgt(tblID);
+			tgtData.unregisterTgt(taskID);
 			tgtData.close();
 			String dccDBid = tblDetail.get("dcc_db_id").toString();
 			if(!( (dccDBid !=null) || (dccDBid.equals("na"))) ) {
 				DataPoint auxData = DataPoint.dataPtrCreater(dccDBid, "DCC");
-				auxData.unregisterDcc(tblID);
+				auxData.unregisterDcc(taskID);
 				auxData.close();
 			}
 
 			String sqlStr;
-			sqlStr = "delete from SYNC_TABLE_FIELD where tbl_id = " + tblID;
+			sqlStr = "delete from data_field where task_id = " + taskID;
 			metaData.runRegSQL(sqlStr);
-			sqlStr = "delete from SYNC_TABLE where tbl_id = " + tblID; 
+			sqlStr = "delete from task where task_id = " + taskID; 
 			metaData.runRegSQL(sqlStr);
 			metaData.close();
 		}

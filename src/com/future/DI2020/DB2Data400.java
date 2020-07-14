@@ -39,8 +39,8 @@ class DB2Data400 extends JDBCData {
 		boolean rtc=false;
 		super.miscPrep();
 
-		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id"); 
-		if(jTemp.equals("2DCC")) { //was DJ2K; Only  needed when sync DCC to Kafka.
+		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id"); 
+		if(jTemp.equals("2DCC")) { 
 			rtc=initThisRefreshSeq();
 		}
 		return rtc;
@@ -55,22 +55,25 @@ class DB2Data400 extends JDBCData {
 		JSONObject jo = new JSONObject();
 		JSONArray pre = new JSONArray();
 		switch(template) {
-		case "1":    //case: read the whole table
-			pre.add(1, metaData.getBareSrcSQL() );
+		case "1DATA":    //no case yet. Having it here as a remind.
+		case "1DATA_":    //case: read the whole table
+			pre.add( metaData.getBareSrcSQL() );
 			jo.put("PRE", pre);
 			break;
-		case "2DATA":
-			String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+ metaData.getTableDetails().get("tbl_id") 
-			+ "(" + metaData.getTableDetails().get("tbl_pk") + " " + metaData.getKeyDataType() + ") " 
+		case "2DATA":    //no case yet. Having it here as a remind.
+			break;
+		case "2DATA_":
+			String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+ metaData.getTaskDetails().get("task_id") 
+			+ "(" + metaData.getTaskDetails().get("data_pk") + " " + metaData.getKeyDataType() + ") " 
 					+" NOT LOGGED"; 
 			pre.add(sql);
-			pre.add("INSERT INTO qtemp.DCC" + metaData.getTableDetails().get("tbl_id") + " VALUES (?)" );
-			sql = metaData.getBareSrcSQL() + ", qtemp.DCC"+metaData.getTableDetails().get("tbl_id") + " b "
-					+ " where a..rrn(a)=b." +metaData.getTableDetails().get("tbl_pk");  //TOTO: may have problem!
+			pre.add("INSERT INTO qtemp.DCC" + metaData.getTaskDetails().get("task_id") + " VALUES (?)" );
+			sql = metaData.getBareSrcSQL() + ", qtemp.DCC"+metaData.getTaskDetails().get("task_id") + " b "
+					+ " where a..rrn(a)=b." +metaData.getTaskDetails().get("data_pk");  //TOTO: may have problem!
 			pre.add(sql);
 			jo.put("PRE", pre);
 			break;
-		case "2JURL":
+		case "2DCC":
 			sql=DB2DCCsql(true);
 			pre.add(sql );
 			jo.put("PRE", pre);
@@ -94,8 +97,8 @@ class DB2Data400 extends JDBCData {
 	
 		if(prefered) {
 			sql = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-					+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" 
-					+ metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+					+ " FROM table (Display_Journal('" + metaData.getTaskDetails().get("src_schema") + "', '" 
+					+ metaData.getTaskDetails().get("src_table") + "', " + "   '', '"
 					+ currStr + "', "
 					+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
 					+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
@@ -108,8 +111,8 @@ class DB2Data400 extends JDBCData {
 					+ " order by 2 asc";
 		}else {
 			sql= " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-					+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" 
-					+ metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+					+ " FROM table (Display_Journal('" + metaData.getTaskDetails().get("src_schema") + "', '" 
+					+ metaData.getTaskDetails().get("src_table") + "', " + "   '', '"
 					+ currStr + "', " 
 					+ "   cast(null as TIMESTAMP), " + "   cast(null as decimal(21,0)), "
 					+ "   'R', " 
@@ -125,7 +128,7 @@ class DB2Data400 extends JDBCData {
 	@Override
 	//public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
 	public int crtSrcResultSet() {
-		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
 
 		JSONArray jaSQLs=(JSONArray) getSrcSqlStmts(template).get("PRE");
 		String sql;
@@ -135,7 +138,7 @@ class DB2Data400 extends JDBCData {
 		}
 		sql=jaSQLs.get(jaSQLs.size()-1).toString();
 		if( SQLtoResultSet(sql)<=0 ) {  // DB2AS400 journal, double check with relaxed "display_journal"
-			if(template.equals("2JURL")) {
+			if(template.equals("2DCC")) {
 				logger.warn("Failed the 1st trying of initializing src resultset.");
 				sql=DB2DCCsql(false);
 				if( SQLtoResultSet(sql) <=0 ) {
@@ -161,15 +164,15 @@ class DB2Data400 extends JDBCData {
 			sql = metaData.getBareSrcSQL() + " where rrn(a) in (" + wc + ")"; 
 			SQLtoResultSet(sql);
 		}else {  //TODO: ugly; also works for DB2/AS400 only! (maybe not so bad. This code is DB2Data400.java!)
-			JSONObject TJ = metaData.getTableDetails();
+			JSONObject TJ = metaData.getTaskDetails();
 			//use global temp tbl
-			sql = "DECLARE GLOBAL TEMPORARY TABLE DCC"+ TJ.get("tbl_id") + 
-					"(" + TJ.get("tbl_pk") + " bigint) " 
+			sql = "DECLARE GLOBAL TEMPORARY TABLE DCC"+ TJ.get("task_id") + 
+					"(" + TJ.get("data_pk") + " bigint) " 
 					+" NOT LOGGED"; 
 			runUpdateSQL(sql);
 			//batch insert into the temp table:
 			{
-			sql = "INSERT INTO qtemp.DCC" + TJ.get("tbl_id") + " VALUES (?)" ;
+			sql = "INSERT INTO qtemp.DCC" + TJ.get("task_id") + " VALUES (?)" ;
 			int[] batchIns = null;
 			int i = 0, curRecCnt = 0;
 			PreparedStatement insStmt;
@@ -198,15 +201,15 @@ class DB2Data400 extends JDBCData {
 
 			}
 			sql = metaData.getBareSrcSQL();
-			sql = sql + ", qtemp.DCC"+TJ.get("tbl_id") + " b "
-					+ " where rrn(a)=b." +TJ.get("tbl_pk");
+			sql = sql + ", qtemp.DCC"+TJ.get("task_id") + " b "
+					+ " where rrn(a)=b." +TJ.get("data_pk");
 			SQLtoResultSet(sql);
 		}
 	}
 	@Override
 	//protected void afterSync(int actId, JSONArray jaSQLs){
 	protected void afterSync(){
-		String templateId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+		String templateId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
 
 		JSONObject jaSQLs = getSrcSqlStmts(templateId);
 		String sql;
@@ -260,8 +263,8 @@ class DB2Data400 extends JDBCData {
 			// The code do it here in the hope of doing good thing. But the user should be
 			// the one to see if that is appropreate.
 			logger.warn(
-					"Posssible data loss! needed journal " + metaData.getTableDetails().get("SRC_TABLE") + " must have been deleted.");
-			logger.warn("  try differently of " + metaData.getTableDetails().get("SRC_TABLE") + ":");
+					"Posssible data loss! needed journal " + metaData.getTaskDetails().get("SRC_TABLE") + " must have been deleted.");
+			logger.warn("  try differently of " + metaData.getTaskDetails().get("SRC_TABLE") + ":");
 			try {
 				srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 				String StrSQL = metaData.getSrcDCCSQL(false, true);
@@ -269,7 +272,7 @@ class DB2Data400 extends JDBCData {
 				rtv=true;
 				logger.info("   opened src jrnl recordset on ultimate try: ");
 			} catch (SQLException ex) {
-				logger.error("   ultimate failure: " + metaData.getTableDetails().get("SRC_TABLE") + " !");
+				logger.error("   ultimate failure: " + metaData.getTaskDetails().get("SRC_TABLE") + " !");
 				logger.error("   initSrcLogQuery() failure: " + ex);
 			}
 		}
@@ -295,7 +298,7 @@ class DB2Data400 extends JDBCData {
 		String whereClause = "";
 
 		if (!whr.equals(""))
-			whereClause = " where " + metaData.getTableDetails().get("tbl_pk") +" in (" + whr + ")";
+			whereClause = " where " + metaData.getTaskDetails().get("data_pk") +" in (" + whr + ")";
 
 		String sqlStr = metaData.getSQLSelSrc() + whereClause;
 
@@ -348,7 +351,7 @@ class DB2Data400 extends JDBCData {
 		try {
 			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			sqlRset = sqlStmt.executeQuery(
-					" select count(distinct M_ROW)   from   " + metaData.getTableDetails().get("src_log"));
+					" select count(distinct M_ROW)   from   " + metaData.getTaskDetails().get("src_log"));
 			sqlRset.next();
 			lc = Integer.parseInt(sqlRset.getString(1));
 			sqlRset.close();
@@ -384,7 +387,7 @@ class DB2Data400 extends JDBCData {
 			currStr="*CURCHAIN";
 		//return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" + lName + "', '" + jName
 		return " select max(SEQUENCE_NUMBER) " + " FROM table (Display_Journal('" 
-				+ metaData.getTableDetails().get("src_schema") + "', '" + metaData.getTableDetails().get("src_table")
+				+ metaData.getTaskDetails().get("src_schema") + "', '" + metaData.getTaskDetails().get("src_table")
 				+ "', '', '" + currStr + "', " // it looks like possible the journal can be switched and this SQL return no rows
 				+ " cast(null as TIMESTAMP), " // pass-in the start timestamp;
 				+ " cast(null as decimal(21,0)), " // starting SEQ #
@@ -492,8 +495,8 @@ class DB2Data400 extends JDBCData {
 		String srcSQLstmt="select ";
 
 		String sql = null;
-		String sqlFields = "insert into SYNC_TABLE_FIELD \n"
-				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
+		String sqlFields = "insert into data_field \n"
+				+ " (TASK_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, SRC_FIELD_LEN, SRC_FIELD_SCALE, JAVA_TYPE, AVRO_Type) \n"  
 				+ " values \n";
 		String sqlCrtTbl = "create table " + tgtSch + "." + tgtTbl + "\n ( ";
 
@@ -526,22 +529,22 @@ class DB2Data400 extends JDBCData {
 
 				if (sDataType.equals("VARCHAR")) {
 					xType = 1;
-					aDataType = "\"string\"";
+					aDataType = "[\"string\", \"null\"]";
 				} else if (sDataType.equals("DATE")) {
 					xType = 7;
-					aDataType = "\"int\", \"logicalType\": \"date\"";
+					aDataType = "[\"string\", \"null\"], \"logicalType\": \"date\"";
 				} else if (sDataType.equals("TIMESTMP")) {
 					xType = 6;
-					aDataType = "\"timestamp_micros\"";
+					aDataType = "[\"string\",\"null\"], \"logicalType\": \"timestamp-micros\"";
 				} else if (sDataType.equals("NUMERIC")) {
 					xType = 4; // was 5; but let's make them all DOUBLE
-					aDataType = "\"double\"";
+					aDataType = "[\"long\", \"null\"]";
 				} else if (sDataType.equals("CHAR")) {
 					xType = 1;
-					aDataType = "\"string\"";
+					aDataType = "[\"string\", \"null\"]";
 				} else {
 					xType = 1;
-					aDataType = "\"string\"";
+					aDataType = "[\"string\", \"null\"]";
 				}
 
 				sql = sqlFields 
@@ -558,14 +561,14 @@ class DB2Data400 extends JDBCData {
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'RRN(a) as " + PK + "', 'bigint', "
 					+ "20, 0,"
-					+ "1, '\"type\": \"double\"')";
+					+ "1, '\"type\": \"long\"')";
 			metaData.runRegSQL(sql);
 
 			//setup the src select SQL statement
 			srcSQLstmt = srcSQLstmt + "RRN(a) as " + PK 
 					+ " from " + srcSch + "." + srcTbl + " a ";
-			sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
-					+ " where tbl_id="+tblID;
+			sql = "update task set src_stmt0='" + srcSQLstmt + "'"
+					+ " where task_id="+tblID;
 			metaData.runRegSQL(sql);
 		} catch (SQLException e) {
 			// TODO Auto-generated catch block
@@ -580,14 +583,14 @@ class DB2Data400 extends JDBCData {
 		String lName=temp[0];
 		String jName=temp[1];
 
-		String sql = "insert into SYNC_TABLE \n"
-				+ "(TBL_ID, TEMP_ID, TBL_PK, \n"
+		String sql = "insert into task \n"
+				+ "(TASK_ID, TEMPLATE_ID, TASK_CAT, DATA_PK, \n"
 				+ "POOL_ID, \n" 
 				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 
 				+ "TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, \n"
 				+ "TS_REGIST) \n" 
 				+ "values \n"
-				+ "(" + (tblID+1) + ", 'DJ2K', '" + PK + "', \n"	
+				+ "(" + (tblID+1) + ", 'DCC', 'COPY', '" + PK + "', \n"	
 				+ " -1, \n"      
 				+"'" +  dbID + "', '" + lName + "', '" + jName + "', \n" 
 				+ "'" + dccDBid + "', '*', '*', \n"
@@ -596,18 +599,18 @@ class DB2Data400 extends JDBCData {
 				;
 		metaData.runRegSQL(sql);
 
-		sql = "insert into SYNC_TABLE_FIELD \n"
-				+ " (TBL_ID, FIELD_ID, SRC_FIELD, SRC_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
+		sql = "insert into data_field \n"
+				+ " (TASK_ID, FIELD_ID, SRC_FIELD, TGT_FIELD, SRC_FIELD_TYPE, JAVA_TYPE, AVRO_Type) \n"  
 				+ " values \n"
 				+ "("+ (tblID+1) +", 1, " 
-				+ "'" + PK + "', 'bigint', "
-				+ "1, 'dbl')";
+				+ "'" + PK + "', '" + PK + "','bigint', "
+				+ "1, '\"type\": \"string\"')";
 		metaData.runRegSQL(sql);
 
 		//setup the src select SQL statement
 		String srcSQLstmt="BYODCCSQL";  //Build Your Own DCC SQL. Not much added value in putting it in meta_data.
-		sql = "update SYNC_TABLE set src_stmt0='" + srcSQLstmt + "'"
-				+ " where tbl_id="+(tblID+1);
+		sql = "update task set src_stmt0='" + srcSQLstmt + "'"
+				+ " where task_id="+(tblID+1);
 		metaData.runRegSQL(sql);
 
 		return true;
@@ -651,7 +654,7 @@ private String byodccSQL(boolean fast, boolean relaxed)	{
 	JSONArray pre = new JSONArray();
 	if(relaxed) {
 		sql= " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-				+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" + metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+				+ " FROM table (Display_Journal('" + metaData.getTaskDetails().get("src_schema") + "', '" + metaData.getTaskDetails().get("src_table") + "', " + "   '', '"
 				+ currStr + "', " 
 				+ "   cast(null as TIMESTAMP), " 
 				+ "   cast(null as decimal(21,0)), "
@@ -665,7 +668,7 @@ private String byodccSQL(boolean fast, boolean relaxed)	{
 		return sql;
 	}else
 		sql = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR, trim(both from SUBSTR(OBJECT,11,10))||'.'||trim(both from SUBSTR(OBJECT,21,10)) as SRCTBL"
-				+ " FROM table (Display_Journal('" + metaData.getTableDetails().get("src_schema") + "', '" + metaData.getTableDetails().get("src_table") + "', " + "   '', '"
+				+ " FROM table (Display_Journal('" + metaData.getTaskDetails().get("src_schema") + "', '" + metaData.getTaskDetails().get("src_table") + "', " + "   '', '"
 				+ currStr + "', "
 				+ "   cast(null as TIMESTAMP), " // pass-in the start timestamp;
 				+ "   cast(" + lasDCCSeq + " as decimal(21,0)), " // starting SEQ #
@@ -679,7 +682,9 @@ private String byodccSQL(boolean fast, boolean relaxed)	{
 		return sql;
 	}
 	public boolean beginDCC(){
-		logger.info("   not applicable to DB2/AS400.");
+		//TODO: For DCC, need to set task.seq_last_ref;
+		initThisRefreshSeq();
+		
 		return true;
 	}
 

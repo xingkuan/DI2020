@@ -79,7 +79,7 @@ class VerticaData extends JDBCData {
 	}
 	*/
 	private void truncateTbl() {
-		String sql = "truncate table " + metaData.getTableDetails().get("tgt_schema") + "."+ metaData.getTableDetails().get("tgt_table");
+		String sql = "truncate table " + metaData.getTaskDetails().get("tgt_schema") + "."+ metaData.getTaskDetails().get("tgt_table");
 		runUpdateSQL(sql);
 	}
 	private boolean runUpdateSQL(String sql) {
@@ -135,8 +135,8 @@ class VerticaData extends JDBCData {
 */
 	private int deleteRowsBatch(ResultSet rs) throws SQLException {
 		int rtc = 0;
-		String delSQL = "delete from " + metaData.getTableDetails().get("tgt_schema") + "." + metaData.getTableDetails().get("tgt_table") 
-		+ " where " + metaData.getTableDetails().get("tbl_pk") + "=?";
+		String delSQL = "delete from " + metaData.getTaskDetails().get("tgt_schema") + "." + metaData.getTaskDetails().get("tgt_table") 
+		+ " where " + metaData.getTaskDetails().get("data_pk") + "=?";
 
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 
@@ -196,8 +196,8 @@ class VerticaData extends JDBCData {
 		int i = 0, curRecCnt = 0;
 		PreparedStatement delStmt;
 
-		String sql = "delete from " + metaData.getTableDetails().get("tgt_schema") + "." + metaData.getTableDetails().get("tgt_table") 
-		+ " where " + metaData.getTableDetails().get("tbl_pk") + "=?";
+		String sql = "delete from " + metaData.getTaskDetails().get("tgt_schema") + "." + metaData.getTaskDetails().get("tgt_table") 
+		+ " where " + metaData.getTaskDetails().get("data_pk") + "=?";
 
 		try {
 			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
@@ -266,7 +266,7 @@ class VerticaData extends JDBCData {
 			ResultSet rsltSet = srcData.getSrcResultSet();
 			rtc = syncDataFromV2(rsltSet, 2);
 			if(rtc<0) {
-				logger.error("Error happened. There is the risk of data being out of sync for " + metaData.getTableDetails().get("src_schema") + metaData.getTableDetails().get("src_table"));
+				logger.error("Error happened. There is the risk of data being out of sync for " + metaData.getTaskDetails().get("src_schema") + metaData.getTaskDetails().get("src_table"));
 			}
 
 		}else {
@@ -491,8 +491,8 @@ class VerticaData extends JDBCData {
 	}
 	@Override
 	public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-		//finish where the main registration unfinish on SYNC_TABLE_FIELD
-		String sql = "update SYNC_TABLE_FIELD set " + 
+		//finish where the main registration unfinish on data_field
+		String sql = "update data_field set " + 
 				"tgt_field=regexp_replace(src_field, '^.* as ', ''), " + 
 				"tgt_field_type=case " + 
 				"when src_field_type like '%CHAR%' then 'VARCHAR('||2*src_field_len||')' " + 
@@ -501,11 +501,11 @@ class VerticaData extends JDBCData {
 				"when src_field_type like 'TIMEST%' then 'TIMESTAMP' " +  //DB2/AS400 is TIMESTMP 
 				"else src_field_type " + 
 				"END " + 
-				"where tbl_id=" + tblID;
+				"where task_id=" + tblID;
 		metaData.runRegSQL(sql);
 		
 		//create tgt table
-		sql="select tgt_field, tgt_field_type from SYNC_TABLE_FIELD where tbl_id="+tblID+" order by field_id asc";
+		sql="select tgt_field, tgt_field_type from data_field where task_id="+tblID+" order by field_id asc";
 		JSONArray jarr=metaData.SQLtoJSONArray(sql);
 		sql="create table "+tgtSch+"."+tgtTbl+"(";
 		JSONObject jo;
@@ -523,10 +523,10 @@ class VerticaData extends JDBCData {
 	    //create tgt table
 		runUpdateSQL(sql);
 		
-		//update SYNC_TABLE.tgt_stmt0
+		//update task.tgt_stmt0
 		sqlTgtIns = sqlTgtIns + jo.get("tgt_field") + ") values ("
 				+ sqlTgtInsVal + "?)";
-		sql="update SYNC_TABLE set tgt_stmt0='" + sqlTgtIns + "' where tbl_id="+tblID;
+		sql="update task set tgt_stmt0='" + sqlTgtIns + "' where task_id="+tblID;
 		metaData.runRegSQL(sql);
 				
 		return true;
@@ -534,7 +534,7 @@ class VerticaData extends JDBCData {
 	@Override
 	public boolean unregisterTgt(int tblID) {
 		String sql =  "drop table " 
-				+ metaData.getTableDetails().get("tgt_schema")+"."+metaData.getTableDetails().get("tgt_table");
+				+ metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
 		runUpdateSQL(sql);		
 		
 		return true;

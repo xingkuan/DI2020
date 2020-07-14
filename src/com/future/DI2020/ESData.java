@@ -48,7 +48,7 @@ class ESData extends DataPoint{
 		boolean rtc=true;
 		super.miscPrep();
 
-		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id"); 
+		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id"); 
 		//if(jTemp.equals("DJ2K")) { 
 		//	rtc=initThisRefreshSeq();
 		//}

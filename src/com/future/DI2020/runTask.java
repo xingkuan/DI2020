@@ -17,7 +17,7 @@ import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.logging.log4j.LogManager;
 
-class runTable {
+class runTask {
 	private static final Logger logger = LogManager.getLogger();
 	private static final Metrix metrix = Metrix.getInstance();
 	private static final MetaData metaData = MetaData.getInstance();
@@ -77,13 +77,13 @@ class runTable {
 	static void actOnTable(int tID, int actId) {
 		int syncSt = 2; //the desired table state: "2"
 
-		if(metaData.setupTableForAction("tobesetlater", tID, actId)==-1) {
+		if(metaData.setupTaskForAction("tobesetlater", tID, actId)==-1) {
 			logger.error("Exit without doing anything.");
 			return ;
 		}
 
 		logger.info("BEGIN.");
-		JSONObject tblDetail = metaData.getTableDetails();
+		JSONObject tblDetail = metaData.getTaskDetails();
 
 		metaData.begin();
 		//based on jobDetail, do the corresponding...
@@ -91,23 +91,24 @@ class runTable {
 			case 0:  //enable table to be actionable.
 				jobID = "enableTbl";
 				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
 				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 				srcData.miscPrep();  
-				logger.info("   src ready: " + metaData.getTableDetails().get("src_table"));
+				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table"));
 
 									 //For Oracle (to V), it is enable trigger and curr_state=2;
 				srcData.beginDCC();	 //For DB2/AS400 log (to K), set the seq_last_ref, and curr_state=2;
 									 //For DB2/AS400 tbl (to V), curr_state=2
+				metaData.saveInitStats();
 				break;
 			case 1:  //initial copying of data from src to tgt
 				jobID = "initTbl";
 				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
 				//String tempId="1";
 				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 				srcData.miscPrep();  
-				logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
 
 				tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 				tgtData.miscPrep();
@@ -122,25 +123,26 @@ class runTable {
 			case 2:   //sync DCC, and tbl as well 
 				jobID = "syncTbl";
 				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
 
-				String tempId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("temp_id");
+				String tempId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
 				switch(tempId) {
 					case "2DCC":
 					case "2DATA":
 						srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 						srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
-						logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+						logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
 						int dccCnt = srcData.getDccCnt();
 						if(dccCnt==0) {
 							logger.info("   no dcc.");
-							return ;  
+							break ;  
 						}
 
-						syncSt=srcData.crtSrcResultSet();
-						if(syncSt<0) {
+						int cnt=srcData.crtSrcResultSet();
+						if(cnt<0) {
 							logger.info("    error in source.");
 						}else {
+							tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 							tgtData.setupSink();
 							srcData.copyTo(tgtData);
 						}
@@ -152,12 +154,12 @@ class runTable {
 						dccCnt = auxData.getDccCnt();
 						if(dccCnt==0) {
 							logger.info("   no dcc.");
-							return ;  
+							break ;  
 						}
-						logger.info("   aux ready: " + metaData.getTableDetails().get("src_table").toString());
+						logger.info("   aux ready: " + metaData.getTaskDetails().get("src_table").toString());
 						srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 						srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
-						logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+						logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
 
 						tgtData.setupSink();
 						srcData.copyToVia(tgtData,auxData);  
@@ -166,19 +168,21 @@ class runTable {
 						logger.error("wrong template ID");
 						break;
 				}
-				srcData.afterSync();
-				tgtData.afterSync();
+				if(srcData!=null)
+					srcData.afterSync();
+				if(tgtData!=null)
+					tgtData.afterSync();
 				
 				break;
 			case 9:   //audit
 				//actType9(tID, actId);
 				jobID = "auditTbl";
 				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTableDetails().get("src_table").toString());
+				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
 
 				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 				srcData.miscPrep();  
-				logger.info("   src ready: " + metaData.getTableDetails().get("src_table").toString());
+				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
 
 				tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 				tgtData.miscPrep();
@@ -191,6 +195,10 @@ class runTable {
 				logger.info("unkown action");
 				break;
 		}
+		if(srcData!=null)
+			srcData.commit();
+		if(tgtData!=null)
+			tgtData.commit();
 		metaData.end(syncSt);
 		metaData.saveSyncStats();
 		tearDown();
