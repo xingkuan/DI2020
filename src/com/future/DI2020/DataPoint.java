@@ -81,6 +81,9 @@ public class DataPoint {
 					case "KAFKA":
 						db = new KafkaData(jo, role);
 						break;
+					case "KAFKA_":
+						db = new KafkaDCC(jo, role);
+						break;
 					case "ORACLE":
 						db = new OracleData(jo, role);
 						break;
@@ -250,6 +253,11 @@ public class DataPoint {
 		logger.info("   An empty method in DataPointer: getThisRefreshSeq()");
 		// TODO Auto-generated method stub
 		return 0;
+	}
+	
+	protected void createKafkaConsumer(String topic) {
+		// TODO Auto-generated method stub
+		
 	}
 
 	

@@ -1,5 +1,9 @@
 package com.future.DI2020;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.time.Duration;
+import java.util.Arrays;
 import java.util.List;
 
 import javax.script.Invocable;
@@ -7,6 +11,15 @@ import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
 
+import org.apache.avro.Schema;
+import org.apache.avro.generic.GenericDatumReader;
+import org.apache.avro.generic.GenericRecord;
+import org.apache.avro.io.BinaryDecoder;
+import org.apache.avro.io.DatumReader;
+import org.apache.avro.io.DecoderFactory;
+import org.apache.kafka.clients.consumer.ConsumerRecord;
+import org.apache.kafka.clients.consumer.ConsumerRecords;
+import org.apache.kafka.clients.consumer.KafkaConsumer;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
@@ -47,6 +60,7 @@ class xformApp
 			System.out.println("Usage:   syncTable <tbl|pool> oId aId");
 			
 	}
+   
 	static void xFormTables(int poolID) {
 		List<Integer> tblList = metaData.getTblsByPoolID(poolID);
 		for (int i : tblList) {

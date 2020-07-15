@@ -145,6 +145,12 @@ values
  '',
  'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
  'kafka 1'),
+('KAFKADCC',   --Have a dedicated DCC kafka, to make code easier (on creating the right DataPoint)
+ 'MQ', 'KAFKA_',
+ 'xxx', 'xxx', 
+ '',
+ 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'kafka DCC'),
 ('ORA1', 
  'RDBMS', 'ORACLE',
  'johnlee', 'johnlee213', 

@@ -126,12 +126,13 @@ class runTask {
 				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
 
 				String tempId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
+				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+				srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
+				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
+				
 				switch(tempId) {
 					case "2DCC":
 					case "2DATA":
-						srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-						srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
-						logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
 						int dccCnt = srcData.getDccCnt();
 						if(dccCnt==0) {
 							logger.info("   no dcc.");
@@ -157,9 +158,6 @@ class runTask {
 							break ;  
 						}
 						logger.info("   aux ready: " + metaData.getTaskDetails().get("src_table").toString());
-						srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-						srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
-						logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
 
 						tgtData.setupSink();
 						srcData.copyToVia(tgtData,auxData);  
@@ -168,6 +166,7 @@ class runTask {
 						logger.error("wrong template ID");
 						break;
 				}
+
 				if(srcData!=null)
 					srcData.afterSync();
 				if(tgtData!=null)
