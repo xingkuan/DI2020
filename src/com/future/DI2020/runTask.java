@@ -147,6 +147,8 @@ class runTask {
 							tgtData.setupSink();
 							srcData.copyTo(tgtData);
 						}
+						srcData.afterSync();
+						tgtData.afterSync();
 						break;
 					case "2DATA_":
 						String auxDBstr = tblDetail.get("dcc_db_id").toString();
@@ -159,19 +161,17 @@ class runTask {
 						}
 						logger.info("   aux ready: " + metaData.getTaskDetails().get("src_table").toString());
 
+						tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 						tgtData.setupSink();
 						srcData.copyToVia(tgtData,auxData);  
+						srcData.afterSync();
+						tgtData.afterSync();
 						break;
 					default:
 						logger.error("wrong template ID");
 						break;
 				}
 
-				if(srcData!=null)
-					srcData.afterSync();
-				if(tgtData!=null)
-					tgtData.afterSync();
-				
 				break;
 			case 9:   //audit
 				//actType9(tID, actId);

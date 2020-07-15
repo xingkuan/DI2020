@@ -209,10 +209,13 @@ class DB2Data400 extends JDBCData {
 	@Override
 	//protected void afterSync(int actId, JSONArray jaSQLs){
 	protected void afterSync(){
-		String templateId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
+		String template = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
 
-		JSONObject jaSQLs = getSrcSqlStmts(templateId);
+		JSONArray jaSQLs=(JSONArray) getSrcSqlStmts(template).get("AFT");
+
 		String sql;
+		if(jaSQLs==null)
+			return;
 		for (int i = 0; i < jaSQLs.size(); i++) {
 			sql = jaSQLs.get(i).toString();
 			runUpdateSQL(sql);
@@ -526,27 +529,32 @@ class DB2Data400 extends JDBCData {
 				srcSQLstmt = srcSQLstmt + "a." + rset.getString("column_name") + ", ";
 				
 				sDataType = rset.getString("data_type");
-
-				if (sDataType.equals("VARCHAR")) {
-					xType = 1;
-					aDataType = "[\"string\", \"null\"]";
-				} else if (sDataType.equals("DATE")) {
-					xType = 7;
-					aDataType = "[\"string\", \"null\"], \"logicalType\": \"date\"";
-				} else if (sDataType.equals("TIMESTMP")) {
-					xType = 6;
-					aDataType = "[\"string\",\"null\"], \"logicalType\": \"timestamp-micros\"";
-				} else if (sDataType.equals("NUMERIC")) {
-					xType = 4; // was 5; but let's make them all DOUBLE
-					aDataType = "[\"long\", \"null\"]";
-				} else if (sDataType.equals("CHAR")) {
-					xType = 1;
-					aDataType = "[\"string\", \"null\"]";
-				} else {
-					xType = 1;
-					aDataType = "[\"string\", \"null\"]";
+				switch(sDataType){
+					case "CHAR":
+					case "VARCHAR":
+						xType = 1;
+						aDataType = "[\"string\", \"null\"]";
+						break;
+					case "DATE":
+						xType = 7;
+						aDataType = "[\"string\", \"null\"], \"logicalType\": \"date\"";
+						break;
+					case "TIMESTMP":
+						xType = 6;
+						aDataType = "[\"string\",\"null\"], \"logicalType\": \"timestamp-micros\"";
+						break;
+					case "NUMERIC":
+					case "DECIMAL":
+					case "INTEGER":
+						xType = 4; // was 5; but let's make them all DOUBLE
+						aDataType = "[\"long\", \"null\"]";
+						break;
+					default:
+						logger.error("need looking into!");
+						xType = 1;
+						aDataType = "[\"string\", \"null\"]";
+						break;
 				}
-
 				sql = sqlFields 
 						+ "(" + tblID + ", " + rset.getInt("ordinal_position") + ", '"  
 						+ rset.getString("column_name") + "', '" + sDataType + "', "
@@ -561,7 +569,7 @@ class DB2Data400 extends JDBCData {
 					+ "("+ tblID +", " + fieldCnt + ", " 
 					+ "'RRN(a) as " + PK + "', 'bigint', "
 					+ "20, 0,"
-					+ "1, '\"type\": \"long\"')";
+					+ "4, '\"type\": \"long\"')";
 			metaData.runRegSQL(sql);
 
 			//setup the src select SQL statement
@@ -582,8 +590,17 @@ class DB2Data400 extends JDBCData {
 		String[] temp = jurl.split("\\.");
 		String lName=temp[0];
 		String jName=temp[1];
-
-		String sql = "insert into task \n"
+		String sql="select 1 from task "
+				+ "where src_db_id='"+dbID+"' "
+				+ " and src_schema='"+lName+"' "
+				+ " and src_table='"+jName + "'";
+		JSONArray jo = metaData.SQLtoJSONArray(sql);
+		if((jo==null)||jo.isEmpty()) {
+			logger.info(jurl + " is already in the system. Skip!");
+			return true;
+		}
+		
+		sql = "insert into task \n"
 				+ "(TASK_ID, TEMPLATE_ID, TASK_CAT, DATA_PK, \n"
 				+ "POOL_ID, \n" 
 				+ "SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, \n" 

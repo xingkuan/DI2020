@@ -34,6 +34,20 @@ public class RegXform0 {
 
 {"namespace": "com.future.DI2020.avro", 
 "type": "record", 
+"name": "JOHNLEE2.TESTTBL2", 
+"fields": [ 
+  {"name": "COL1", "type": ["string", "null"]} 
+, {"name": "COL2", "type": ["string", "null"], "logicalType": "date"} 
+, {"name": "COL5", "type": ["long", "null"]} 
+, {"name": "COL6", "type": ["string", "null"]} 
+, {"name": "COL7", "type": ["string", "null"]} 
+, {"name": "COL8", "type": ["string","null"], "logicalType": "timestamp-micros"} 
+, {"name": "COLNUM", "type": ["string", "null"]} 
+, {"name": "DB2RRN", "type": "long"} 
+] }
+
+{"namespace": "com.future.DI2020.avro", 
+"type": "record", 
 "name": "JOHNLEE2.QSQJRN", 
 "fields": [ 
 {"name": "null", dbl} 

@@ -112,19 +112,24 @@ class KafkaDCC extends Kafka {
 		String journal=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
 		
 		String jsonSch = metaData.getAvroSchema();
-
-		String strSQL = "select src_schema||'.'||src_table as name from task where src_db_id ='" + dbID
-				+ "' and src_dcc_tbl='" + journal + "' and tgt_schema !='*' order by 1";
+		iniActiveTblList();
+		//schema = new Schema.Parser().parse(new File("user.avsc"));
+		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
+		//createKafkaProducer();
+	}
+	private void iniActiveTblList(){
+		String tblSrcDB=metaData.getTaskDetails().get("src_db_id").toString();
+		String tblSrcSch=metaData.getTaskDetails().get("src_schema").toString();
+		String tblSrcTbl=metaData.getTaskDetails().get("src_table").toString();
+		String strSQL = "select src_schema||'.'||src_table as name from task "
+				+ "where src_db_id ='" + tblSrcDB + "' "
+				+ "and src_dcc_tbl='" + tblSrcSch + "." + tblSrcTbl + "' "
+				+ "and tgt_schema !='*' order by 1";
 		JSONArray ja = metaData.SQLtoJSONArray(strSQL);
 	    activeTblList = (List<String>) ja.stream()
 	    		.map( o -> ((JSONObject) o).get("name"))
 	    		.collect(Collectors.toList());
-	    		
-		//schema = new Schema.Parser().parse(new File("user.avsc"));
-		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
-		createKafkaProducer();
 	}
-
 	@Override
 	public void write(ResultSet rs) {
 		try {
@@ -183,8 +188,8 @@ class KafkaDCC extends Kafka {
 		int noRecordsCount = 0, cntRRN = 0;
 
 		while (true) {
-			ConsumerRecords<Long, String> records = consumer.poll(Duration.ofMillis(pollWaitMil));
-			// ConsumerRecords<Long, String> records = consumerx.poll(0);
+			//ConsumerRecords<Long, String> records = consumer.poll(Duration.ofMillis(pollWaitMil));
+			ConsumerRecords<Long, String> records = consumer.poll(300);
 			if (records.count() == 0) {  //no record? try again, after consective "giveUp" times.
 				noRecordsCount++;
 				logger.info("    consumer poll cnt: " + noRecordsCount);

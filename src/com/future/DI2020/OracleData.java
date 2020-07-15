@@ -122,6 +122,8 @@ class OracleData extends JDBCData{
 		JSONArray jaSQLs=(JSONArray) getSrcSqlStmts(template).get("AFT");
 
 		String sql;
+		if(jaSQLs==null)
+			return;
 		for (int i = 0; i < jaSQLs.size(); i++) {
 			sql = jaSQLs.get(i).toString();
 			runUpdateSQL(sql);
@@ -132,13 +134,15 @@ class OracleData extends JDBCData{
 	@Override
 	public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
         //if log table "jurl" exist, return false;	
-		String sql="select TABLE_NAME from dba_tables where OWNER||'.'||TABLE_NAME='" + jurl + "'";
+		String sql="select TABLE_NAME from dba_tables "
+				+ "where OWNER||'.'||TABLE_NAME='" + jurl + "'";
 		if(SQLtoResultSet(sql)>0) {
 			logger.error("log table " + jurl + " exist already!");
 			return false;
 		}
 		//trigger name "dccPgm" exist, return false
-		sql="select TRIGGER_NAME from dba_triggers where owner||'.'||TRIGGER_NAME='"+ dccPgm + "'";
+		sql="select TRIGGER_NAME from dba_triggers "
+				+ "where owner||'.'||TRIGGER_NAME='"+ dccPgm + "'";
 		if(SQLtoResultSet(sql)>0) {
 			logger.error("log trigger " + dccPgm + " exist already!");
 			return false;

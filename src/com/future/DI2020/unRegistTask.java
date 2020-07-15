@@ -58,9 +58,12 @@ public class unRegistTask {
 			return;
 		}else {   //really unregister it
 			JSONObject tblDetail = metaData.getTaskDetails();
-			String tempId=tblDetail.get("template_id").toString();
-			if(tempId.equals("DCC")) {
-				logger.warn("I don't think you want to do this; I quit on it. -:)");
+			//Check if this task has any dependency. If yes,(like DB2 journal DCC), return.
+			if(metaData.taskHasDependency(tblDetail.get("src_db_id").toString(),
+					tblDetail.get("src_schema").toString(),
+					tblDetail.get("src_table").toString())){
+				logger.error("I don't think you want to remove " + tblDetail.get("src_schema")
+				+ "." + tblDetail.get("src_table"));
 				return;
 			}
 			DataPoint srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");

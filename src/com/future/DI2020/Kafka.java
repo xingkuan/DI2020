@@ -97,7 +97,7 @@ class Kafka extends DataPoint {
 	//}
 
 	protected void setProducerProps() {
-		String cientID = metaData.getJobID() + "_" + metaData.getDCCPoolID();
+		String cientID = metaData.getJobID() + "_" + metaData.getTaskDetails().get("task_id");
 
 		String strVal = conf.getConf("kafkaMaxBlockMS");
 		String kafkaACKS = conf.getConf("kafkaACKS");
@@ -118,7 +118,7 @@ class Kafka extends DataPoint {
 		props.put("max.block.ms", kafkaMaxBlockMS); // default 60000 ms
 		// props.put("key.serializer",
 		// "org.apache.kafka.common.serialization.StringSerializer");
-		props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
+		//props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());
 		props.put(ProducerConfig.CLIENT_ID_CONFIG, cientID);
 		// props.put("value.serializer",
 		// "org.apache.kafka.common.serialization.ByteArraySerializer");

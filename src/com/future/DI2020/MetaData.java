@@ -143,7 +143,7 @@ class MetaData {
 		case 21:  //testing code
 			break;
 		case -1:
-			logger.info("unregister task " + taskID + ": "
+			logger.info("To unregister task " + taskID + ": "
 					+ tskDetailJSON.get("src_schema")+"."+tskDetailJSON.get("src_table"));
 			break;
 		default:
@@ -284,6 +284,19 @@ class MetaData {
 	}
 	public String getKeyDataType() {
 		return keyDataType;
+	}
+	
+	public boolean taskHasDependency(String dbID, String srcSch, String srcTbl) {
+		boolean rtc=true;
+		String sql="select 1 from task "
+				+ "where src_db_id='"+dbID+"' "
+				+ " and src_schema='"+srcSch+"' "
+				+ " and src_table='"+srcTbl + "'";
+		JSONArray jo = SQLtoJSONArray(sql);
+		if((jo==null)||jo.isEmpty()) {
+			rtc=false;
+		}
+		return rtc;
 	}
 	public int begin() {
 			logger.warn("    Action: " + tmpDetailJSON.get("info").toString());
@@ -657,8 +670,8 @@ class MetaData {
 			sql = "select task_id from task where task_id = " + taskID+1;
 			rslt = (JSONArray) SQLtoJSONArray(sql);
 			if(rslt.size()>0) {
-				logger.error("aux task id " + (taskID+1) + "exist already!");
-				return false;
+				logger.warn("!!! aux task id " + (taskID+1) + "exist already!");
+				return true;
 			}
 		}
 		return true;
