@@ -58,6 +58,11 @@ public class unRegistTask {
 			return;
 		}else {   //really unregister it
 			JSONObject tblDetail = metaData.getTaskDetails();
+			String tempId=tblDetail.get("template_id").toString();
+			if(tempId.equals("DCC")) {
+				logger.warn("I don't think you want to do this; I quit on it. -:)");
+				return;
+			}
 			DataPoint srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.unregisterSrc(taskID);
 			srcData.close();
@@ -65,12 +70,13 @@ public class unRegistTask {
 			tgtData.unregisterTgt(taskID);
 			tgtData.close();
 			String dccDBid = tblDetail.get("dcc_db_id").toString();
+			/*TODO: should not do this
 			if(!( (dccDBid !=null) || (dccDBid.equals("na"))) ) {
 				DataPoint auxData = DataPoint.dataPtrCreater(dccDBid, "DCC");
 				auxData.unregisterDcc(taskID);
 				auxData.close();
 			}
-
+			*/
 			String sqlStr;
 			sqlStr = "delete from data_field where task_id = " + taskID;
 			metaData.runRegSQL(sqlStr);

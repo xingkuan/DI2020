@@ -271,7 +271,8 @@ public boolean regDcc(int tblID, String PK, String srcSch, String srcTbl, String
 			+ "--replication-factor 2 " + "--partitions 2 " + "--config retention.ms=86400000 " 
 			+ "--topic " + tgtSch + "." + tgtTbl + " \n";
 	*/
-	int partitions=2;
+	//TODO: no action.
+/*	int partitions=2;
 	short replicationFactor=2;
 	String topicName=srcSch + "." + srcTbl;
 	try (final AdminClient adminClient = createKafkaAdmin()) {
@@ -290,16 +291,18 @@ public boolean regDcc(int tblID, String PK, String srcSch, String srcTbl, String
             }
         }
     }
+    */
 	return true;
 }
 @Override
-public boolean unregisterDcc(int tblID) {
-	//delete DCC topic
-	String theTopic = metaData.getTaskDetails().get("src_schema")+"."
+//public boolean unregisterDcc(int tblID) {
+public boolean unregisterTgt(int tblID) {
+	//TODO: you don't create this topic, and no need for unregist it!
+	/*String theTopic = metaData.getTaskDetails().get("src_schema")+"."
 			+ metaData.getTaskDetails().get("src_table");
 	try (final AdminClient adminClient = createKafkaAdmin()) {
         DeleteTopicsResult deleteTopicsResult=adminClient.deleteTopics(Arrays.asList(theTopic));
-    }
+    }*/
 	return true;
 }
 
