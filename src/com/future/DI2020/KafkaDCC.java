@@ -75,14 +75,14 @@ class KafkaDCC extends Kafka {
 		super(dID, role);
 	}
 	@Override
-	protected void createKafkaConsumer(String topic) {
+	protected void createKafkaConsumer() {
 		setConsumerProps();
 		props.put("key.deserializer", "org.apache.kafka.common.serialization.LongDeserializer");
 		props.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
 
 		consumer = new KafkaConsumer<Long, String>(props);
 		// consumerx.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
-		consumer.subscribe(Arrays.asList(topic));
+		//consumer.subscribe(Arrays.asList(topic));
 
 		//return consumer;
 	}
@@ -171,7 +171,8 @@ class KafkaDCC extends Kafka {
 		if(jTemp.equals("2DATA_")) {
 			String topic = metaData.getTaskDetails().get("src_schema")+"."
 				+metaData.getTaskDetails().get("src_table");
-			createKafkaConsumer(topic);
+			createKafkaConsumer();
+			consumer.subscribe(Arrays.asList(topic));
 			crtAuxSrcAsList();
 		}
 		return true;

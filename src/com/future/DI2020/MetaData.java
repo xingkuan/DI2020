@@ -176,7 +176,7 @@ class MetaData {
 		}
 		tskDetailJSON = (JSONObject) jo.get(0);
 
-		if(actID==-1) {  //if it is unregistering, skip the rest.
+		if((actID==-1)||(actID==21)) {  //no further setup if it is unregistering or testing.
 			return 0;
 		}else {
 			sql= "select template_id, act_id, info, stmts from TASK_TEMPLATE where template_id='" 
@@ -195,7 +195,8 @@ class MetaData {
 				lName=temp[0]; jName=temp[1];
 				
 				sql="select task_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
-						+ " from task " + " where src_db_id='" + tskDetailJSON.get("src_db_id") + "' and src_schema='"
+						+ " from task " 
+						+ " where src_db_id='" + tskDetailJSON.get("src_db_id") + "' and src_schema='"
 						+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
 				jo = SQLtoJSONArray(sql);
 				if(jo.isEmpty()) {
@@ -290,8 +291,7 @@ class MetaData {
 		boolean rtc=true;
 		String sql="select 1 from task "
 				+ "where src_db_id='"+dbID+"' "
-				+ " and src_schema='"+srcSch+"' "
-				+ " and src_table='"+srcTbl + "'";
+				+ " and src_dcc_tbl='"+srcSch+"."+srcTbl + "'";
 		JSONArray jo = SQLtoJSONArray(sql);
 		if((jo==null)||jo.isEmpty()) {
 			rtc=false;

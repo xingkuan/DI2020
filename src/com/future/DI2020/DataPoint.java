@@ -255,7 +255,7 @@ public class DataPoint {
 		return 0;
 	}
 	
-	protected void createKafkaConsumer(String topic) {
+	protected void createKafkaConsumer() {
 		// TODO Auto-generated method stub
 		
 	}

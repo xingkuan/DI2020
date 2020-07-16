@@ -93,7 +93,7 @@ class KafkaData extends Kafka {
 	}
 	
 	@Override
-	protected void createKafkaConsumer(String topic) {
+	protected void createKafkaConsumer() {
 		setConsumerProps();
 		props.put("key.deserializer", "org.apache.kafka.common.serialization.LongDeserializer");
 		//propsC.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
@@ -128,7 +128,7 @@ class KafkaData extends Kafka {
 		schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
 		//schema = new Schema.Parser().parse(new File("user.avsc"));
 		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
-		createKafkaProducer();
+		//createKafkaProducer();
 	}
 	@Override
 	public void write(ResultSet rs) {
@@ -149,16 +149,24 @@ class KafkaData extends Kafka {
 				record.put(i, rs.getLong(i+1));
 				break;
 			case 7:
-			case 6:
 				tempO=rs.getDate(i+1);
 				if(tempO==null)
 					record.put(i, null);
 				else {
+					//tempNum = rs.getDate(i+1).getTime();
+					record.put(i, tempO.toString());
+				}
+				break;
+			case 6:
+				tempO=rs.getTimestamp(i+1);
+				if(tempO==null)
+					record.put(i, null);
+				else {
 					//record.put(i, tempO); // class java.sql.Date cannot be cast to class java.lang.Long
-				tempNum = rs.getDate(i+1).getTime();
-				//record.put(i, new java.util.Date(tempNum));  //class java.util.Date cannot be cast to class java.lang.Number 
-				//record.put(i, tempNum);  //but that will show as long on receiving!
-				record.put(i, tempO.toString());  
+					//tempNum = rs.getDate(i+1).getTime();
+					//record.put(i, new java.util.Date(tempNum));  //class java.util.Date cannot be cast to class java.lang.Number 
+					//record.put(i, tempNum);  //but that will show as long on receiving!
+					record.put(i, tempO.toString());  
 				}
 		//		break;
 		//	case 6:
@@ -192,91 +200,6 @@ class KafkaData extends Kafka {
 	public void write() {
 		logger.info("not needed for now");
 	}
-/**************************************/
-/*	public int syncAvroDataFrom(DataPoint srcData) {
-		int rtc=2;
-		int cnt=0;
-		ResultSet rs=srcData.getSrcResultSet();
-		ArrayList<Integer> fldType = metaData.getFldJavaType();
-
-		String topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
-		
-		String jsonSch = metaData.getAvroSchema();
-		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
-		//schema = new Schema.Parser().parse(new File("user.avsc"));
-		//Producer<Long, GenericRecord> producer = createKafkaAVROProducer();
-		Producer<Long, byte[]> producer = createKafkaAVROProducer();
-long tempNum;
-Object tempO;
-		GenericData.Record record;
-		//  Producer<String, byte[]> producer = null;
-		  try {
-	       while ( rs.next() ) {
-	    	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!      
-				for (int i = 0; i < fldType.size(); i++) {  //The last column is the internal key.
-					// Can't use getObject() for simplicity. :(
-					//   1. Oracle ROWID, is a special type, not String as expected
-					//   2. For NUMBER, it returns as BigDecimal, which Java has no proper way for handling and 
-					//      AVRO has problem with it as well.
-					 //
-					//record.put(i, rs.getObject(i+1));
-					switch(fldType.get(i)) {
-					case 1:
-						record.put(i, rs.getString(i+1));
-						break;
-					case 4:
-						record.put(i, rs.getLong(i+1));
-						break;
-					case 7:
-					case 6:
-						tempO=rs.getDate(i+1);
-						if(tempO==null)
-							record.put(i, null);
-						else {
-							//record.put(i, tempO); // class java.sql.Date cannot be cast to class java.lang.Long
-						tempNum = rs.getDate(i+1).getTime();
-						//record.put(i, new java.util.Date(tempNum));  //class java.util.Date cannot be cast to class java.lang.Number 
-						//record.put(i, tempNum);  //but that will show as long on receiving!
-						record.put(i, tempO.toString());  
-						}
-				//		break;
-				//	case 6:
-				//		record.put(i, new java.util.Timestamp(rs.getTimestamp(i+1).getTime()));
-						break;
-					default:
-						logger.warn("unknow data type!");
-						record.put(i, rs.getString(i+1));
-						break;
-					}
-				}
-				//String temp = rs.getString(fldNames.size());
-				//record.put(fldNames.size()-1, rs.getString(fldNames.size()));
-
-	    	   //
-	    	   // use byte, instead; ideally, use Confluent's Schena Registry 
-	    	    //
-	    	   //producer.send(new ProducerRecord<Long, GenericRecord>("topica", (long) 1, record));
-		   		byte[] myvar = avroToBytes(record, schema);
-		   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
-		   		//producer.send(new ProducerRecord<Long, byte[]>(topic, (long) 1, myvar),new Callback() {  //TODO: what key to send?
-		   		producer.send(new ProducerRecord<Long, byte[]>(topic,  myvar),new Callback() {             //      For now, no key
-                    public void onCompletion(RecordMetadata recordMetadata, Exception e) {
-                        //execute everytime a record is successfully sent or exception is thrown
-                    	if(e == null){
-                        }else{
-    						logger.error(e);
-                        }
-                    }
-                });
-		   		cnt++;
-	       }
-		  } catch (SQLException e) {
-			  logger.error(e);
-		  }
-		  //return cnt;
-		  return rtc;
-	}
-*/	
 	private byte[] avroToBytes(GenericRecord avroRec, Schema schema){
 		byte[] myvar=null;
 			
@@ -307,15 +230,27 @@ Object tempO;
 		
 		String jsonSch = metaData.getAvroSchema();
 		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
-
+		
+		createKafkaConsumer();
 		consumer.subscribe(Arrays.asList(topic));
 
 		try {
 			DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
 
+			int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
+			int noRecordsCount = 0, cntRRN = 0;
 			ByteArrayInputStream in;
 			while (true) {
 				records = consumer.poll(Duration.ofMillis(100));
+				if (records.count() == 0) {  //no record? try again, after consective "giveUp" times.
+					noRecordsCount++;
+					logger.info("    consumer poll cnt: " + noRecordsCount);
+					if (noRecordsCount > giveUp)
+						break; // no more records. exit
+					else
+						continue;
+				}
+
 				for (ConsumerRecord<Long, byte[]> record : records) {
 					in = new ByteArrayInputStream(record.value());
 					BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
@@ -337,7 +272,9 @@ Object tempO;
 		}
 		return cnt;
 	}
+	
 	public void test() {
+		crtSrcResultSet();
 		xformInto(null);
 	}
 //--------------------------------------------------------------------------------------------------------

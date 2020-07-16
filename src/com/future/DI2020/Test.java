@@ -16,12 +16,12 @@ class Test
 	   //metrix.sendMXrest("initDuration,jobId=test,tblID=0 value=6\n");
 	   //metrix.sendMX("initDuration,jobId=test,tblID=0 value=6\n");
       
-	   //testAVROConsumer();
+	   testAVROConsumer();
 	   
 	   //testES();
 	   
 	   //testJSNashorn();
-	   testJSGraal();
+	   //testJSGraal();
 	   
 	   return ;
    }
@@ -31,7 +31,7 @@ class Test
 	   es.test();
    }
    private static void testAVROConsumer() {
-		int tableID=6;
+		int tableID=1;
 		MetaData metaData = MetaData.getInstance();
 
 		metaData.setupTaskForAction("testConsumeAVRO", tableID, 21);  // actId for dev activities.
