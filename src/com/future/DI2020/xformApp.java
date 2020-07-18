@@ -45,7 +45,7 @@ class xformApp
 		System.out.println(args.length);
 
 		if (args.length != 2) {
-			System.out.println("Usage:   xFormData <tbl|pool> id");
+			System.out.println("Usage:   xformData <tbl|pool> id");
 			//return -1;
 		}
 
@@ -53,26 +53,26 @@ class xformApp
 		int parmId = Integer.parseInt(args[1]);
 		
 		if(parmCat.contentEquals("pool"))
-			xFormTables(parmId);
+			transforms(parmId);
 		else if(parmCat.contentEquals("tbl"))
-			xFormTable(parmId);
+			transform(parmId);
 		else 
 			System.out.println("Usage:   syncTable <tbl|pool> oId aId");
 			
 	}
    
-	static void xFormTables(int poolID) {
+	static void transforms(int poolID) {
 		List<Integer> tblList = metaData.getTblsByPoolID(poolID);
 		for (int i : tblList) {
-           xFormTable(i);
+           transform(i);
        }
 	   return ;
    }
-	static void xFormTable(int tblId) {
-		jobID = "xForm";
+	static void transform(int tblId) {
+		jobID = "xform";
 		MetaData metaData = MetaData.getInstance();
 
-		metaData.setupTaskForAction(jobID, tblId, 21);  // actId for dev activities.
+		metaData.setupTaskForAction(jobID, tblId, 11);  // actId for dev activities.
 		
 		JSONObject tblDetail = metaData.getTaskDetails();
 
@@ -80,7 +80,13 @@ class xformApp
 		//srcData.testConsumer();
 		ESData tgtData = (ESData) DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 		//tgtData.test();
+		tgtData.setupSink();
 		srcData.xformInto(tgtData);
+		//srcData.test();
+		tgtData.write();
+		srcData.close();
+		
+		return;
 	}
    
    

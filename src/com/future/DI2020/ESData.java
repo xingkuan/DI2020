@@ -57,12 +57,14 @@ class ESData extends DataPoint{
 /********** sync APIs *******************/
 	Request request;
 	StringBuilder bulkRequestBody;
+	String ixName; //="testok";
 	public void setupSink() {
 		connect();
 		
+		ixName = metaData.getTaskDetails().get("tgt_table").toString();
 		request = new Request(
 				   "POST", 
-		           "/myindex/_bulk");
+		           "/"+ixName+"/_bulk");
 		/*action_and_meta_data\n
 		 *optional_source\n
 		 *...
@@ -76,21 +78,27 @@ class ESData extends DataPoint{
 	public void write(ResultSet rs) {
     	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
     	bulkRequestBody.append("\n");
-    	bulkRequestBody.append(rs);   //mem is json, in single line.
+    	bulkRequestBody.append(rs.toString());   //mem is json, in single line.
     	bulkRequestBody.append("\n");
 	}
     @Override
 	public void write(GenericRecord rec) {
+    	System.out.println(rec.toString());
+    	
+    	String docId = rec.get("ORARID").toString();
+    	String ixStr ="{\"index\" : {\"_index\" :\"" 
+    			+ ixName + "\", \"_id\" : \"" + docId + "\" } }";
 	   	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
 	   	bulkRequestBody.append("\n");
 	   	bulkRequestBody.append(rec);   //mem is json, in single line.
 	   	bulkRequestBody.append("\n");
+	   	
     }
     @Override
 	public void write() {
 	   Request request = new Request(
 			   "POST", 
-	           "/myindex/_bulk");
+	           "/" + ixName+"/_bulk");
 	    request.setEntity(new NStringEntity(bulkRequestBody.toString(), ContentType.APPLICATION_JSON));
 	    try {
 			Response indexResponse = restClient.performRequest(request);

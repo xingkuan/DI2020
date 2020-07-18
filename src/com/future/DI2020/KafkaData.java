@@ -82,10 +82,6 @@ class KafkaData extends Kafka {
 		setProducerProps();
 
 		props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());  //TODO: need more thinking!
-		// props.put("value.serializer",
-		// "org.apache.kafka.common.serialization.ByteArraySerializer");
-		//props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, StringSerializer.class.getName());
-		//props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "io.confluent.kafka.serializers.KafkaAvroSerializer");
 		props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
 
 		//KafkaProducer<Long, GenericRecord> prod = new KafkaProducer<Long, GenericRecord>(props);
@@ -225,10 +221,86 @@ class KafkaData extends Kafka {
 		//List<String> docList = new ArrayList<String>();
 		int cnt=0;		
 		String topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
+		System.out.println(topic);
+		
 		ConsumerRecords<Long, byte[]> records;
 		GenericRecord a=null, b=null;
 		
 		String jsonSch = metaData.getAvroSchema();
+		System.out.println(jsonSch);
+		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
+		
+		createKafkaConsumer();
+		consumer.subscribe(Arrays.asList(topic));
+
+		try {
+			DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+
+			int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
+			int noRecordsCount = 0, cntRRN = 0;
+			ByteArrayInputStream in;
+			while (true) {
+				records = consumer.poll(Duration.ofMillis(100));
+				if (records.count() == 0) {  //no record? try again, after consective "giveUp" times.
+					noRecordsCount++;
+					logger.info("    consumer poll cnt: " + noRecordsCount);
+					if (noRecordsCount > giveUp)
+						break; // no more records. exit
+					else
+						continue;
+				}
+
+				for (ConsumerRecord<Long, byte[]> record : records) {
+					in = new ByteArrayInputStream(record.value());
+					BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
+					//consumer.commitAsync();
+
+					a = reader.read(null, decoder);
+					//a = reader.read(b, decoder); 
+					System.out.println(a);
+					System.out.println(a.get(1));
+					//sink.process(a); or construct a JSONArray, and return to the sink
+
+					msgKeyList.add(a.toString());
+					cnt++;
+				}
+			}
+			consumer.commitAsync();
+			//sink.bulkIndex(docList);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return cnt;
+	}
+	
+	public void test() {
+		crtSrcResultSet();
+		//xformInto(null);
+	}
+	
+	/******************* transform APIs ****************************************/
+	@Override
+	protected void xformInto(DataPoint tgtData) {
+		int cnt=0;		
+		String topic=metaData.getTaskDetails().get("src_schema")+"."+metaData.getTaskDetails().get("src_table");
+		System.out.println(topic);
+topic="TEST.TESTOK";
+System.out.println(topic);
+
+		ConsumerRecords<Long, byte[]> records;
+		GenericRecord a=null, b=null;
+		
+		String jsonSch = //metaData.getXfrmDetails().get("src_avro").toString();
+				"{\"namespace\": \"com.future.DI2020.avro\", \n" + 
+				"\"type\": \"record\", \n" + 
+				"\"name\": \"VERTSNAP.TESTOK\", \n" + 
+				"\"fields\": [ \n" + 
+				"{\"name\": \"COL\", \"type\": \"long\"} \n" + 
+				", {\"name\": \"COL2\", \"type\": [\"string\", \"null\"]} \n" + 
+				", {\"name\": \"COL3\", \"type\": [\"string\",\"null\"], \"logicalType\": \"date\"} \n" + 
+				", {\"name\": \"COL4\",  \"type\": [\"string\",\"null\"], \"logicalType\": \"timestamp-micro\"} \n" + 
+				", {\"name\": \"ORARID\", \"type\": \"string\"} \n" + 
+				"] }";
 		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
 		
 		createKafkaConsumer();
@@ -258,25 +330,25 @@ class KafkaData extends Kafka {
 
 					a = reader.read(null, decoder);
 					//a = reader.read(b, decoder); 
-					System.out.println(a);
-					System.out.println(a.get(1));
+					//System.out.println(a);
+					//System.out.println(a.get(1));
 					//sink.process(a); or construct a JSONArray, and return to the sink
 
-					msgKeyList.add(a.toString());
+					tgtData.write(a);
 					cnt++;
 				}
 			}
+			//consumer.commitAsync();
+			consumer.close();
 			//sink.bulkIndex(docList);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		return cnt;
+		//return cnt;
+		
 	}
 	
-	public void test() {
-		crtSrcResultSet();
-		xformInto(null);
-	}
+	
 //--------------------------------------------------------------------------------------------------------
 public void close() {
 		try {

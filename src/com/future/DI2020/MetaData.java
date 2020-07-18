@@ -52,6 +52,7 @@ class MetaData {
 	private static final Metrix metrix = Metrix.getInstance();
 
 	// encapsulate the details into tskDetailJSON;
+	private JSONObject xfmDetailJSON;
 	private JSONObject tskDetailJSON;
 	private JSONObject tmpDetailJSON;
 	private JSONObject dccDetailJSON;
@@ -109,6 +110,7 @@ class MetaData {
 		taskID = tskID;
 		actID = aId;
 		
+		xfmDetailJSON=null;
 		tskDetailJSON=null;
 		dccDetailJSON=null;
 		srcDBDetail=null;
@@ -139,6 +141,9 @@ class MetaData {
 				logger.warn("This task is not in sync state.");
 				return -1;
 			}
+			break;
+		case 11: //simple transform
+			logger.info("simple transformation.");
 			break;
 		case 21:  //testing code
 			break;
@@ -176,35 +181,52 @@ class MetaData {
 		}
 		tskDetailJSON = (JSONObject) jo.get(0);
 
-		if((actID==-1)||(actID==21)) {  //no further setup if it is unregistering or testing.
-			return 0;
-		}else {
-			sql= "select template_id, act_id, info, stmts from TASK_TEMPLATE where template_id='" 
-						+ tskDetailJSON.get("template_id") + "' and act_id=" + actID;
+		String templateId=tskDetailJSON.get("template_id").toString();
+		
+		switch(templateId) {
+		case "XFRM":
+			sql="select src_avro, tgt_avro "
+					+ " from xform_simple " 
+					+ " where x_id="+taskID;
 			jo = SQLtoJSONArray(sql);
 			if(jo.isEmpty()) {
-				logger.error("action not applicable.");
+				logger.error("error in DCC, e. g. DB2/AS400 journal");
 				return -1;
 			}
-			tmpDetailJSON = (JSONObject) jo.get(0);
-		
-			String templateId=tskDetailJSON.get("template_id").toString();
-			if(templateId.equals("DATA_")) {  
-				String journalName=tskDetailJSON.get("src_dcc_tbl").toString();
-				String[] temp = journalName.split("\\.");
-				lName=temp[0]; jName=temp[1];
-				
-				sql="select task_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
-						+ " from task " 
-						+ " where src_db_id='" + tskDetailJSON.get("src_db_id") + "' and src_schema='"
-						+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
+			xfmDetailJSON = (JSONObject) jo.get(0);
+			break;
+		default:
+			if((actID==-1)||(actID==21)) {  //no further setup if it is unregistering or testing.
+				return 0;
+			}else {
+				sql= "select template_id, act_id, info, stmts from TASK_TEMPLATE where template_id='" 
+							+ tskDetailJSON.get("template_id") + "' and act_id=" + actID;
 				jo = SQLtoJSONArray(sql);
 				if(jo.isEmpty()) {
-					logger.error("error in DCC, e. g. DB2/AS400 journal");
+					logger.error("action not applicable.");
 					return -1;
 				}
-				dccDetailJSON = (JSONObject) jo.get(0);
+				tmpDetailJSON = (JSONObject) jo.get(0);
+			
+				//TODO: not pretty here!
+				if(templateId.equals("DATA_")) {  
+					String journalName=tskDetailJSON.get("src_dcc_tbl").toString();
+					String[] temp = journalName.split("\\.");
+					lName=temp[0]; jName=temp[1];
+					
+					sql="select task_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
+							+ " from task " 
+							+ " where src_db_id='" + tskDetailJSON.get("src_db_id") + "' and src_schema='"
+							+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
+					jo = SQLtoJSONArray(sql);
+					if(jo.isEmpty()) {
+						logger.error("error in DCC, e. g. DB2/AS400 journal");
+						return -1;
+					}
+					dccDetailJSON = (JSONObject) jo.get(0);
+				}
 			}
+			break;
 		}
 		return 0;
 	}
@@ -274,6 +296,9 @@ class MetaData {
 		return jArray;
 	}
 
+	public JSONObject getXfrmDetails() {
+		return xfmDetailJSON;
+	}
 	public JSONObject getTaskDetails() {
 		return tskDetailJSON;
 	}

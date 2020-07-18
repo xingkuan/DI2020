@@ -97,14 +97,10 @@ VALUES ('user',
 
 
 CREATE TABLE XFORM_SIMPLE  (
-   X_ID        VARCHAR(20) PRIMARY KEY,
-   SRC_DB_ID   CARCHAR(50),
-   SRC_NAME    VARCHAR(50),
-   SRC_AVRO_ID CARCHAR(50),
-   TGT_DB_ID   VARCHAR(15),
-   TGT_NAME    VARCHAR(50),
-   TGT_AVRO    JSON,
-   XFORM0      JSON
+   X_ID        INTEGER PRIMARY KEY,  --Let it be that of task_id
+   SRC_AVRO    varchar(2000),
+   TGT_AVRO    varchar(2000),
+   XFORM0      varchar(2000)
 )
 ;
 
@@ -189,6 +185,14 @@ insert into SYNC_TEMPLATE
 --('O2K_', 2, 'sync src data to kafka topic via kafka.'),
 --('K2E', 2, 'Kafak topic to ES doc')
 ;
+
+insert into XFORM_SIMPLE  (X_ID,  
+SRC_AVRO, 
+TGT_AVRO, XFORM0
+) values (11,
+'??',
+'??'
+);
 
 ---------------------
 create table dp_job(job_id varchar(30), job_desc varchar(100), job_stmt jsonb);

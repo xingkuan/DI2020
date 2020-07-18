@@ -6,7 +6,9 @@ public class RegXform0 {
 	 * 
 	 * 
 	 * 
-not okay
+AVRO:
+---------
+seems okay
 {"namespace": "com.future.DI2020.avro", 
 "type": "record", 
 "name": "VERTSNAP.TESTOK", 
@@ -18,7 +20,7 @@ not okay
 , {"name": "ORARID", "type": "string"} 
 ] }
 
-not good.
+?
 {"namespace": "com.future.DI2020.avro", 
 "type": "record", 
 "name": "VERTSNAP.TESTOK", 
@@ -32,42 +34,60 @@ not good.
 {"COL": 1, "COL2": null, "COL3": null, "COL4": null, "ORARID": "AAEMYfAAwAAAABiAAA"}
 {"COL": 4, "COL2": "test 4", "COL3": 1591772400000, "COL4": null, "ORARID": "AAEMYfAAwAAAABiAAB"}
 
-not good:
-{"namespace": "com.future.DI2020.avro", 
-"type": "record", 
-"name": "JOHNLEE2.TESTTBL2", 
-"fields": [ 
-  {"name": "COL1", "type": "string"} 
-, {"name": "COL2", "type":["string","null"], "logicalType": "date"} 
-, {"name": "COL5", "type":"long"} 
-, {"name": "COL6", "type": "string"} 
-, {"name": "COL7", "type": "string"} 
-, {"name": "COL8", "type":["string","null"], "logicalType": "timestamp-micros"} 
-, {"name": "COL#", "type": "string"} 
-, {"name": "DB2RRN", "type":"long"} 
-] }	 
+:transform:
+----------------------------
+ES:
+PUT /testok
+{
+    "settings" : {
+        "number_of_shards" : 1,
+        "number_of_replicas" : 1
+    },
+    "mappings" : {
+        "properties" : {
+            "col" : { "type" : "integer" },
+            "col2" : { "type" : "text" },
+            "col3" : { "type" : "date" },
+            "col4" : { "type" : "date" },
+            "ORARID" : { "type" : "keyword" }
+        }
+    }
+}
 
-not okay
-{"namespace": "com.future.DI2020.avro", 
-"type": "record", 
-"name": "JOHNLEE2.TESTTBL2", 
-"fields": [ 
-  {"name": "COL1", "type": ["string", "null"]} 
-, {"name": "COL2", "type": ["string", "null"], "logicalType": "date"} 
-, {"name": "COL5", "type": ["long", "null"]} 
-, {"name": "COL6", "type": ["string", "null"]} 
-, {"name": "COL7", "type": ["string", "null"]} 
-, {"name": "COL8", "type": ["string","null"], "logicalType": "timestamp-micros"} 
-, {"name": "COLNUM", "type": ["string", "null"]} 
-, {"name": "DB2RRN", "type": "long"} 
-] }
+insert into task (TASK_ID, TEMPLATE_ID, TASK_CAT, DATA_PK, 
+	SRC_DB_ID, SRC_SCHEMA, SRC_TABLE, 
+	TGT_DB_ID,TGT_SCHEMA,  TGT_TABLE, 
+	POOL_ID, CURR_STATE,  
+	SRC_DCC_PGM, SRC_DCC_TBL, 
+	DCC_DB_ID, DCC_STORE, 
+	TS_REGIST) 
+values  ( 11, 'XFRM', 'XFRM', 'ORARID',  
+		'KAFKA1', 'TEST', 'TESTOK',  
+		'ES1', '', 'testok',
+		-5, 0, 
+		'XFRM', 'na',  
+		'na', 'na', 
+		now()
+)
 
-{"namespace": "com.future.DI2020.avro", 
+insert into XFORM_SIMPLE  (X_ID,  
+SRC_AVRO, 
+TGT_AVRO, XFORM0
+) values (11,
+'{"namespace": "com.future.DI2020.avro", 
 "type": "record", 
-"name": "JOHNLEE2.QSQJRN", 
+"name": "VERTSNAP.TESTOK", 
 "fields": [ 
-{"name": "null", dbl} 
-] }
+{"name": "COL", "type": "long"} 
+, {"name": "COL2", "type": ["string", "null"]} 
+, {"name": "COL3", "type": ["string", "null"], "logicalType": "date"} 
+, {"name": "COL4", "type": ["string","null"], "logicalType": "timestamp-micros"} 
+, {"name": "ORARID", "type": "string"} 
+] }',
+'',''
+);
+
+
 
 	 */
 }
