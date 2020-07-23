@@ -65,8 +65,8 @@ class Kafka extends DataPoint {
 
 	//public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
 	protected void setConsumerProps() {
-		String consumerGrp = metaData.getJobID() + metaData.getTableID()+"k";
-		String cientID = metaData.getJobID()+metaData.getTaskDetails().get("task_id")+"k";
+		String consumerGrp = metaData.getJobID() + metaData.getTableID();
+		String cientID = metaData.getJobID()+metaData.getTaskDetails().get("task_id");
 
 		kafkaMaxPollRecords = Integer.parseInt(conf.getConf("kafkaMaxPollRecords"));
 		pollWaitMil = Integer.parseInt(conf.getConf("kafkaPollWaitMill"));

@@ -101,7 +101,8 @@ public class DataPoint {
 		return db;
 	}
 	/********** Synch APIs****************************/
-	protected void xformInto(DataPoint tgtData) {
+	protected int xformInto(DataPoint tgtData) {
+		return 0;
 	}
 	/********** Synch APIs****************************/
 	protected void crtSrcResultSet(List<String >keys) {
@@ -256,6 +257,10 @@ public class DataPoint {
 	}
 	
 	protected void createKafkaConsumer() {
+		// TODO Auto-generated method stub
+		
+	}
+	public void write(JSONObject b) {
 		// TODO Auto-generated method stub
 		
 	}

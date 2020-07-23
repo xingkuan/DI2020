@@ -38,7 +38,7 @@ class ESData extends DataPoint{
    //public OracleData(String dbID) throws SQLException {
    public ESData(JSONObject dbID, String role) {
 		super(dbID, role);
-		connect();
+		//connect();
    }
    public ESData() {
 	   System.out.println("this constructor is used for testing only");
@@ -82,10 +82,23 @@ class ESData extends DataPoint{
     	bulkRequestBody.append("\n");
 	}
     @Override
+	public void write(JSONObject rec) {
+    	System.out.println(rec.toString());
+    	String pk=metaData.getTaskDetails().get("data_pk").toString();
+    	String docId = rec.get(pk).toString();
+    	String ixStr ="{\"index\" : {\"_index\" :\"" 
+    			+ ixName + "\", \"_id\" : \"" + docId + "\" } }";
+	   	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
+	   	bulkRequestBody.append("\n");
+	   	bulkRequestBody.append(rec);   //mem is json, in single line.
+	   	bulkRequestBody.append("\n");
+    }
+    @Override
 	public void write(GenericRecord rec) {
     	System.out.println(rec.toString());
     	
-    	String docId = rec.get("ORARID").toString();
+    	String pk=metaData.getTaskDetails().get("data_pk").toString();
+    	String docId = rec.get(pk).toString();
     	String ixStr ="{\"index\" : {\"_index\" :\"" 
     			+ ixName + "\", \"_id\" : \"" + docId + "\" } }";
 	   	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
@@ -131,6 +144,15 @@ class ESData extends DataPoint{
 			// TODO Auto-generated catch block
 			e.printStackTrace();
 		}
+   }
+   @Override
+   public void close() {
+	   try {
+		restClient.close();
+	} catch (IOException e) {
+		// TODO Auto-generated catch block
+		e.printStackTrace();
+	}
    }
    public  void test() {
 	   //http://dbatool02:9200,http://dbatool0a:9200

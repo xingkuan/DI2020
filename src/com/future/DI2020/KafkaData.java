@@ -54,6 +54,8 @@ class KafkaData extends Kafka {
 	protected final String logDir = conf.getConf("logDir");
 	private static final Logger logger = LogManager.getLogger();
 
+	private xformEngine xEngine=null;
+	
 	int kafkaMaxPollRecords;
 	int pollWaitMil;
 
@@ -280,18 +282,19 @@ class KafkaData extends Kafka {
 	
 	/******************* transform APIs ****************************************/
 	@Override
-	protected void xformInto(DataPoint tgtData) {
+	protected int xformInto(DataPoint tgtData) {
 		int cnt=0;		
 		String topic=metaData.getTaskDetails().get("src_schema")+"."+metaData.getTaskDetails().get("src_table");
 		System.out.println(topic);
-topic="TEST.TESTOK";
-System.out.println(topic);
+//topic="TEST.TESTOK";
+//System.out.println(topic);
 
 		ConsumerRecords<Long, byte[]> records;
-		GenericRecord a=null, b=null;
+		GenericRecord a=null;
+		JSONObject b=null;
 		
-		String jsonSch = //metaData.getXfrmDetails().get("src_avro").toString();
-				"{\"namespace\": \"com.future.DI2020.avro\", \n" + 
+		String jsonSch = metaData.getXfrmDetails().get("src_avro").toString(); 
+/*			"{\"namespace\": \"com.future.DI2020.avro\", \n" + 
 				"\"type\": \"record\", \n" + 
 				"\"name\": \"VERTSNAP.TESTOK\", \n" + 
 				"\"fields\": [ \n" + 
@@ -300,7 +303,8 @@ System.out.println(topic);
 				", {\"name\": \"COL3\", \"type\": [\"string\",\"null\"], \"logicalType\": \"date\"} \n" + 
 				", {\"name\": \"COL4\",  \"type\": [\"string\",\"null\"], \"logicalType\": \"timestamp-micro\"} \n" + 
 				", {\"name\": \"ORARID\", \"type\": \"string\"} \n" + 
-				"] }";
+				"] }";  
+				*/
 		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
 		
 		createKafkaConsumer();
@@ -317,6 +321,8 @@ System.out.println(topic);
 				if (records.count() == 0) {  //no record? try again, after consective "giveUp" times.
 					noRecordsCount++;
 					logger.info("    consumer poll cnt: " + noRecordsCount);
+					//xEngine.test();
+					//xEngine.transform(null);
 					if (noRecordsCount > giveUp)
 						break; // no more records. exit
 					else
@@ -333,8 +339,10 @@ System.out.println(topic);
 					//System.out.println(a);
 					//System.out.println(a.get(1));
 					//sink.process(a); or construct a JSONArray, and return to the sink
-
-					tgtData.write(a);
+		//			tgtData.write(a);
+b=xEngine.transform(a);
+System.out.println(b);
+tgtData.write(b);
 					cnt++;
 				}
 			}
@@ -344,7 +352,7 @@ System.out.println(topic);
 		} catch (IOException e) {
 			e.printStackTrace();
 		}
-		//return cnt;
+		return cnt;
 		
 	}
 	
@@ -424,6 +432,11 @@ public boolean unregisterTgt(int tblID) {
     }
 }
 	return true;
+}
+
+
+public void setupXformEngine(xformEngine xformEng) {
+	xEngine=xformEng;
 }
 
 }

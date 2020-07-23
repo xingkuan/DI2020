@@ -70,9 +70,11 @@ values  ( 11, 'XFRM', 'XFRM', 'ORARID',
 		now()
 )
 
+--NOTE: field name in javascript (XFORM0 field) is case-sensitive!
 insert into XFORM_SIMPLE  (X_ID,  
 SRC_AVRO, 
-TGT_AVRO, XFORM0
+TGT_AVRO, 
+XFORM0
 ) values (11,
 '{"namespace": "com.future.DI2020.avro", 
 "type": "record", 
@@ -84,7 +86,12 @@ TGT_AVRO, XFORM0
 , {"name": "COL4", "type": ["string","null"], "logicalType": "timestamp-micros"} 
 , {"name": "ORARID", "type": "string"} 
 ] }',
-'',''
+'',
+'[
+{"name": "COLX", "script": "function COLX(){ return rec.COL + rec.COL2 + rec.COL3;}"},
+{"name": "COLY", "script": "function COLY(){return rec.COL4;}"},   
+{"name": "ORARID", "script": "function ORARID(){return rec.ORARID;}"}
+]'
 );
 
 

@@ -4,7 +4,8 @@ import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
 import javax.script.ScriptException;
-
+//import org.graalvm.polyglot.*;
+//import org.graalvm.polyglot.proxy.*;
 
 import org.json.simple.JSONObject;
 
@@ -16,12 +17,12 @@ class Test
 	   //metrix.sendMXrest("initDuration,jobId=test,tblID=0 value=6\n");
 	   //metrix.sendMX("initDuration,jobId=test,tblID=0 value=6\n");
       
-	   testAVROConsumer();
+	   //testAVROConsumer();
 	   
 	   //testES();
 	   
 	   //testJSNashorn();
-	   //testJSGraal();
+	   testJSGraal();
 	   
 	   return ;
    }
@@ -45,6 +46,7 @@ class Test
    }
    
    private static void testJSNashorn() {
+	   //ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");  //to be deprecated!
 	   ScriptEngine engine = new ScriptEngineManager().getEngineByName("nashorn");  //to be deprecated!
 	   //engine.eval(new FileReader("script.js"));
 	   try {
@@ -73,13 +75,16 @@ class Test
 	   truffle-api.jar (Contents/Home/jre/lib/truffle/truffle-api.jar)
 	   icu4j.jar (Contents/Home/jre/languages/js/icu4j.jar)
 	   */
+   static ScriptEngine graalEngine;
    private static void testJSGraal() {
-	    ScriptEngine graalEngine = new ScriptEngineManager().getEngineByName("graal.js");
+	    /*ScriptEngine*/ graalEngine = new ScriptEngineManager().getEngineByName("graal.js");
 	    try {
 			graalEngine.eval("print('Hello Graal World!');");
 
 			graalEngine.eval("function sum(a,b){return a.concat(b);}\n"
-					+ "function fi(a){return 2*a;}");
+					+ "function fi(a){return 2*a;}\n"
+					+ "function testGlobalVar(){print(parm1);}\n"
+					+ "function testVar1(){print(var1);}");
 		    String v = (String)graalEngine.eval("sum(\"Hello, \", \"the other world!\")");
 		    System.out.println(v);
 		    
@@ -88,6 +93,16 @@ class Test
 			System.out.println(o.toString());
 			o = invocable.invokeFunction("fi", 5);
 			System.out.println(o.toString());
+			
+			graalEngine.put("parm1", "Parm1: Hi");
+			graalEngine.eval("var var1='variable 1' + parm1;\n");
+			v = (String)graalEngine.eval("'hope it works: ' + parm1 ");
+			System.out.println(v);
+			v = (String)graalEngine.eval("'hope it works, still: ' + parm1 ");
+			System.out.println(v);
+			invocable.invokeFunction("testGlobalVar");
+			invocable.invokeFunction("testVar1");
+			
 	    } catch (ScriptException e) {
 			// TODO Auto-generated catch block
 			e.printStackTrace();

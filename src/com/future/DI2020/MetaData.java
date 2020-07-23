@@ -7,6 +7,8 @@ import java.util.*;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 import org.apache.logging.log4j.LogManager;
 
 import java.text.*;
@@ -704,5 +706,32 @@ class MetaData {
 	public void runRegSQL(String sql) {
 		runUpdateSQL(sql);
 	}
-	/*************************************/
+	/********** transformation metadata**************************/
+	List<String> xFnList;
+	public String getScripts() {
+		String js="";
+		xFnList=new ArrayList<String>();;
+		
+		String sql="select xform0 from xform_simple where x_id ="+actID;
+		JSONObject jo=(JSONObject) SQLtoJSONArray(sql).get(0);
+		String joStr = jo.get("xform0").toString();
+		JSONParser parser = new JSONParser();
+		
+		JSONObject obj;
+		try {
+			JSONArray array = (JSONArray)parser.parse(joStr);
+			for (int i = 0 ; i < array.size(); i++) {
+			   obj = (JSONObject) array.get(i);
+			   xFnList.add(obj.get("name").toString());
+			   js = js +  obj.get("script")+"\n";
+	    }
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		return js;
+	}
+	public List<String> getxFnctList(){
+		return xFnList;
+	}
 }
