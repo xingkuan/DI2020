@@ -1,5 +1,7 @@
 package com.future.DI2020;
 
+import java.sql.SQLException;
+
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
 import javax.script.ScriptEngineManager;
@@ -22,12 +24,36 @@ class Test
 	   //testES();
 	   
 	   //testJSNashorn();
-	   testJSGraal();
+	   //testJSGraal();
+	   
+	   //2020.07.24
+	   testHiveData();
 	   
 	   return ;
    }
    
-   private static void testES() {
+   private static void testHiveData() {
+	   JSONObject jo = new JSONObject();
+	   //db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd
+	   jo.put("db_id", "HIVE1");
+	   jo.put("db_cat", "RDBMS");
+	   jo.put("db_type", "HIVE");
+	   jo.put("db_conn", "jdbc:hive2://dbatool03:10000/test");
+	   jo.put("db_driver", "org.apache.hive.jdbc.HiveDriver");
+	   jo.put("db_usr", "APP");
+	   jo.put("db_pwd", "mine");
+	   try {
+		HiveData hd = new HiveData(jo, "TEST");
+		if(hd==null)
+			return;  //something is not right!
+		String sql="select * from product";
+		int c = hd.SQLtoResultSet(sql);
+	   } catch (SQLException e) {
+		   e.printStackTrace();
+	   }
+   }
+
+private static void testES() {
 	   ESData es = new ESData();
 	   es.test();
    }

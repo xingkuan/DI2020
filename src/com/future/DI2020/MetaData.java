@@ -58,9 +58,9 @@ class MetaData {
 	private JSONObject tskDetailJSON;
 	private JSONObject tmpDetailJSON;
 	private JSONObject dccDetailJSON;
-	private JSONObject srcDBDetail;
-	private JSONObject tgtDBDetail;
-	private JSONObject dccDBDetail;
+//	private JSONObject srcDBDetail;
+//	private JSONObject tgtDBDetail;
+//	private JSONObject dccDBDetail;
 	private JSONObject miscValues=new JSONObject();
 	
 	private String avroSchema;
@@ -115,9 +115,9 @@ class MetaData {
 		xfmDetailJSON=null;
 		tskDetailJSON=null;
 		dccDetailJSON=null;
-		srcDBDetail=null;
-		tgtDBDetail=null;
-		dccDBDetail=null;
+//		srcDBDetail=null;
+//		tgtDBDetail=null;
+//		dccDBDetail=null;
 		miscValues=null;
 
 		lName=null;

@@ -93,6 +93,8 @@ class runTask {
 				metaData.setJobName(jobID);
 				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
 				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+				if(srcData==null)
+					return;  //something is not right!
 				srcData.miscPrep();  
 				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table"));
 

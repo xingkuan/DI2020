@@ -78,6 +78,9 @@ public class DataPoint {
 					case "VERTICA":
 						db = new VerticaData(jo, role);
 						break;
+					case "HIVE":
+						db = new HiveData(jo, role);
+						break;
 					case "KAFKA":
 						db = new KafkaData(jo, role);
 						break;
