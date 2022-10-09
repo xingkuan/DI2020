@@ -13,9 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-import com.vertica.jdbc.VerticaConnection;
-import com.vertica.jdbc.VerticaCopyStream;
-
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.apache.kafka.clients.consumer.ConsumerRecords;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -28,16 +25,23 @@ class VerticaData extends JDBCData {
 	private ResultSet sRset;
 
 	private static final Logger logger = LogManager.getLogger();
+	private static final TaskMeta metaData = TaskMeta.getInstance();
 
 	//public VerticaData(String dbid) throws SQLException {
-	public VerticaData(JSONObject dbid, String role) throws SQLException {
-		super(dbid, role);
+	public VerticaData(JSONObject dbid) throws SQLException {
+		super(dbid);
 	}
 	@Override
 	public boolean miscPrep() {
 		// TODO Auto-generated method stub
 		return true;
 	}
+	
+	public void prep(JSONObject tgtInstr) {
+		// TODO Auto-generated method stub
+		
+	}
+
 
 	/********** Sync APIs ***************************/
 	@Override
@@ -49,7 +53,7 @@ class VerticaData extends JDBCData {
 
 		String sql=metaData.getSQLInsTgt();
 		try {
-			((VerticaConnection) dbConn).setProperty("DirectBatchInsert", true);
+		//	dbConn)setProperty("DirectBatchInsert", true);
 			syncInsStmt = dbConn.prepareStatement(sql);
 		} catch (SQLException e) {
 			logger.error(e);
@@ -57,11 +61,10 @@ class VerticaData extends JDBCData {
 	}
 
 	// no where clause for initializing
-	/*
 	public int initDataFrom(DataPoint srcData) {
 		int rtc=0;
 		truncateTbl();
-		ResultSet rsltSet = srcData.getSrcResultSet();
+		ResultSet rsltSet = srcData.getData();
 		//copyDataFrom(rsltSet);
 		syncDataFromV2(rsltSet, 1);  //1 for initializing  
 		
@@ -77,7 +80,6 @@ class VerticaData extends JDBCData {
 		
 		return rtc;
 	}
-	*/
 	private void truncateTbl() {
 		String sql = "truncate table " + metaData.getTaskDetails().get("tgt_schema") + "."+ metaData.getTaskDetails().get("tgt_table");
 		runUpdateSQL(sql);
@@ -335,7 +337,7 @@ class VerticaData extends JDBCData {
 		return rtc;	
 	}
 */
-/*	private int syncDataFromV2(ResultSet rsltSet, int actId) {
+	private int syncDataFromV2(ResultSet rsltSet, int actId) {
 		int rtc = 2;
 		int batchSize = Integer.parseInt(conf.getConf("batchSize"));
 
@@ -432,7 +434,7 @@ class VerticaData extends JDBCData {
 
 		return rtc;
 	}
-	*/
+	
 	@Override
 	protected void afterSync(){
 	}
@@ -474,22 +476,22 @@ class VerticaData extends JDBCData {
 	}
 
 	/******** Registration APIs **********/
-	@Override
+	//@Override
 	public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		//do nothing for now.
 		return true;
 	}
-	@Override
+	//@Override
 	public boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		//not Vertica is not used as src so far.
 		return false;
 	}
-	@Override
+	//@Override
 	public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		//not Vertica is not used as src so far.
 		return false;
 	}
-	@Override
+	//@Override
 	public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
 		//finish where the main registration unfinish on data_field
 		String sql = "update data_field set " + 
@@ -531,7 +533,7 @@ class VerticaData extends JDBCData {
 				
 		return true;
 	}
-	@Override
+	//@Override
 	public boolean unregisterTgt(int tblID) {
 		String sql =  "drop table " 
 				+ metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");

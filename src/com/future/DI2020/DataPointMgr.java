@@ -4,10 +4,12 @@ import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Stack;
 
 import org.apache.avro.generic.GenericRecord;
 import org.apache.kafka.clients.consumer.KafkaConsumer;
@@ -16,95 +18,101 @@ import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 
-public class DataPoint {
-	protected String dbRole;
-	
-	protected String dbID;
-	protected String urlString;
-	protected String driver;
-	protected String userID;
-	protected String passPWD;
-	protected String dbType, dbCat;
+public class DataPointMgr implements AutoCloseable {
+	//private static Map<String, DataPoint> dataPtrs=new HashMap<>();
+	//TODO 20220926: same DataPoint can be requested multiple times. Need to 
+	//		keep track of active and inactive ...
+	//DBID_0: inactive; DBID_1: active
+	private static Map<String, ArrayList<DataPoint>> dataPtrs=new HashMap<>();
 
-	public static final Logger logger = LogManager.getLogger();
-	protected static final MetaData metaData = MetaData.getInstance();
-	protected static final Conf conf = Conf.getInstance();
-	protected static final Metrix metrix = Metrix.getInstance();
-	protected static final String logDir = conf.getConf("logDir");
+	private static final Logger logger = LogManager.getLogger();
+	private static final TaskMeta metaData = TaskMeta.getInstance();
 
-	private static Map<String, DataPoint> dataPtrs=new HashMap<>();
 
-	protected int totalErrCnt = 0, totalInsCnt = 0, totalDelCnt = 0, totalSynCnt=0;
-
-	public DataPoint() {
-        logger.info("implicit DataPointer constructor.");
+	public DataPointMgr() {
 	}
+	
+	private static DataPointMgr instance = null; // use lazy instantiation ;
+
+	public static DataPointMgr getInstance() {
+		if (instance == null) {
+			instance = new DataPointMgr();
+		}
+		return instance;
+	}
+
+	
 	//public DataPointer(String dbid) throws SQLException {
-	public DataPoint(JSONObject jo, String role) {
-		//JSONObject jo = metaData.readDBDetails(dbid);
-		dbRole = role;
-		
-		dbID=jo.get("db_id").toString();
-		//this.dbID=dbid;
-		urlString=jo.get("db_conn").toString();
-		driver=jo.get("db_driver").toString();
-		userID=jo.get("db_usr").toString();
-		passPWD=jo.get("db_pwd").toString();
-		dbType=jo.get("db_cat").toString();
-		dbType=jo.get("db_type").toString();
-		dbCat=jo.get("db_cat").toString();
-	}
-	
-	public String getDBType() {
-		return dbType;
-	}
 	
 	//role should be SRC, TGT or DCC
-	public static DataPoint dataPtrCreater(String dbid, String role) {
+	public static DataPoint getDB(String dbid) {
 		DataPoint db;
-		db = dataPtrs.get("dbid");
+
+		db = dataPtrs.get(dbid+"_0").get(dataPtrs.get(dbid+"_0").size() - 1);	//get the last one
 		
 		if(db != null) {
-			return db;
+			dataPtrs.get(dbid+"_0").remove(dataPtrs.get(dbid+"_0").size() - 1);  //remove from inactive
 		}else {
 			try {
 				//db = new DataPointer(dbid);
-				JSONObject jo = metaData.readDBDetails(dbid);
+				JSONObject jo = metaData.getDBDetails(dbid);
 				String dbType=jo.get("db_type").toString();
 				switch(dbType){
 					case "DB2/AS400":
-						db = new DB2Data400(jo, role);
+						db = new DB2Data400(jo);
 						break;
 					case "VERTICA":
-						db = new VerticaData(jo, role);
+						db = new VerticaData(jo);
 						break;
 					case "HIVE":
-						db = new HiveData(jo, role);
+						db = new HiveData(jo);
 						break;
 					case "KAFKA":
-						db = new KafkaData(jo, role);
+						db = new KafkaData(jo);
 						break;
 					case "KAFKA_":
-						db = new KafkaDCC(jo, role);
+						db = new KafkaDCC(jo);
 						break;
 					case "ORACLE":
-						db = new OracleData(jo, role);
+						db = new OracleData(jo);
 						break;
 					case "ES":
-						db = new ESData(jo, role);
+						db = new ESData(jo);
 						break;
 				}
 			} catch (SQLException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-
-			dataPtrs.put(dbid, db);
 		}
+
+		if(null == dataPtrs.get(dbid+"_0")) {
+			dataPtrs.put(dbid+"_0", new ArrayList<DataPoint>());
+			dataPtrs.put(dbid+"_1", new ArrayList<DataPoint>());
+		}
+			
+		dataPtrs.get(dbid+"_1").add(db);		//add to the active list
 		return db;
 	}
+	
+	public static void returnDB(String dbid, DataPoint db) {
+		dataPtrs.get(dbid+"_1").remove(db);  //remove from active
+		dataPtrs.get(dbid+"_0").add(db);  //add to inactive
+	}
+	
+	@Override
+	public void close() throws Exception {
+		for (ArrayList<DataPoint> lst: dataPtrs.values()) {
+			for(DataPoint d: lst) {
+				d.closeDB();
+			}
+		}
+	}
+
+	
+
 	/********** Synch APIs****************************/
-	protected int xformInto(DataPoint tgtData) {
+	protected int xformInto(DataPointMgr tgtData) {
 		return 0;
 	}
 	/********** Synch APIs****************************/
@@ -168,17 +176,9 @@ public class DataPoint {
 //	protected int initDataFrom(DataPoint dt) {
 //		return 0;
 //	}
-	//protected boolean miscPrep(String jobTemplate) {
-	protected boolean miscPrep() {
-		totalErrCnt = 0; totalInsCnt = 0; totalDelCnt = 0; totalSynCnt=0;
-		return true;
+	public void copyTo(DataPointMgr tgt) {
 	}
-	protected void setupSink() {
-		logger.info("   An empty setupSink() in DataPointer.");
-	}
-	public void copyTo(DataPoint tgt) {
-	}
-	public void copyToVia(DataPoint tgt, DataPoint src) {
+	public void copyToVia(DataPointMgr tgt, DataPointMgr src) {
 	}
 	public void write(ResultSet rs) {  
 	}
@@ -198,19 +198,12 @@ public class DataPoint {
 	protected void afterSync(){
 		logger.info("   should be implemented in child class.");
 	}
-	protected void close() {
-		
-	}
 
-	protected int getRecordCount() {
+	public int syncAvroDataFrom(DataPointMgr srcData) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
-	public int syncAvroDataFrom(DataPoint srcData) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-	public int syncDataFrom(DataPoint srcData) {
+	public int syncDataFrom(DataPointMgr srcData) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
@@ -218,7 +211,7 @@ public class DataPoint {
 //		// TODO Auto-generated method stub
 //		return 0;
 //	}
-	public int syncDataViaV2(DataPoint srcData, DataPoint auxData) {
+	public int syncDataViaV2(DataPointMgr srcData, DataPointMgr auxData) {
 		// TODO Auto-generated method stub
 		return 0;
 	}
@@ -268,6 +261,6 @@ public class DataPoint {
 		
 	}
 
-	
+
 	
 }

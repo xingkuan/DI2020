@@ -22,11 +22,11 @@ import java.io.File;
 
 public class unRegistTask {
 	private static final Logger logger = LogManager.getLogger();
-	private static final MetaData metaData = MetaData.getInstance();
+	private static final TaskMeta metaData = TaskMeta.getInstance();
 
 	private static int taskID;
 
-	static DataPoint srcDB, tgtDB, dccDB;
+	static DataPointMgr srcDB, tgtDB, dccDB;
 
 	public static void main(String[] args) throws IOException {
 		System.out.println(Arrays.toString(args));
@@ -66,10 +66,10 @@ public class unRegistTask {
 				+ "." + tblDetail.get("src_table"));
 				return;
 			}
-			DataPoint srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+			DataPointMgr srcData = DataPointMgr.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 			srcData.unregisterSrc(taskID);
 			srcData.close();
-			DataPoint tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+			DataPointMgr tgtData = DataPointMgr.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 			tgtData.unregisterTgt(taskID);
 			tgtData.close();
 			String dccDBid = tblDetail.get("dcc_db_id").toString();

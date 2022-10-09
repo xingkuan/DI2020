@@ -13,7 +13,7 @@ import org.json.simple.JSONObject;
 
 class Test
 {
-   private static final Metrix metrix = Metrix.getInstance();
+   private static final Matrix metrix = Matrix.getInstance();
    
    public static void main (String args[]) {   
 	   //metrix.sendMXrest("initDuration,jobId=test,tblID=0 value=6\n");
@@ -42,7 +42,7 @@ class Test
 	   jo.put("db_driver", "org.apache.hive.jdbc.HiveDriver");
 	   jo.put("db_usr", "APP");
 	   jo.put("db_pwd", "mine");
-	   try {
+/*	   try {
 		HiveData hd = new HiveData(jo, "TEST");
 		if(hd==null)
 			return;  //something is not right!
@@ -51,6 +51,7 @@ class Test
 	   } catch (SQLException e) {
 		   e.printStackTrace();
 	   }
+*/	   
    }
 
 private static void testES() {
@@ -59,15 +60,15 @@ private static void testES() {
    }
    private static void testAVROConsumer() {
 		int tableID=1;
-		MetaData metaData = MetaData.getInstance();
+		TaskMeta metaData = TaskMeta.getInstance();
 
-		metaData.setupTaskForAction("testConsumeAVRO", tableID, 21);  // actId for dev activities.
+//		metaData.setupTaskForAction("testConsumeAVRO", tableID, 21);  // actId for dev activities.
 		
 		JSONObject tblDetail = metaData.getTaskDetails();
 		String actTemp = tblDetail.get("template_id").toString();
 
-		KafkaData tgtData = (KafkaData) DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-		tgtData.test();
+//		KafkaData tgtData = (KafkaData) DataPointMgr.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+//		tgtData.test();
 
    }
    

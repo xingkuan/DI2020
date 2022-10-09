@@ -8,10 +8,6 @@ import java.sql.*;
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
-import org.json.simple.parser.JSONParser;
-import org.json.simple.parser.ParseException;
-
-import com.vertica.jdbc.VerticaConnection;
 
 import org.apache.logging.log4j.LogManager;
 
@@ -28,10 +24,10 @@ class DB2Data400 extends JDBCData {
 	private long seqThisFresh = 0;
 
 	//public DB2Data400(String dbid) throws SQLException {
-	public DB2Data400(JSONObject dbDetailJSON, String role) throws SQLException {
-		super(dbDetailJSON, role);
+	public DB2Data400(JSONObject dbDetailJSON) throws SQLException {
+		super(dbDetailJSON);
 	}
-	protected void initializeFrom(DataPoint dt) {
+	protected void initializeFrom(DataPointMgr dt) {
 		logger.info("   not needed yet");
 	}
 	@Override
@@ -49,6 +45,7 @@ class DB2Data400 extends JDBCData {
 	public ResultSet getSrcResultSet() {
 		return srcRS;
 	}
+/*TODO 20220928 move getSrcSqlStmts() to registration 
 	@Override
 	protected JSONObject getSrcSqlStmts(String template) {
 	//from metaData private JSONObject getO2Vact2SQLs() {
@@ -80,6 +77,7 @@ class DB2Data400 extends JDBCData {
 		}
 		return jo;
 	}
+	*/
 	private String DB2DCCsql(boolean prefered) {
 //  spublic JSONObject getDJ2Kact2SQLs(boolean fast, boolean relaxed) {  //"public" as an hacker
 		long lasDCCSeq = metaData.getDCCSeqLastRefresh();

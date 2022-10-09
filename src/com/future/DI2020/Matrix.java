@@ -18,7 +18,7 @@ import java.net.URL;
 
 
 
-public class Metrix {
+public class Matrix {
     DatagramSocket sock = null;
     private InetAddress address;
     Conf conf = Conf.getInstance();
@@ -28,16 +28,16 @@ public class Metrix {
     private static final Logger logger = LogManager.getLogger();
     
     
-    private static Metrix instance = null;  // use lazy instantiation new OVSmetrix();
+    private static Matrix instance = null;  // use lazy instantiation new OVSmetrix();
     
-    public static Metrix getInstance() {
+    public static Matrix getInstance() {
         if(instance == null) {
-           instance = new Metrix();
+           instance = new Matrix();
         }
         return instance;
      }
     
-    private Metrix() {  // and defeat instantiation.
+    private Matrix() {  // and defeat instantiation.
     }
     
     public void sendMX(String mx){

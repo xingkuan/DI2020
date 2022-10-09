@@ -70,9 +70,9 @@ class KafkaData extends Kafka {
 	private List<String> msgKeyList=new ArrayList<String>();
 	
 	//public KafkaData(String dID) throws SQLException {
-	public KafkaData(JSONObject dID, String role) throws SQLException {
+	public KafkaData(JSONObject dID) throws SQLException {
 		// super(dbid, url, cls, user, pwd);
-		super(dID, role);
+		super(dID);
 	}
 
 
@@ -282,7 +282,7 @@ class KafkaData extends Kafka {
 	
 	/******************* transform APIs ****************************************/
 	@Override
-	protected int xformInto(DataPoint tgtData) {
+	protected int xformInto(DataPointMgr tgtData) {
 		int cnt=0;		
 		String topic=metaData.getTaskDetails().get("src_schema")+"."+metaData.getTaskDetails().get("src_table");
 		System.out.println(topic);

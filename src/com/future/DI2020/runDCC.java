@@ -19,11 +19,11 @@ import org.apache.logging.log4j.LogManager;
 
 class runDCC {
 	private static final Logger ovLogger = LogManager.getLogger();
-	private static final Metrix metrix = Metrix.getInstance();
-	private static final MetaData metaData = MetaData.getInstance();
+	private static final Matrix metrix = Matrix.getInstance();
+	private static final TaskMeta metaData = TaskMeta.getInstance();
 
-	static DataPointer srcData;
-	static DataPointer dccData;
+	static DataPointMgr srcData;
+	static DataPointMgr dccData;
 
 	static String jobID = "runDCC";
 
@@ -46,7 +46,8 @@ class runDCC {
 	static void syncByPool(int pID) {
 		JSONArray jList = metaData.getDCCsByPoolID(pID);
 		jList.forEach(j ->{JSONObject jo = (JSONObject)j;
-            syncDCC1(jo.get("SRC_DB_ID").toString(), jo.get("SRC_SCHEMA").toString(), jo.get("SRC_TABLE").toString(), jo.get("TGT_DB_ID").toString());
+            //syncDCC1(jo.get("SRC_DB_ID").toString(), jo.get("SRC_SCHEMA").toString(), jo.get("SRC_TABLE").toString(), jo.get("TGT_DB_ID").toString());
+            syncDCC1(Integer.parseInt(jo.get("TBL_ID").toString()));
         });
 	}
 	
@@ -55,17 +56,17 @@ class runDCC {
 		int syncSt=2;
 		setup(tblID);
 		ovLogger.info("    START.");
-		int ok = metaData.begin(2);
+		int ok = metaData.begin();
 		if(ok == 1) {
-			boolean proceed = srcData.crtSrcDCCResultSet();
-			if(proceed) {
+			int proceed = srcData.crtSrcResultSet();
+			if(proceed>0) {
 				ResultSet rsltSet = srcData.getSrcResultSet();
 				syncSt = dccData.syncDataFrom(srcData);
 			}
 			metaData.end(syncSt);
 			metaData.saveInitStats();
 	
-			ovLogger.info(jobID + " - " + metaData.getTableDetails().get("src_table"));
+			ovLogger.info(jobID + " - " + metaData.getTaskDetails().get("src_table"));
 			tearDown();
 		} else {
 			   ovLogger.info("Table not in sync mode: " + jName + ".");
@@ -79,17 +80,17 @@ class runDCC {
 	private static void setup(int tblID) {
 		//metaData.setupDCCJob(jobID, srcDB, lName, jName, dccDB);
 		metaData.setupTableJob(jobID, tblID);
-		ovLogger.info(jobID + " " + metaData.getTableDetails().get("src_db_id") + "." 
-					+ metaData.getTableDetails().get("src_schema") + "."
-					+ metaData.getTableDetails().get("src_table"));
+		ovLogger.info(jobID + " " + metaData.getTaskDetails().get("src_db_id") + "." 
+					+ metaData.getTaskDetails().get("src_schema") + "."
+					+ metaData.getTaskDetails().get("src_table"));
 
 		//JSONObject dccDetail = metaData.getDCCDetails();
 
-		srcData = DataPointer.dataPtrCreater(srcDB);
+		srcData = DataPointMgr.dataPtrCreater(srcDB);
 		srcData.miscPrep();
 		ovLogger.info("   src ready.");
 
-		dccData = DataPointer.dataPtrCreater(dccDB);
+		dccData = DataPointMgr.dataPtrCreater(dccDB);
 		dccData.miscPrep();
 		dccData.setupSink();
 		ovLogger.info("   tgt ready");

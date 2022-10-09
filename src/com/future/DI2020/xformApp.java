@@ -27,11 +27,11 @@ import org.json.simple.JSONObject;
 class xformApp
 {
 	private static final Logger logger = LogManager.getLogger();
-	private static final Metrix metrix = Metrix.getInstance();
-	private static final MetaData metaData = MetaData.getInstance();
+	private static final Matrix metrix = Matrix.getInstance();
+	private static final TaskMeta metaData = TaskMeta.getInstance();
 
-	static DataPoint srcData;
-	static DataPoint tgtData;
+	static DataPointMgr srcData;
+	static DataPointMgr tgtData;
 
 	static String jobID ;
 
@@ -71,7 +71,7 @@ class xformApp
 
 	static void transform(int tblId) {
 		jobID = "xform";
-		MetaData metaData = MetaData.getInstance();
+		TaskMeta metaData = TaskMeta.getInstance();
 
 		metaData.setupTaskForAction(jobID, tblId, 11);  // actId for dev activities.
 		
@@ -80,9 +80,9 @@ class xformApp
 		xformEngine xformEng = new xformEngine();
 		xformEng.setupScripts();
 
-		KafkaData srcData = (KafkaData) DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+		KafkaData srcData = (KafkaData) DataPointMgr.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
 		//srcData.testConsumer();
-		ESData tgtData = (ESData) DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+		ESData tgtData = (ESData) DataPointMgr.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
 		//tgtData.test();
 		srcData.setupXformEngine(xformEng);
 		tgtData.setupSink();

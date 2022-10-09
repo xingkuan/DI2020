@@ -11,41 +11,29 @@ CREATE TABLE DATA_POINT
   DB_PWD        VARCHAR(25),
   DB_DRIVER     VARCHAR(150),
   DB_CONN       VARCHAR(150),
-  DB_INFO       VARCHAR(225)
+  DB_INFO       VARCHAR(225),
+  INSTRUCTIONS	JSONB    --the templates of registration, initialization, remove, incremental
 )
 ;
 -- Let's explicitly know that the DB are RDBMS or KAFKA, for both SRC, TGT and DCC
 CREATE TABLE TASK
 (
   TASK_ID             INTEGER PRIMARY KEY,
-  TASK_CAT            VARCHAR(10),
-  TEMPLATE_ID		  VARCHAR(20),  --DATA, JURL, DATA_(point to sync_template); XFORM<tbl_id> (point to xform_simple).
-                                    --    not very good idea, perhaps.
-  DATA_PK             VARCHAR(50),
   POOL_ID             INTEGER,
   INIT_DT	          DATE,
   INIT_DURATION       INTEGER,
   CURR_STATE          INTEGER,
   SRC_DB_ID           VARCHAR(15),
-  SRC_SCHEMA          VARCHAR(25),
   SRC_TABLE           VARCHAR(50),
-  SRC_DCC_PGM         VARCHAR(30), --either trigger name as sch.trig or EXT
-  SRC_DCC_TBL         VARCHAR(30), --either sch.tbl or jrnl_lib.jrnl_member(for DB2)
-  SRC_STMT0			  VARCHAR(1000), --select c1, c2 ... 
+  SRC_EXTRA_LST       text, --DB2/400 journal case: list of tables to extract from journal
+  SRC_SQL             text ,  --if customer SQL is used.
   TGT_DB_ID           VARCHAR(15),
-  TGT_SCHEMA          VARCHAR(25),
   TGT_TABLE           VARCHAR(50),
-  TGT_STMT0			  VARCHAR(1000), --insert into ...
-  DCC_DB_ID           VARCHAR(15),  -- eith SRC_DB_ID or a KAFKA. More likely KAFKA only!!!
-                                    -- SRC_STMTS will pull in this field (and the next one)
-                                    -- to compose the steps for extract src data.    
-                      -- Also, if DCC_DB_ID!=SRC_DB_ID, another entry will be automatically created, for extract
-                      -- CCD keys into KAFKA topics
-  DCC_STORE           VARCHAR(50),  -- Basically Kafka topic name; =src_dcc_tbl
+  TGT_EXTRA_LST       text, --DB2/400 journal case
   TS_REGIST           TIMESTAMP(6),
   TS_LAST_REF         TIMESTAMP(6),
-  SEQ_LAST_REF        BIGINT,
-  CONSTRAINT unique_src UNIQUE (SRC_DB_ID, SRC_SCHEMA, SRC_TABLE)
+  SEQ_LAST_REF        BIGINT
+--  CONSTRAINT unique_src UNIQUE (SRC_DB_ID, SRC_SCHEMA, SRC_TABLE)
 )
 ; 
 
@@ -62,15 +50,6 @@ CREATE TABLE DATA_FIELD
   JAVA_TYPE         INT,
   AVRO_TYPE         VARCHAR(80),
   primary key (tbl_id, field_id)
-)
-;
-CREATE TABLE TASK_TEMPLATE
-(
-  TEMPLATE_ID    VARCHAR(20),  --DJ2K, D2V, O2V, D2K, O2K...
-  ACT_ID     INTEGER,      --0: enable(trigger, jurl extr); 1: init tbl; 2: dcc; 3: syn; 4: syn via kafka
-  INFO       VARCHAR(100),
-  STMTS		 JSONB,        --ideally, configurable SQLs or whatever
-  primary key (temp_id, act_id)
 )
 ;
 
@@ -115,26 +94,85 @@ insert into DATA_POINT (
   DB_CAT, DB_TYPE,
   DB_USR, DB_PWD,
   DB_DRIVER, DB_CONN,
-  DB_INFO)
+  DB_INFO,
+  INSTRUCTIONS)
 values 
-('DB2D', 
+('DB2DKEY', 
  'RDBMS', 'DB2/AS400',
  'johnlee2', 'C3line1998', 
  'com.ibm.as400.access.AS400JDBCDriver',
  'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
- 'DB2/AS400 Dev'),
-('DB2T', 
+ 'DB2/AS400 data id',
+ '{	"bareSQL": "select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR 
+				 FROM table (Display_Journal(jLibName, jName, rLib, 
+					rName , cast(strTS as TIMESTAMP),  // pass-in the start timestamp;
+					cast(null as decimal(21,0)),  // starting SEQ #
+					'R',  // JOURNAL CODE:
+					'',  // JOURNAL entry:UP,DL,PT,PX
+					srcSch + ,  srcTbl , '*QDDS', '',  // Object library, Object name, Object type,
+																			// Object member
+					'', '', ''  // User, Job, Program
+					) ) as x order by 2 asc
+	strTS = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(cal.getTime()); "
+,
+     "rs": "n" }
+  ],
+  "registration": [
+  		... one journal member can correspond to multiple tables -> so will be a list of table
+  ],
+  "remove": [],
+  "initRun": [ 
+  	{"name":"xxx",
+     "stmt":"SELECT current timestamp FROM sysibm.sysdummy1;
+			String sqlStmt = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR"
+					+ " FROM table (Display_Journal('" + jLibName + "', '" + jName + "', " + "   '" + rLib + "', '"
+					+ rName + "', " + "   cast('" + strTS + "' as TIMESTAMP), " // pass-in the start timestamp;
+					+ "   cast(null as decimal(21,0)), " // starting SEQ #
+					+ "   'R', " // JOURNAL CODE:
+					+ "   ''," // JOURNAL entry:UP,DL,PT,PX
+					+ "   '" + srcSch + "', '" + srcTbl + "', '*QDDS', ''," // Object library, Object name, Object type,
+																			// Object member
+					+ "   '', '', ''" // User, Job, Program
+					+ ") ) as x order by 2 asc"; 
+     	"rs": "n" 
+     }
+  ],
+  "incrementalRun": []
+  }
+  }'
+ ),
+insert into DATA_POINT (
+  DB_ID,
+  DB_CAT, DB_TYPE,
+  DB_USR, DB_PWD,
+  DB_DRIVER, DB_CONN,
+  DB_INFO,
+  INSTRUCTIONS)
+values 
+('DB2DDATA', 
  'RDBMS', 'DB2/AS400',
- 'VERTSYNC', 'G123UESS', 
+ 'johnlee2', 'C3line1998', 
  'com.ibm.as400.access.AS400JDBCDriver',
- 'jdbc:as400://XXXX:2551/XXX', 
- 'DB2/AS400 Test'),
+ 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
+ 'DB2/AS400 data',
+ '{	"bareSQL": "select a.*, DATAKEY from SRCTBLE ",
+   "registration": [
+  	"checking":	... better contains a checking verifying src table is in the list of the "data keys"... ,
+  	"create target": "create table ...."
+  ],
+  "remove": [],
+  "initRun": [   ],
+  "incrementalRun": []
+  }
+  }'
+ ),
 ('VERTX', 
  'RDBMS', 'VERTICA',
  'dbadmin', 'Bre@ker321', 
  'com.vertica.jdbc.Driver',
  'jdbc:vertica://vertx1:5433/vertx', 
- 'Vert x'),
+ 'Vert x',
+ ),
 ('KAFKA1', 
  'MQ', 'KAFKA',
  'xxx', 'xxx', 
@@ -152,7 +190,76 @@ values
  'johnlee', 'johnlee213', 
  'oracle.jdbc.OracleDriver',
  'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
- 'Oracle Dev'),
+ 'Oracle Dev',
+ '{	"bareSQL": "select * from a.* from SRCTBLE ";
+ 	"registration": [
+    {"name":"step 1",
+     "stmt":"create table LOGTBLNAME (datakey varchar(20), action char[1], ts_dcc date) tablespace DCCTSNAME; ", 
+     "rs": "n" },
+    {"name":"step 2", 
+     "stmt":"create or replace trigger TRIGNAME   
+				after insert or update or delete on SRCTBLE  
+				for each row  
+				begin
+				DECLARE
+     				action  char(1);
+				BEGIN 
+				IF DELETING THEN 
+ 					action := 'D';
+				END IF;
+				IF INSERTING THEN 
+ 					action := 'I';
+				END IF;
+				IF UPDATING THEN 
+ 					action := 'U';
+				END IF;
+				
+				insert into LOGTBLNAME (datakey, action, ts_dcc )\n"  
+				values ( :new.rowid, sysdate   );  
+				end; \n",
+     "rs": "n" },
+    {"name":"step 2", 
+     "stmt":"commit",
+     "rs": "n" },
+    {"name":"step 3",
+     "stmt":"alter trigger TRIGNAME disable;",
+     "rs": "y"},
+    {"name":"statements for creating target",
+     "stmt":" ... ",
+     "rs": "y"}
+  ],
+  "remove": [
+    {"name":"step 1",
+     "stmt":"drop table LOGTBLNAME ", 
+     "rs": "n" },
+    {"name":"step 2", 
+     "stmt":"drop trigger TRIGNAME ",
+     "rs": "n" }
+  ],
+  "initRun": [
+    {"name":"step", 
+     "stmt":"alter trigger TRIGNAME enable;",
+     "rs": "n" },
+    {"name":"step 1",
+     "sql":"bareSQL + datakey ", 
+     "rs": "y" }
+  ],
+  "incrementalRun": [
+    {"name":"step 1",
+     "sql":"select sysdate from dual ", 
+     "rs": "y" },
+    {"name":"step 1",
+     "sql":"select distinct datakey from LOGTBLNAME where ts_dcc < CURRTS", 
+     "rs": "y" },    
+     {"name":"dataSQL",
+     "sql":"bareSQL + datakey + where", 
+     "rs": "y" },
+    {"name":"step 2", 
+     "stmt":"delete from LOGTBLNAME where ts_dcc < CURRTS ",
+     "rs": "n" }
+  ]}'
+  }'
+ ),
 ('ES1', 
  'Search Engine', 'ES',
  'xxx', 'xxx', 

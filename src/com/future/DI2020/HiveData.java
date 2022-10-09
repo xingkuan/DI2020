@@ -19,8 +19,8 @@ class HiveData extends JDBCData{
 	private ResultSet srcRS = null;
 	
    //public OracleData(String dbID) throws SQLException {
-   public HiveData(JSONObject dbID, String role) throws SQLException {
-		super(dbID, role);
+   public HiveData(JSONObject dbID) throws SQLException {
+		super(dbID);
    }
 //   protected void initializeFrom(DataPoint dt) {
 //		logger.info("   not needed yet");

@@ -19,22 +19,19 @@ import org.apache.logging.log4j.LogManager;
 
 class runTask {
 	private static final Logger logger = LogManager.getLogger();
-	private static final Metrix metrix = Metrix.getInstance();
-	private static final MetaData metaData = MetaData.getInstance();
 
+	private static final TaskMeta metaData = TaskMeta.getInstance();
+	private DataPointMgr dataMgr = DataPointMgr.getInstance();
+	
 	//static int tableID;
 	static DataPoint srcData;
 	static DataPoint tgtData;
 	static DataPoint auxData;
 
+	JSONObject taskDetail;
 
 	static String jobID ;
 	static int jobSub=3;
-
-	private int totalDelCnt = 0, totalInsCnt = 0, totalErrCnt = 0;
-
-	private int kafkaMaxPollRecords;
-	private int pollWaitMil;
 
 	/* actId:
 	 *     0: enable   ;    templates: {"0Enab"}
@@ -48,11 +45,11 @@ class runTask {
 	 * 		tbl 5 2[..]	    -- Oracle to Vertica, sync[..]
 	 * 		tbl 6 2[..]	    -- Oracle to Kafka, sync[..]
 	 */
-	public static void main(String[] args) {
+	public void main(String[] args) {
 		System.out.println(args.length);
 
 		if (args.length != 3) {
-			System.out.println("Usage:   runTable <tbl|pool> id aID");
+			System.out.println("Usage:   runTask <tbl|pool> id aID");
 			//return -1;
 		}
 
@@ -61,160 +58,98 @@ class runTask {
 		int actId = Integer.parseInt(args[2]);
 		
 		if(parmCat.contentEquals("pool"))
-			actOnTables(parmId, actId);
+			actOnTasks(parmId, actId);
 		else if(parmCat.contentEquals("tbl"))
-			actOnTable(parmId, actId);
+			actOnTask(parmId, actId);
 		else 
 			System.out.println("Usage:   syncTable <tbl|pool> oId aId");
 			
 	}
-	static void actOnTables(int poolID, int actId) {
+	
+	void actOnTasks(int poolID, int actId) {
 		List<Integer> tblList = metaData.getTblsByPoolID(poolID);
 		for (int i : tblList) {
-            actOnTable(i, actId);
+            actOnTask(i, actId);
         }
 	}
-	static void actOnTable(int tID, int actId) {
+
+	void actOnTask(int tID, int actId) {
+		jobID = jobID + tID;
+		metaData.setJobName(jobID);
+
 		int syncSt = 2; //the desired table state: "2"
 
-		if(metaData.setupTaskForAction("tobesetlater", tID, actId)==-1) {
-			logger.error("Exit without doing anything.");
-			return ;
+		setup(tID);
+		
+		metaData.beginTask();
+
+		/*
+		logger.info("BEGIN: " + metaData.getTaskDetails().get("src_table").toString());
+
+		int dccCnt = srcData.getDccCnt();
+		if(dccCnt==0) {
+			logger.info("   no dcc.");
+			break ;  
 		}
 
-		logger.info("BEGIN.");
-		JSONObject tblDetail = metaData.getTaskDetails();
-
-		metaData.begin();
-		//based on jobDetail, do the corresponding...
-		switch(actId){
-			case 0:  //enable table to be actionable.
-				jobID = "enableTbl";
-				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
-				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-				if(srcData==null)
-					return;  //something is not right!
-				srcData.miscPrep();  
-				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table"));
-
-									 //For Oracle (to V), it is enable trigger and curr_state=2;
-				srcData.beginDCC();	 //For DB2/AS400 log (to K), set the seq_last_ref, and curr_state=2;
-									 //For DB2/AS400 tbl (to V), curr_state=2
-				metaData.saveInitStats();
-				break;
-			case 1:  //initial copying of data from src to tgt
-				jobID = "initTbl";
-				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
-				//String tempId="1";
-				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-				srcData.miscPrep();  
-				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
-
-				tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-				tgtData.miscPrep();
-
-				srcData.crtSrcResultSet();
-				tgtData.setupSink();
-				srcData.copyTo(tgtData);
-				tgtData.commit();
-				//*******
-				//srcData.cleanup(actId, aftSQLs);
-				break;
-			case 2:   //sync DCC, and tbl as well 
-				jobID = "syncTbl";
-				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
-
-				String tempId = metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id");
-				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-				srcData.miscPrep();  //parm is to avoid reading max jrnal seq num when not needed
-				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
-				
-				switch(tempId) {
-					case "2DCC":
-					case "2DATA":
-						int dccCnt = srcData.getDccCnt();
-						if(dccCnt==0) {
-							logger.info("   no dcc.");
-							break ;  
-						}
-
-						int cnt=srcData.crtSrcResultSet();
-						if(cnt<0) {
-							logger.info("    error in source.");
-						}else {
-							tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-							tgtData.setupSink();
-							srcData.copyTo(tgtData);
-						}
-						srcData.afterSync();
-						tgtData.afterSync();
-						break;
-					case "2DATA_":
-						String auxDBstr = tblDetail.get("dcc_db_id").toString();
-						auxData = DataPoint.dataPtrCreater(auxDBstr, "AUX");
-						auxData.miscPrep();
-						dccCnt = auxData.getDccCnt();
-						if(dccCnt==0) {
-							logger.info("   no dcc.");
-							break ;  
-						}
-						logger.info("   aux ready: " + metaData.getTaskDetails().get("src_table").toString());
-
-						tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-						tgtData.setupSink();
-						srcData.copyToVia(tgtData,auxData);  
-						srcData.afterSync();
-						tgtData.afterSync();
-						break;
-					default:
-						logger.error("wrong template ID");
-						break;
-				}
-
-				break;
-			case 9:   //audit
-				//actType9(tID, actId);
-				jobID = "auditTbl";
-				metaData.setJobName(jobID);
-				logger.info("    " + jobID + " " + tID + ": " + metaData.getTaskDetails().get("src_table").toString());
-
-				srcData = DataPoint.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
-				srcData.miscPrep();  
-				logger.info("   src ready: " + metaData.getTaskDetails().get("src_table").toString());
-
-				tgtData = DataPoint.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
-				tgtData.miscPrep();
-				tgtData.setupSink();
-
-				int srcRC=srcData.getRecordCount();
-				int tgtRC=tgtData.getRecordCount();
-				break;
-			default:
-				logger.info("unkown action");
-				break;
+		int cnt=srcData.crtSrcResultSet();
+		if(cnt<0) {
+			logger.info("    error in source.");
+		}else {
+			tgtData.sync(srcData);
 		}
+		srcData.afterSync();
+		tgtData.afterSync();
+
 		if(srcData!=null)
 			srcData.commit();
 		if(tgtData!=null)
 			tgtData.commit();
-		metaData.end(syncSt);
-		metaData.saveSyncStats();
-		tearDown();
+*/
+		tgtData.sync(srcData);   //20220927TODO this step should take instructions from meta and do it
 
+		metaData.setTaskState(9);
+		metaData.endTask();
+		
 		logger.info("END.");
 	}
-	private static void tearDown() {
-		if(!(srcData==null))
-			srcData.close();
-		if(!(tgtData==null))
-			tgtData.close();
-		if(!(auxData==null))
-			auxData.close();
-		metaData.close();
+	
+	  private void setup(int taskId) {
+		int actId = 1;  	//data pumping
+		String srcTbl,  tgtTbl;
+			
+		metaData.setupTaskForAction(jobID, taskId, actId);
+		if(metaData.isTaskReadyFor(actId)){
+			taskDetail = metaData.getTaskDetails();
+				
+			srcTbl = taskDetail.get("src_tbl").toString();
+			tgtTbl = taskDetail.get("tgt_tbl").toString();
+	
+			jobID = jobID + taskId + " " + srcTbl + " "+ tgtTbl;
+	
+			srcData = DataPointMgr.getDB(taskDetail.get("src_db_id").toString());
+
+			JSONObject srcInstr = (JSONObject) taskDetail.get("srcInstruction");
+			srcData.prep(srcInstr);
+	
+			tgtData = DataPointMgr.getDB(taskDetail.get("tgt_db_id").toString());
+			JSONObject tgtInstr = (JSONObject) taskDetail.get("srcInstruction");
+			tgtData.prep(tgtInstr);
+	
+			tgtData = DataPointMgr.getDB(taskDetail.get("tgt_db_id").toString());
+		}
 		logger.info("Completed "+jobID+": " +  metaData.getTableID());
+	}
+	
+	private void endTask() {
+		jobID="audit ";
+		taskDetail = null;
+		
+		srcData.clearData();
+		tgtData.clearData();
+		
+		dataMgr.returnDB(taskDetail.get("src_db_id").toString(), srcData);
+		dataMgr.returnDB(taskDetail.get("tgt_db_id").toString(), tgtData);
 	}
 
 	

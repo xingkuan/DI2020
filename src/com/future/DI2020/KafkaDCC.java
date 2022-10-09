@@ -71,8 +71,8 @@ class KafkaDCC extends Kafka {
     private String srcTbl;
     private List<String> activeTblList;
     
-	public KafkaDCC(JSONObject dID, String role) {
-		super(dID, role);
+	public KafkaDCC(JSONObject dID) {
+		super(dID);
 	}
 	@Override
 	protected void createKafkaConsumer() {

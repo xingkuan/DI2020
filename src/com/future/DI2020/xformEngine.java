@@ -26,9 +26,9 @@ import org.json.simple.JSONObject;
 
 public class xformEngine {
 	public static final Logger logger = LogManager.getLogger();
-	protected static final MetaData metaData = MetaData.getInstance();
+	protected static final TaskMeta metaData = TaskMeta.getInstance();
 	protected static final Conf conf = Conf.getInstance();
-	protected static final Metrix metrix = Metrix.getInstance();
+	protected static final Matrix metrix = Matrix.getInstance();
 	protected static final String logDir = conf.getConf("logDir");
 
 	ScriptEngine graalEngine;

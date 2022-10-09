@@ -1,11 +1,7 @@
 package com.future.DI2020;
 
-import java.io.*;
 import java.util.*;
-import java.text.*;
 import java.sql.*;
-import oracle.jdbc.*;
-import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
@@ -19,8 +15,8 @@ class OracleData extends JDBCData{
 	private ResultSet srcRS = null;
 	
    //public OracleData(String dbID) throws SQLException {
-   public OracleData(JSONObject dbID, String role) throws SQLException {
-		super(dbID, role);
+   public OracleData(JSONObject dbID) throws SQLException {
+		super(dbID);
    }
 //   protected void initializeFrom(DataPoint dt) {
 //		logger.info("   not needed yet");
@@ -35,7 +31,7 @@ class OracleData extends JDBCData{
 		return rtc;
 	}
 
-	public ResultSet getSrcResultSet() {
+	public ResultSet getData() {
 		return srcRS;
 	}
 	//should only be sued when TEMP_ID
@@ -47,6 +43,7 @@ class OracleData extends JDBCData{
 		return cnt;
 	}
 	/********** Synch APIs *********************************/
+/*TODO 20220928 move getSrcSqlStmts() to registration 
 	@Override
 	protected JSONObject getSrcSqlStmts(String template) {
 	//from metaData private JSONObject getO2Vact2SQLs() {
@@ -74,6 +71,7 @@ class OracleData extends JDBCData{
 		
 		return jo;
 	}
+	*/
 	//public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
 	@Override
 	public int crtSrcResultSet() {

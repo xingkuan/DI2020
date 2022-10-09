@@ -36,8 +36,8 @@ class ESData extends DataPoint{
 	RestClient restClient;
 	
    //public OracleData(String dbID) throws SQLException {
-   public ESData(JSONObject dbID, String role) {
-		super(dbID, role);
+   public ESData(JSONObject dbID) {
+		super(dbID);
 		//connect();
    }
    public ESData() {
@@ -121,7 +121,7 @@ class ESData extends DataPoint{
 		}
     }
 /*****************************/
-   protected void initializeFrom(DataPoint dt) {
+   protected void initializeFrom(DataPointMgr dt) {
 		logger.info("   not needed yet");
    }
    private void connect() {
@@ -193,7 +193,7 @@ class ESData extends DataPoint{
 		e.printStackTrace();
 	   }
 	}
-	public int syncDataFrom(DataPoint srcData) {
+	public int syncDataFrom(DataPointMgr srcData) {
 		List<String> docList = srcData.getDCCKeyList();
 		try {
 			bulkIndex(docList);

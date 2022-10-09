@@ -59,8 +59,8 @@ class Kafka extends DataPoint {
 
 	protected Properties props = new Properties();
 	
-	public Kafka(JSONObject dID, String role) {
-		super(dID, role);
+	public Kafka(JSONObject dID) {
+		super(dID);
 	}
 
 	//public KafkaConsumer<Long, String> createKafkaConsumer(String topic) {
