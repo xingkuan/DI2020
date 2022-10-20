@@ -25,7 +25,7 @@ class JDBCData extends DataPoint{
 	protected ResultSet srcRS = null;
 
 	protected JSONObject srcInstr = null, tgtInstr = null;
-	
+
 	public JDBCData(JSONObject jo) throws SQLException {
 		super(jo);
 		connectDB();  
@@ -38,7 +38,7 @@ class JDBCData extends DataPoint{
 
 
 	private void connectDB() {
-		if(dbCat.equals("RDBMS")){
+		if(dbCat.equals("JDBC")){
 			try {
 				Class.forName(driver); 
 			} catch(ClassNotFoundException e){
@@ -65,7 +65,6 @@ class JDBCData extends DataPoint{
 		}
 	}
 	
-	//close statements, unset details like table name ...
 	public void clearData() {
 		try {
 			srcSQLStmt.close();
@@ -92,26 +91,21 @@ class JDBCData extends DataPoint{
 	int[] batchDel = null;
 	int[] batchIns = null;
 	String[] syncRowIDs;
-	int totalSyncCnt, currSyncCnt;
+
 	int fldInx;
 	ArrayList<Integer> syncFldType;
 	ArrayList<String> syncFldNames;
 	PreparedStatement syncInsStmt;
 
 	/**********************Synch APIs************************************/	
-	@Override
-	public int initDataFrom(DataPoint srcData) {
-		ResultSet srcRS = srcData.getInstRS();
-
-		writeRS(srcRS);
-		
-		return 0;
-	}
+	
 	@Override
 	public int sync(DataPoint srcData) {
 		ResultSet delRS, instRS;
-		delRS = srcData.getDeltRS();
-		instRS = srcData.getInstRS(); //TODO: that depends. It could come from Kafka!
+		String delStmt = (String) tgtInstr.get("DELETE");
+		String qryStmt = (String) tgtInstr.get("QUERY");
+		delRS = srcData.getRS(delStmt);
+		instRS = srcData.getRS(qryStmt); //TODO: that depends. It could come from Kafka!
 		
 		deleteRS(delRS);
 		writeRS(instRS);
@@ -125,6 +119,8 @@ class JDBCData extends DataPoint{
 	}
 	private int writeRS(ResultSet rs) {
 		Object o;
+		int currSyncCnt=0;
+		
 		try {
 			while(srcRS.next()) {
 				for (fldInx = 1; fldInx < syncFldType.size(); fldInx++) {  //The last column is the internal record key.
@@ -163,7 +159,7 @@ class JDBCData extends DataPoint{
 						for (int i = 0; i < batchSize; i++) {
 							if (batchIns[i] == Statement.EXECUTE_FAILED) {
 								logger.info("   " +  syncRowIDs[i]);
-								putROWID(syncRowIDs[i]);
+								//logErrorROWID(syncRowIDs[i]);
 								totalErrCnt++;
 							}
 						}
@@ -189,7 +185,7 @@ class JDBCData extends DataPoint{
 		return 0;
 	}
 
-		
+/*		
 	@Override
 	public void copyToVia(DataPoint tgtData, DataPoint auxData) {
 		int rtc = 2;
@@ -221,14 +217,15 @@ class JDBCData extends DataPoint{
 		//return rtc;
 	}
 
-//get the data deleted IDs, which will be processed accordingly on the target 
-public ResultSet getDeltRS() {
-	int rv;
+*/
+@Override
+public ResultSet getRS(String sql) {
 	ResultSet rs=null;
-	String delededDataIDstmt = (String) tgtInstr.get("deletedIDs");
+	int rv;
+
 	try {
 		srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-		rs = srcSQLStmt.executeQuery(delededDataIDstmt);
+		rs = srcSQLStmt.executeQuery(sql);
 		if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
 			rv=1;
 			logger.info("   src recordset ready.");
@@ -240,28 +237,6 @@ public ResultSet getDeltRS() {
 	
 	return rs;
 }
-
-public ResultSet getInstRS() {
-	ResultSet rs=null;
-	int rv;
-	String insrtDataIDstmt = (String) tgtInstr.get("insertedDataIDs");
-	//TODO 20220926: if incremental, the instruction will contains how to get the id of the data that need to be refreshed 
-	//...
-	try {
-		srcSQLStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-		rs = srcSQLStmt.executeQuery(insrtDataIDstmt);
-		if (srcRS.isBeforeFirst()) {// this check can throw exception, and do the needed below.
-			rv=1;
-			logger.info("   src recordset ready.");
-		}
-	} catch (SQLException e) {
-		logger.error("   " + e);
-		rv = -1;
-	}
-	
-	return rs;
-}
-
 
 	/*************************************************************************/	
 	protected int SQLtoResultSet(String sql) {
@@ -281,20 +256,6 @@ public ResultSet getInstRS() {
 		return rv;
 	}
 
-	protected void putROWID(String rowid) {
-		try {
-			// . FileWriter fstream = new FileWriter(metaData.getInitLogDir() + "/" +
-			// metaData.getTgtSchema() + "." + metaData.getTgtTable() + ".row", true);
-			FileWriter fstream = new FileWriter(
-				logDir + metaData.getTaskDetails().get("tgt_sch").toString() + "." + metaData.getTaskDetails().get("tgt_tbl").toString()  + ".row", true);
-			BufferedWriter out = new BufferedWriter(fstream);
-			out.write(rowid + "\n");
-			out.close();
-		} catch (Exception e) {
-			logger.error(e.getMessage());
-		}
-	}
-
 	//---------audit APIs
 	@Override
 	public int getRecordCount(){
@@ -303,10 +264,7 @@ public ResultSet getInstRS() {
 		ResultSet sqlRset;
 		int i;
 
-		String sql = metaData.getAuditStmt();
-		  //sql="select count(*) from " + metaData.getTaskDetails().get("src_schema").toString() 
-		  //		+ "." + metaData.getTaskDetails().get("src_table").toString();
-			      
+		String sql="select count(1) from " + tblName;
 		rtv=0;
 		try {
 		  sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
@@ -320,5 +278,150 @@ public ResultSet getInstRS() {
 		}
 		return rtv;
 	}
+	
+	//registration APIs	   
+
+	public JSONObject runDBcmd(String sqlStr, String type) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	private int runUpdateSQL(String sql) {
+		int rslt=0;
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt=null; 
+		try {
+			stmt = dbConn.createStatement();
+			rslt = stmt.executeUpdate(sql);
+			stmt.close();
+			dbConn.commit();
+		} catch (SQLException e) {
+			logger.error(e);
+			rslt=-1;
+		} 
+		return rslt;
+	}
+
+
+	public String getAVRO(String selectStmt) {
+		Statement lrepStmt;
+		ResultSet lrRset;
+		int i;
+
+		String avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
+				    + "\"type\": \"record\", \n" 
+				    + "\"name\": \"" + tblName + "\", \n" 
+				    + "\"fields\": [ \n" ;
+		try {
+			lrepStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+
+			i = 0;
+			lrRset = lrepStmt.executeQuery(selectStmt);
+			ResultSetMetaData rsmd = lrRset.getMetaData();
+			int columnCount = rsmd.getColumnCount();
+			String colName;
+			String colType;
+		/*
+Array: 2003
+Big int: -5
+Binary: -2
+Bit: -7
+Blob: 2004
+Boolean: 16
+Char: 1
+Clob: 2005
+Date: 91
+Datalink70
+Decimal: 3
+Distinct: 2001
+Double: 8
+Float: 6
+Integer: 4
+JavaObject: 2000
+Long var char: -16
+Nchar: -15
+NClob: 2011
+Varchar: 12
+VarBinary: -3
+Tiny int: -6
+Time stamt with time zone: 2014
+Timestamp: 93
+Time: 92
+Struct: 2002
+SqlXml: 2009
+Smallint: 5
+Rowid: -8
+Refcursor: 2012
+Ref: 2006
+Real: 7
+Nvarchar: -9
+Numeric: 2
+Null: 0
+Smallint: 5
+ */
+			for (i = 1; i <= columnCount; i++ ) {
+				colName = rsmd.getColumnName(i);
+				colType = rsmd.getColumnTypeName(i);
+	
+				avroSchema = avroSchema 
+						+ "{\"name\": \"" + colName + "\", " + colType + "} \n" ;
+				i++;
+			}
+	
+			lrRset.close();
+			lrepStmt.close();
+			
+			avroSchema = avroSchema 
+				+ "] }";
+
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		
+		return avroSchema;
+	}
+
+	public String getSrcSTMT(String bareSQL) {
+		Statement sqlStmt;
+		ResultSet sqlRset;
+		  try {
+			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			ResultSet rs = sqlStmt.executeQuery(bareSQL);
+
+	      //Retrieving the ResultSetMetaData object
+	      ResultSetMetaData rsmd = rs.getMetaData();
+
+	      //getting the column type
+	      int column_size = rsmd.getPrecision(3);
+			} catch (SQLException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+	      
+		return null;
+	}
+
+	public String getTgtDDL(String bareSQL) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+
+
+/*
+	protected void logErrorROWID(String rowid) {
+		try {
+			// . FileWriter fstream = new FileWriter(metaData.getInitLogDir() + "/" +
+			// metaData.getTgtSchema() + "." + metaData.getTgtTable() + ".row", true);
+			FileWriter fstream = new FileWriter(
+				logDir + metaData.getTaskDetails().get("tgt_sch").toString() + "." + metaData.getTaskDetails().get("tgt_tbl").toString()  + ".row", true);
+			BufferedWriter out = new BufferedWriter(fstream);
+			out.write(rowid + "\n");
+			out.close();
+		} catch (Exception e) {
+			logger.error(e.getMessage());
+		}
+	}
+*/
 
 }

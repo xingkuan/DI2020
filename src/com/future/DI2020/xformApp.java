@@ -30,8 +30,8 @@ class xformApp
 	private static final Matrix metrix = Matrix.getInstance();
 	private static final TaskMeta metaData = TaskMeta.getInstance();
 
-	static DataPointMgr srcData;
-	static DataPointMgr tgtData;
+	static DataPoint srcData;
+	static DataPoint tgtData;
 
 	static String jobID ;
 
@@ -73,25 +73,26 @@ class xformApp
 		jobID = "xform";
 		TaskMeta metaData = TaskMeta.getInstance();
 
-		metaData.setupTaskForAction(jobID, tblId, 11);  // actId for dev activities.
+		metaData.setupTask(jobID, tblId, 11);  // actId for dev activities.
 		
-		JSONObject tblDetail = metaData.getTaskDetails();
+		JSONObject tskDetail = metaData.getTaskDetails();
 		
 		xformEngine xformEng = new xformEngine();
 		xformEng.setupScripts();
 
-		KafkaData srcData = (KafkaData) DataPointMgr.dataPtrCreater(tblDetail.get("src_db_id").toString(), "SRC");
+		srcData = (KafkaData) DataPointMgr.getDB(tskDetail.get("src_db_id").toString());
 		//srcData.testConsumer();
-		ESData tgtData = (ESData) DataPointMgr.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");
+		tgtData = (ESData) DataPointMgr.getDB(tskDetail.get("tgt_db_id").toString());
 		//tgtData.test();
 		srcData.setupXformEngine(xformEng);
-		tgtData.setupSink();
-		int cnt=srcData.xformInto(tgtData);
+		//tgtData.setupSink();
+		//int cnt=srcData.xformInto(tgtData);
 		//srcData.test();
-		if(cnt>0)
-			tgtData.write();
-		srcData.close();
-		tgtData.close();
+		//if(cnt>0)
+			tgtData.sync(srcData);
+		
+		srcData.closeDB();
+		tgtData.closeDB();
 		
 		return;
 	}

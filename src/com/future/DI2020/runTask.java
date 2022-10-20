@@ -75,13 +75,10 @@ class runTask {
 
 	void actOnTask(int tID, int actId) {
 		jobID = jobID + tID;
-		metaData.setJobName(jobID);
-
 		int syncSt = 2; //the desired table state: "2"
 
-		setup(tID);
+		setupTask(jobID, tID);
 		
-		metaData.beginTask();
 
 		/*
 		logger.info("BEGIN: " + metaData.getTaskDetails().get("src_table").toString());
@@ -114,11 +111,11 @@ class runTask {
 		logger.info("END.");
 	}
 	
-	  private void setup(int taskId) {
+	  private void setupTask(String jobID, int taskId) {
 		int actId = 1;  	//data pumping
 		String srcTbl,  tgtTbl;
 			
-		metaData.setupTaskForAction(jobID, taskId, actId);
+		metaData.setupTask(jobID, taskId, actId);
 		if(metaData.isTaskReadyFor(actId)){
 			taskDetail = metaData.getTaskDetails();
 				
@@ -128,15 +125,10 @@ class runTask {
 			jobID = jobID + taskId + " " + srcTbl + " "+ tgtTbl;
 	
 			srcData = DataPointMgr.getDB(taskDetail.get("src_db_id").toString());
+			tgtData = DataPointMgr.getDB(taskDetail.get("tgt_db_id").toString());
 
-			JSONObject srcInstr = (JSONObject) taskDetail.get("srcInstruction");
-			srcData.prep(srcInstr);
-	
-			tgtData = DataPointMgr.getDB(taskDetail.get("tgt_db_id").toString());
-			JSONObject tgtInstr = (JSONObject) taskDetail.get("srcInstruction");
-			tgtData.prep(tgtInstr);
-	
-			tgtData = DataPointMgr.getDB(taskDetail.get("tgt_db_id").toString());
+			srcData.setTable(srcTbl);
+			tgtData.setTable(tgtTbl);
 		}
 		logger.info("Completed "+jobID+": " +  metaData.getTableID());
 	}
@@ -145,8 +137,8 @@ class runTask {
 		jobID="audit ";
 		taskDetail = null;
 		
-		srcData.clearData();
-		tgtData.clearData();
+		srcData.clearState();
+		tgtData.clearState();
 		
 		dataMgr.returnDB(taskDetail.get("src_db_id").toString(), srcData);
 		dataMgr.returnDB(taskDetail.get("tgt_db_id").toString(), tgtData);

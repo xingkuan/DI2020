@@ -63,8 +63,8 @@ class initTask {
 			srcData.beginDCC();	 //For DB2/AS400 log (to K), set the seq_last_ref, and curr_state=2;
 								 //For DB2/AS400 tbl (to V), curr_state=2
 			
-			srcData.clearData();
-			tgtData.clearData();
+			srcData.clearState();
+			tgtData.clearState();
 			
 			taskMeta.setTaskState(9);
 			taskMeta.endTask();

@@ -63,6 +63,7 @@ class TaskMeta {
 	private static final Logger logger = LogManager.getLogger();
 
 	private static final Matrix metrix = Matrix.getInstance();
+	private DataPointMgr dataMgr = DataPointMgr.getInstance();
 
 	private static Map<String, JSONObject> instructions=new HashMap<>();
 
@@ -115,114 +116,6 @@ class TaskMeta {
 		}
 	}
 
-	public void regist(Map<String, String> vars) {
-		preRegistCheck(vars);
-		
-		String sqlStr;
-		sqlStr = "insert into task \n" 
-				+ "(TASK_ID, DATA_PK, \n"
-				+ "SRC_DB_ID, SRC_TABLE, \n" 
-				+ "TGT_DB_ID,TTGT_TABLE, \n"
-				+ "POOL_ID, CURR_STATE, \n" 
-				+ "TS_REGIST) \n" 
-				+ "values \n"
-				+ "(" + vars.get("TASKID") + ", '" + vars.get("DATAKEY") + "', \n" 
-				+ "'" + vars.get("SRCDBID") + "', '" + vars.get("SRCDATA") + "', \n" 
-				+ "'" + vars.get("TGTDBID") + "', '" + vars.get("TGTDATA") + "', \n" 
-				+ vars.get("TGTDBID") + ", 0, \n"
-				+ "now()) \n;";
-		runUpdateSQL(sqlStr);
-		
-/*	String sqlStmt = "select c.column_id, c.column_name "
-			+ "from dba_tab_columns c "
-			+ "where c.owner = upper('" + srcSch + "') "
-			+ "  and c.table_name   = upper('" + srcTbl + "') " 
-			+ " order by c.column_id asc";
-	
-			+ "("+ tblID +", " + fieldCnt + ", " 
-			+ "'rowid as " + PK + "', 'varchar(20)', "  //Please keep it lower case!!!
-			+ "20, 0, "
-			+ "1, '\"type\": \"string\"') ";
-
-	//The bare select statement for reading the source.
-	srcSQLstmt = srcSQLstmt + "a.rowid as " + PK 
-			+ " from " + srcSch + "." + srcTbl + " a ";
-	//setup the src select SQL statement
-
-	sql = "update task set src_stmt0='" + srcSQLstmt + "'"
-			+ " where task_id="+tblID;
-	metaData.runRegSQL(sql);
-	
-String sql="CREATE TABLE " + jurl
-		+ " (" + PK + " VARCHAR2(20),  DCC_TS DATE) TABLESPACE DCC_TS";
-if(runUpdateSQL(sql)==-1)
-	return false;		
-sql =  "CREATE OR REPLACE TRIGGER " + dccPgm + " \n"  
-		+ " AFTER  INSERT OR UPDATE OR DELETE ON " + srcSch+"."+srcTbl + "\n" 
-		+ "  FOR EACH ROW\n" 
-		+ "    BEGIN  INSERT INTO " + jurl + "(" + PK + ", DCC_TS )\n"  
-		+ "     VALUES ( :new.rowid, sysdate   ); \n END; \n"  ;
-
-DB2:
-	// try to read journal of the last 4 hours(I know I'm using the client time;
-	// that does not matter)
-	Calendar cal = Calendar.getInstance();
-	cal.add(Calendar.HOUR_OF_DAY, -4);
-
-	//stmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
-	stmt = dbConn.createStatement();
-
-	String strTS = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(cal.getTime());
-	String sqlStmt = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR"
-			+ " FROM table (Display_Journal('" + jLibName + "', '" + jName + "', " + "   '" + rLib + "', '"
-			+ rName + "', " + "   cast('" + strTS + "' as TIMESTAMP), " // pass-in the start timestamp;
-			+ "   cast(null as decimal(21,0)), " // starting SEQ #
-			+ "   'R', " // JOURNAL CODE:
-			+ "   ''," // JOURNAL entry:UP,DL,PT,PX
-			+ "   '" + srcSch + "', '" + srcTbl + "', '*QDDS', ''," // Object library, Object name, Object type,
-																	// Object member
-			+ "   '', '', ''" // User, Job, Program
-			+ ") ) as x order by 2 asc";
-
-	rset = stmt.executeQuery(sqlStmt);
-
-}
-*/
-/*DB2
-try {
-	stmt = dbConn.createStatement();
-	String sqlStmt = "select c.ordinal_position, c.column_name, "
-			// not needed columns          + "k.ordinal_position as key_column, k.asc_or_desc as key_order, "
-			          + "c.data_type, c.length, c.numeric_scale, c.is_nullable, c.column_text "
-			+ "from qsys2.syscolumns c join qsys2.systables t "
-			+ "on c.table_schema = t.table_schema and c.table_name = t.table_name "
-			+ "left outer join sysibm.sqlstatistics k on c.table_schema = k.table_schem "
-			+ " and c.table_name   = k.table_name and c.table_name   = k.index_name "
-			+ " and c.column_name  = k.column_name " 
-			+ "where c.table_schema = '" + srcSch + "' "
-			+ "  and c.table_name   = '" + srcTbl + "' " 
-			+ " order by ordinal_position asc";
-	//Last one, the physical PK 
-	fieldCnt++;
-	sql = sqlFields
-			+ "("+ tblID +", " + fieldCnt + ", " 
-			+ "'RRN(a) as " + PK + "', 'bigint', "
-			+ "20, 0,"
-			+ "4, '\"type\": \"long\"')";
-	metaData.runRegSQL(sql);
-
-	//setup the src select SQL statement
-	srcSQLstmt = srcSQLstmt + "RRN(a) as " + PK 
-			+ " from " + srcSch + "." + srcTbl + " a ";
-	sql = "update task set src_stmt0='" + srcSQLstmt + "'"
-			+ " where task_id="+tblID;
-	metaData.runRegSQL(sql);
-*/ 
-	
-		
-		
-		
-	}
 	//actId	11	registration
 	//		12	initialization
 	//		15:	incremental processing
@@ -246,9 +139,6 @@ try {
 		dccInstr=null;
 		miscValues=null;
 
-		lName=null;
-		jName=null;
-		
 		//curr_state
 		// 		-1	(DB value)task is active. setupTask() will set DB value to -1; endTask() to 2.  
 		//		0	(DB value)need initialized  
@@ -512,14 +402,14 @@ Kafka:
 	 * will each has its own entry;
 	 * also, sync as table and sync as SQL will have seperate entry.
 	 */
-	private JSONObject getDBlvlInstr(String dbid) {
+	public JSONObject getDBlvlInstr(String dbid) {
 		String sql= "select instruction "
 					+ " from DATA_POINT " + " where db_id='" + dbid + "'";
 		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
 		return jo;
 	}
 
-	private JSONObject getItemlvlInstr(int dbid) {
+	public JSONObject getItemlvlInstr(int dbid) {
 		String sql= "select instruction "
 					+ " from DATA_POINT " + " where db_id='" + dbid + "'";
 		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
@@ -608,6 +498,7 @@ Kafka:
 	public JSONObject getTaskDetails() {
 		return tskDetailJSON;
 	}
+	/*
 	public JSONObject getActDetails() {
 		return tmpDetailJSON;
 	}
@@ -630,7 +521,7 @@ Kafka:
 		return rtc;
 	}
 
-
+*/
 	public void endTask() {
 		//first save the meta data of this task
 		Calendar cal = Calendar.getInstance();
@@ -748,18 +639,36 @@ Kafka:
 				+ " where task_id = " + taskID;
 		runUpdateSQL(sql);
 	}
+
 	private boolean runUpdateSQL(String sql) {
-		// Save to MetaRep:
-		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		Statement stmt=null; 
-		try {
-			stmt = repConn.createStatement();
-			int rslt = stmt.executeUpdate(sql);
-			stmt.close();
-			repConn.commit();
-		} catch (SQLException e) {
-			logger.error(e);
-		} 
+			// Save to MetaRep:
+			//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+			Statement stmt=null; 
+			try {
+				stmt = repConn.createStatement();
+				int rslt = stmt.executeUpdate(sql);
+				stmt.close();
+				repConn.commit();
+			} catch (SQLException e) {
+				logger.error(e);
+			} 
+		return true;
+	}
+
+	private boolean runDBcmds(DataPoint db, JSONArray inst) {
+		String sqlStr, type;
+		JSONObject rslt;
+		Iterator<JSONObject> it = inst.iterator();
+		while (it.hasNext()) {
+			sqlStr= (String) it.next().get("stmt");
+			type= (String) it.next().get("type");
+			System.out.println(sqlStr );
+
+			sqlStr = parseStmt(sqlStr);  //replace place holders
+
+			rslt = db.runDBcmd(sqlStr, type);
+		}
+
 		return true;
 	}
 
@@ -846,25 +755,6 @@ Kafka:
 		
 		return jo;
 	}
-	private JSONObject getD2V_act2SQLs(boolean fast, boolean relaxed) { 
-		JSONObject jo = new JSONObject();
-		JSONArray pre = new JSONArray();
-		//1. get keys from Kafka
-		//2. either --- skip it (too complicated). Keep only the following b1 and b2.
-		//     a. compose where clause and add to sqlSelectSource
-		//  or b1. declare temp. tbl and batch the keys
-		String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+taskID + "(" + tskDetailJSON.get("data_pk") + " " + keyDataType + ") " 
-				+" NOT LOGGED"; 
-		pre.add(sql);
-		pre.add("INSERT INTO qtemp.DCC" + taskID + " VALUES (?)" );
-		sql = getBareSrcSQL() + ", qtemp.DCC"+taskID + " b "
-				+ " where a..rrn(a)=b." +tskDetailJSON.get("data_pk");  //TOTO: may have problem!
-		pre.add(sql)
-;
-		jo.put("PRE", pre);
-
-		return jo;
-	}
 	
 	public void setRefreshTS(Timestamp thisRefreshHostTS) {
 		tsThisRef = thisRefreshHostTS;
@@ -930,10 +820,10 @@ Kafka:
 
 	}
 
-	public String getLabel() {
+/*	public String getLabel() {
 		return jobID;
 	}
-
+*/
 	public List<Integer> getTblsByPoolID(int poolID) {
 		Statement lrepStmt = null;
 		ResultSet lrRset;
@@ -999,6 +889,170 @@ Kafka:
 		return null;
 	}
 
+	public String getAvroSchema(){
+		return avroSchema;
+	}
+	
+	/**** task admin APIs ****/
+	public void setupTask(String jobId, Map<String, String> vars) {
+		int rtc;
+		
+		jobID = jobId;
+		actID = 11;    //regist a new task
+		taskID = -1;   //taskID is to be generated.
+		
+		tskDetailJSON=new JSONObject(vars);
+		
+		jobId = jobId + tskDetailJSON.get("DISRCTBL");
+	}
+
+	public void disable() {
+		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
+		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
+
+		JSONObject jsonRslt;
+		JSONObject jo;
+
+		//src side
+		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DISRCDB"))).get("isntru");
+		JSONArray stmts = (JSONArray) jo.get("disable");
+		runDBcmds(srcDB, stmts);
+		//tgt side
+		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DITGTDB"))).get("instru");
+		stmts = (JSONArray) jo.get("disable");
+		runDBcmds(tgtDB, stmts);
+		
+		String sql = "update task set .... ";
+		runUpdateSQL(sql);
+	}
+
+	public void unregist() {
+		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
+		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
+
+		JSONObject jsonRslt;
+		//src side
+		JSONObject jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DISRCDB"))).get("instr");
+		JSONArray stmts = (JSONArray) jo.get("unregist");
+		runDBcmds(srcDB, stmts);
+		//tgt side
+		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DITGTDB"))).get("instr");
+		stmts = (JSONArray) jo.get("unregist");
+		runDBcmds(tgtDB, stmts);
+		
+		String sql = "update task set ...";
+		runUpdateSQL(sql);
+	}
+
+	public void regist() {
+		preRegistCheck();
+
+		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
+		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
+
+		//srcDB.setTable((String) tskDetailJSON.get("DISRCTBL"));
+		//tgtDB.setTable((String) tskDetailJSON.get("DISRCTBL"));
+		
+		//src side
+		JSONObject jsonRslt;
+		JSONObject jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DISRCDB"))).get("instr");
+
+		String bareSQL = (String) jo.get("bareSQL");
+		String srcQRY = srcDB.getSrcSTMT(bareSQL);
+		String tgtDDL = srcDB.getTgtDDL(bareSQL);
+		String srcAVRO = srcDB.getAVRO(bareSQL);
+		
+		JSONArray stmts = (JSONArray) jo.get("regist");
+		stmts = (JSONArray) jo.get("preCheck");
+		runDBcmds(tgtDB, stmts);
+		//tgt side
+		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DITGTDB"))).get("instr");
+		stmts = (JSONArray) jo.get("regist");
+		stmts = (JSONArray) jo.get("preCheck");
+		runDBcmds(tgtDB, stmts);
+
+		//insert into task
+		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		String insTask = "insert into task (taskid, srcdb, srctbl, mbr_lst, tgtdb, tgttbl,regist_ts) " 
+					+ " values( " + tskDetailJSON.get("DITASKID") + ", '" 
+					+ tskDetailJSON.get("DISRDDBID") + "',  '" + tskDetailJSON.get("DISRCTBL") + "',  '" 
+					+ tskDetailJSON.get("DITGTDBID") + "', '" + tskDetailJSON.get("TGTTBLID") + "', '" 
+					+ ts +"')";
+		runUpdateSQL(insTask);	
+	
+		//return DB PTRs to the db ptr mgr
+		dataMgr.returnDB((String) (tskDetailJSON.get("DISRCDB")), srcDB);		
+		dataMgr.returnDB((String) (tskDetailJSON.get("DITGTDB")), tgtDB);		
+	}
+
+	private String parseStmt(String sqlStr) {
+		String sqlStmt = sqlStr;
+
+		//String sqlStmt = "This is a TEST . another UPPER case";
+		Pattern pattern = Pattern.compile("\\b[A-Z0-9]['A-Z0-9]+|\\b[A-Z]\\b");//, Pattern.CASE_INSENSITIVE);
+		Matcher matcher = pattern.matcher(sqlStr);
+		while ( matcher.find()) {
+			//System.out.println("Found the text \"" + matcher.group()
+			//+ "\" starting at " + matcher.start()
+			//+ " index and ending at index " + matcher.end());
+			sqlStmt.replaceAll(matcher.group(), (String) tskDetailJSON.get(tskDetailJSON));
+		}
+		
+		return sqlStmt;
+	}
+
+	private boolean preRegistCheck() {
+		String sql;
+		JSONArray rslt;
+		
+		if(null!=tskDetailJSON.get("DITASKID")) {
+			taskID = Integer.parseInt((String) tskDetailJSON.get("TASKID"));
+		}else {
+			taskID = getNextTaskID();
+		}
+		
+		//verify taskID is not used
+		sql = "select task_id from task where task_id = " + taskID ; 
+		rslt = (JSONArray) SQLtoJSONArray(sql);
+		if(rslt.size()>0) {
+			logger.error("   task ID is already used!");
+			return false;
+		}
+		//verify source name not registered 
+		sql = "select task_id from task where SRC_DB_ID='" + tskDetailJSON.get("DISRCDBID") 
+				+ "' and SRC_TBL='"	+ tskDetailJSON.get("DISRCTBL") 
+				+ " and mbr_lst is null";  //if mbr_lst is not null, it is something like DB2/as400 journal ...
+		rslt = (JSONArray) SQLtoJSONArray(sql);
+		if(rslt.size()>0) {
+			logger.error("   the source is already registered!");
+			return false;
+		}
+
+		//pre-check DBs
+		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
+		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));
+
+		JSONObject jo; 
+		
+		String sqlStr, type;
+		JSONObject parm;
+		//source side
+		jo = (JSONObject) getDBlvlInstr((String) tskDetailJSON.get("DISRCDBID")).get("registration");
+		JSONArray stmts = (JSONArray) jo.get("preCheck");
+		runDBcmds(srcDB, stmts);
+		//tgt side
+		DataPoint tgtData = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));
+		jo = (JSONObject)(JSONObject) getDBlvlInstr((String) tskDetailJSON.get("TGTDBID")).get("retistration");;
+		stmts = (JSONArray) jo.get("preCheck");
+		runDBcmds(tgtDB, stmts);
+
+		//done with srdData and tgtData
+		dataMgr.returnDB((String) (tskDetailJSON.get("DISRCDB")), srcDB);		
+		dataMgr.returnDB((String) (tskDetailJSON.get("DITGTDB")), tgtDB);		
+
+		return true;
+	}
+	
 	public int getNextTaskID() {
 		Statement repStmt;
 		ResultSet rRset;
@@ -1020,65 +1074,7 @@ Kafka:
 		return taskID + 1;
 	}
 
-	public String getAvroSchema(){
-		return avroSchema;
-	}
-	
-	/**** Registration APIs ****/
-	private boolean preRegistCheck(Map vars) {
-		String sql;
-		JSONArray rslt;
-		
-		jobID = "Regist " + vars.get("SRCDB") + " " + vars.get("SRCTBL");
-		actID=11;
-//TEST
-		
-		String sqlStr = "This is a TEST . another UPPER case";
-		Pattern pattern = Pattern.compile("\\b[A-Z0-9]['A-Z0-9]+|\\b[A-Z]\\b");//, Pattern.CASE_INSENSITIVE);
-		Matcher matcher = pattern.matcher(sqlStr);
-		while ( matcher.find()) {
-			System.out.println("Found the text \"" + matcher.group()
-			+ "\" starting at " + matcher.start()
-			+ " index and ending at index " + matcher.end());
-		}
-		
 
-		
-		//verify taskId
-		if(null!=vars.get("TASKID")) {
-			taskID = Integer.parseInt((String) vars.get("TASKID"));
-		}else {
-			taskID = getNextTaskID();
-		}
-		sql = "select task_id from task where task_id = " + vars.get("TASKID");
-		rslt = (JSONArray) SQLtoJSONArray(sql);
-		if(rslt.size()>0) {
-			logger.error("   task ID is already used!");
-			return false;
-		}
-
-		JSONObject jo = (JSONObject) getDBlvlInstr((String) vars.get("SRCDBID")).get("retistration");
-		
-		//String sqlStr = (String) jo.get(1);
-		
-		//replace place-holder with values, and save it here:
-		instructions.put((String) vars.get("SRCBID"), jo);
-		jo = (JSONObject)(JSONObject) getDBlvlInstr((String) vars.get("TGTDBID")).get("retistration");;
-		instructions.put((String) vars.get("TGTDBID"), jo);
-
-		
-		sql = "select task_id from task where SRC_DB_ID='" + vars.get("SRCDBID") + "' and SRC_TBL='"
-				+ vars.get("SRCTBL") + "' ;";
-		rslt = (JSONArray) SQLtoJSONArray(sql);
-		if(rslt.size()>0) {
-			logger.error("   the source is already registered!");
-			return false;
-		}
-		
-		//By now, it passed generic verification. there are possible further verification per DATAPOINT instructions 
-
-		return true;
-	}
 	/********** transformation metadata**************************/
 	List<String> xFnList;
 	public String getScripts() {
@@ -1117,6 +1113,7 @@ Kafka:
 		// TODO Auto-generated method stub
 		currState=syncSt;
 	}
+
 
 
 }

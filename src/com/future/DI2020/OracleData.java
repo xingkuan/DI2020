@@ -34,45 +34,8 @@ class OracleData extends JDBCData{
 	public ResultSet getData() {
 		return srcRS;
 	}
-	//should only be sued when TEMP_ID
-	public int getDccCnt() {  //this one is very closely couple with crtSrcResultSet! TODO: any better way for arranging?
-		String sql = "update " + metaData.getTaskDetails().get("src_dcc_tbl") + " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" ;
 
-		int cnt = runUpdateSQL(sql);
-
-		return cnt;
-	}
 	/********** Synch APIs *********************************/
-/*TODO 20220928 move getSrcSqlStmts() to registration 
-	@Override
-	protected JSONObject getSrcSqlStmts(String template) {
-	//from metaData private JSONObject getO2Vact2SQLs() {
-		JSONObject jo = new JSONObject();
-		JSONArray pre = new JSONArray();
-		switch(template) {
-			case "1DATA":    //case: read the whole table
-				pre.add(metaData.getBareSrcSQL() );
-				jo.put("PRE", pre);
-				break;
-			case "2DATA":   //read the changed rows. Original O2V, O2K
-			// Not needed as it is done in getDccCnt()	
-			//	pre.add("update " + metaData.getTaskDetails().get("src_dcc_tbl") 
-			//			+ " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-				pre.add(metaData.getBareSrcSQL() + ", " + metaData.getTaskDetails().get("src_dcc_tbl") 
-						+ " b where b.dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') "
-						+ " and a.rowid=b."+metaData.getTaskDetails().get("data_pk"));
-				jo.put("PRE", pre);
-				JSONArray aft = new JSONArray();
-				aft.add("delete from " + metaData.getTaskDetails().get("src_dcc_tbl") 
-						+ " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-				jo.put("AFT", aft);
-				break;
-		}
-		
-		return jo;
-	}
-	*/
-	//public int crtSrcResultSet(int actId, JSONArray jaSQLs) {
 	@Override
 	public int crtSrcResultSet() {
 		int rtc=0;
@@ -296,6 +259,26 @@ class OracleData extends JDBCData{
 		
 	   return true;
 	}
+	
+	public int getRecordCount() {
+		String sql = "select count(1) from tblName";
+		int cnt=-1;
+		
+		try {
+		Statement stmt = dbConn.createStatement();
+		ResultSet rslt = stmt.executeQuery(sql);
+		rslt.next();
+		cnt = rslt.getInt(1);
+			rslt.close();
+		stmt.close();
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		return cnt;
+	}
+
 	
 	/**************** internal helpers *********************/
 	private int runUpdateSQL(String sql) {

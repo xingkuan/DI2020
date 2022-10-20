@@ -56,25 +56,13 @@ public class DataPointMgr implements AutoCloseable {
 			try {
 				//db = new DataPointer(dbid);
 				JSONObject jo = metaData.getDBDetails(dbid);
-				String dbType=jo.get("db_type").toString();
+				String dbType=jo.get("db_cat").toString();
 				switch(dbType){
-					case "DB2/AS400":
-						db = new DB2Data400(jo);
+					case "JDBC":
+						db = new JDBCData(jo);
 						break;
-					case "VERTICA":
-						db = new VerticaData(jo);
-						break;
-					case "HIVE":
-						db = new HiveData(jo);
-						break;
-					case "KAFKA":
+					case "MQ":
 						db = new KafkaData(jo);
-						break;
-					case "KAFKA_":
-						db = new KafkaDCC(jo);
-						break;
-					case "ORACLE":
-						db = new OracleData(jo);
 						break;
 					case "ES":
 						db = new ESData(jo);
@@ -109,158 +97,4 @@ public class DataPointMgr implements AutoCloseable {
 		}
 	}
 
-	
-
-	/********** Synch APIs****************************/
-	protected int xformInto(DataPointMgr tgtData) {
-		return 0;
-	}
-	/********** Synch APIs****************************/
-	protected void crtSrcResultSet(List<String >keys) {
-		logger.info("   Need implementation in child.");
-	}
-//	//where clause is to be build from catalog
-//	protected int crtSrcResultSet(int actId, JSONArray jo) {
-//		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-//		return -1;
-//	}
-//	protected int crtSrcResultSet(int actId, JSONArray jo, DataPoint aux) {
-//		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-//		return -1;
-//	}
-	//where clause compose of the parameter
-	protected ResultSet getSrcResultSet(String qry) {
-		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-		return null;
-	}
-//	protected ResultSet getSrcResultSet() {
-//		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-//		return null;
-//	}
-
-	protected int dropStaleRowsOfList(List<String> keys) {
-		logger.info("   Need implementation in child.");
-		return 0;
-	}
-	protected int getDccCnt() {
-		logger.info("   Need implementation in child.");
-		return 0;
-	}
-
-	protected void crtAuxSrcAsList() {
-	}
-	protected boolean crtSrcAuxResultSet() {
-		logger.info("   empty crtSrcAuxResultSet in DataPointer.");
-		return true;
-	}
-	protected List<String> getDCCKeyList(){
-		logger.info("   empty getSrcResultList() in DataPointer.");
-		return null;
-	}
-	protected void releaseRSandSTMT() {
-		logger.info("   empty releaseRSandSTMT() in DataPointer.");
-	}
-	protected void commit() {
-		logger.info("   should be implemented in child.");
-	}
-	protected void rollback() {
-		logger.info("   should be implemented in child.");
-	}
-	/*********** Synch APIs ************/
-	protected JSONObject  getSrcSqlStmts(String template) {
-		return null;
-	}
-	public int crtSrcResultSet() {
-		return -1;
-	}
-//	protected int initDataFrom(DataPoint dt) {
-//		return 0;
-//	}
-	public void copyTo(DataPointMgr tgt) {
-	}
-	public void copyToVia(DataPointMgr tgt, DataPointMgr src) {
-	}
-	public void write(ResultSet rs) {  
-	}
-	public void write(GenericRecord rec) {  
-	}
-	public void write() {
-	}
-//	protected boolean ready() {
-//		// TODO Auto-generated method stub
-//		return false;
-//	}
-	protected boolean beginDCC(){
-		logger.info("   should be implemented in child class.");
-		return false;
-	}
-	//protected void afterSync(int actId, JSONArray aftSQLs){
-	protected void afterSync(){
-		logger.info("   should be implemented in child class.");
-	}
-
-	public int syncAvroDataFrom(DataPointMgr srcData) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-	public int syncDataFrom(DataPointMgr srcData) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-//	public int syncDataVia(DataPointer srcData, DataPointer auxData) {
-//		// TODO Auto-generated method stub
-//		return 0;
-//	}
-	public int syncDataViaV2(DataPointMgr srcData, DataPointMgr auxData) {
-		// TODO Auto-generated method stub
-		return 0;
-	}
-	
-	public ResultSet getFieldMeta(String srcSch, String srcTbl, String journal){
-		return null;
-	}
-	/******** register/unregister APIs ********/
-	protected boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-		return false;
-	}
-	protected boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
-		return false;
-	}
-	protected boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
-		return false;
-	}
-	protected boolean regDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
-		return false;
-	}
-	protected boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String dccTbl, String tgtSch, String tgtTbl, String dccDBid){
-		return false;
-	}
-	protected boolean unregisterSrc(int tblID) {
-		return false;
-	}
-	protected boolean unregisterTgt(int tblID) {
-		return false;
-	}
-	protected boolean unregisterDcc(int tblID) {
-		return false;
-	}
-	/***************************************/
-	
-	public long getThisRefreshSeq() {
-		logger.info("   An empty method in DataPointer: getThisRefreshSeq()");
-		// TODO Auto-generated method stub
-		return 0;
-	}
-	
-	protected void createKafkaConsumer() {
-		// TODO Auto-generated method stub
-		
-	}
-	public void write(JSONObject b) {
-		// TODO Auto-generated method stub
-		
-	}
-
-
-	
 }

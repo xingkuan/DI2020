@@ -282,7 +282,7 @@ class KafkaData extends Kafka {
 	
 	/******************* transform APIs ****************************************/
 	@Override
-	protected int xformInto(DataPointMgr tgtData) {
+	protected int xformInto(DataPoint tgtData) {
 		int cnt=0;		
 		String topic=metaData.getTaskDetails().get("src_schema")+"."+metaData.getTaskDetails().get("src_table");
 		System.out.println(topic);
@@ -367,72 +367,6 @@ public void close() {
 		}
 	}
 
-
-/******** Registration APIs **********/
-@Override
-public boolean regSrcCheck(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-	//do nothing for now.
-	return true;
-}
-public boolean regSrc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-	//not Vertica is not used as src so far.
-	return false;
-}
-@Override
-public boolean regSrcDcc(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-	//not Vertica is not used as src so far.
-	return false;
-}
-@Override
-public boolean regTgt(int tblID, String PK, String srcSch, String srcTbl, String dccPgm, String jurl, String tgtSch, String tgtTbl, String dccDBid) {
-	int partitions=2;
-	short replicationFactor=2;
-	String topicName=tgtSch + "." + tgtTbl;
-	try (final AdminClient adminClient = createKafkaAdmin()) {
-        try {
-            // Define topic
-            final NewTopic newTopic = new NewTopic(topicName, partitions, replicationFactor);
-
-            // Create topic, which is async call.
-            final CreateTopicsResult createTopicsResult = adminClient.createTopics(Collections.singleton(newTopic));
-            // Since the call is Async, Lets wait for it to complete.
-            createTopicsResult.values().get(topicName).get();
-            
-        } catch (InterruptedException | ExecutionException e) {
-            if (!(e.getCause() instanceof TopicExistsException)) {
-                throw new RuntimeException(e.getMessage(), e);
-            }
-        }
-    }
-	
-	//also, update meta info:
-	String sql = "update data_field set " + 
-			"tgt_field=regexp_replace(regexp_replace(src_field, '^.* as ', ''), '#', 'NUM'), " +   //- PK field -and replace # with NUM
-			"tgt_field_type=case " + 
-			"when src_field_type like '%CHAR%' then 'VARCHAR('||2*src_field_len||')' " + 
-			"when src_field_type like '%NUMBER%' then 'NUMBER('||src_field_len||','||coalesce(src_field_scale,0)||')' " + 
-			"when src_field_type like 'DATE%' then 'DATE' " + 
-			"when src_field_type like 'TIMEST%' then 'TIMESTAMP' " +  //DB2/AS400 is TIMESTMP 
-			"else src_field_type " + 
-			"END " + 
-			"where task_id=" + tblID;
-	metaData.runRegSQL(sql);
-	
-
-	return true;
-}
-@Override
-public boolean unregisterTgt(int tblID) {
-	//delete the topic
-	String theTopic = metaData.getTaskDetails().get("tgt_schema")+"."
-			+ metaData.getTaskDetails().get("tgt_table");
-	if(!theTopic.equals("*.*")){
-	try (final AdminClient adminClient = createKafkaAdmin()) {
-        DeleteTopicsResult deleteTopicsResult=adminClient.deleteTopics(Arrays.asList(theTopic));
-    }
-}
-	return true;
-}
 
 
 public void setupXformEngine(xformEngine xformEng) {

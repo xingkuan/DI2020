@@ -20,17 +20,16 @@ CREATE TABLE TASK
 (
   TASK_ID             INTEGER PRIMARY KEY,
   POOL_ID             INTEGER,
-  INIT_DT	          DATE,
-  INIT_DURATION       INTEGER,
   CURR_STATE          INTEGER,
   SRC_DB_ID           VARCHAR(15),
   SRC_TABLE           VARCHAR(50),
-  SRC_EXTRA_LST       text, --DB2/400 journal case: list of tables to extract from journal
+  MBR_LST       text, --DB2/400 journal case: list of tables to extract from journal
   SRC_SQL             text ,  --if customer SQL is used.
   TGT_DB_ID           VARCHAR(15),
   TGT_TABLE           VARCHAR(50),
-  TGT_EXTRA_LST       text, --DB2/400 journal case
   TS_REGIST           TIMESTAMP(6),
+  INIT_DT	          DATE,
+  INIT_DURATION       INTEGER,
   TS_LAST_REF         TIMESTAMP(6),
   SEQ_LAST_REF        BIGINT
 --  CONSTRAINT unique_src UNIQUE (SRC_DB_ID, SRC_SCHEMA, SRC_TABLE)
@@ -97,29 +96,32 @@ insert into DATA_POINT (
   DB_INFO,
   INSTRUCTIONS)
 values 
-('DB2DKEY', 
- 'RDBMS', 'DB2/AS400',
+('DB2KS', 
+ 'JDBC', 'DB2/AS400',
  'johnlee2', 'C3line1998', 
  'com.ibm.as400.access.AS400JDBCDriver',
  'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'DB2/AS400 data id',
  '{	"bareSQL": "select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR 
-				 FROM table (Display_Journal(jLibName, jName, rLib, 
-					rName , cast(strTS as TIMESTAMP),  // pass-in the start timestamp;
-					cast(null as decimal(21,0)),  // starting SEQ #
-					'R',  // JOURNAL CODE:
-					'',  // JOURNAL entry:UP,DL,PT,PX
-					srcSch + ,  srcTbl , '*QDDS', '',  // Object library, Object name, Object type,
-																			// Object member
-					'', '', ''  // User, Job, Program
-					) ) as x order by 2 asc
-	strTS = new SimpleDateFormat("yyyy-MM-dd-HH.mm.ss.SSSSSS").format(cal.getTime()); "
-,
-     "rs": "n" }
-  ],
+				 FROM table (Display_Journal('<JLLIB = srcschema>', '<JNAME = srctbl >', '*CURCHAIN', 
+					rName , cast('<STARTTS>' as TIMESTAMP),  
+					cast('<STARTSEQ>' as decimal(21,0)),  
+					'R',  
+					'',  
+					'' ,  '' , '*QDDS', '',  
+					'', '', ''  
+					) ) as x order by 2 asc",
+     "rs": "n" 
+     },
   "registration": [
   		... one journal member can correspond to multiple tables -> so will be a list of table
-  ],
+    {"name":"step 1",
+     "stmt":"insert into task (taskid, srcdb, srctbl, mbr_lst, tgtdb, tgttbl,regist_ts)
+     			values(<TASKID>, '<SRDDBID>', '<SRCTBL>', '<MBRLIST>', '<TGTDBID>',
+     			'<TGTTBLID>', '<REGITTS>')", 
+     "rs": "n" },
+  ]
+  }
   "remove": [],
   "initRun": [ 
   	{"name":"xxx",
@@ -137,7 +139,16 @@ values
      	"rs": "n" 
      }
   ],
-  "incrementalRun": []
+  "incrementalRun": [
+  		"DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+taskID + "(" + tskDetailJSON.get("data_pk") + " " + keyDataType + ") " 
+				+" NOT LOGGED"; 
+
+		"INSERT INTO qtemp.DCC" + taskID + " VALUES (?)" ;
+
+		sql = getBareSrcSQL() + ", qtemp.DCC"+taskID + " b "
+				+ " where a..rrn(a)=b." +tskDetailJSON.get("data_pk");  //TOTO: may have problem!
+  
+  ]
   }
   }'
  ),
@@ -149,13 +160,13 @@ insert into DATA_POINT (
   DB_INFO,
   INSTRUCTIONS)
 values 
-('DB2DDATA', 
- 'RDBMS', 'DB2/AS400',
+('DB2DS', 
+ 'JDBC', 'DB2/AS400',
  'johnlee2', 'C3line1998', 
  'com.ibm.as400.access.AS400JDBCDriver',
  'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'DB2/AS400 data',
- '{	"bareSQL": "select a.*, DATAKEY from SRCTBLE ",
+ '{	"selectStmt": "select a.*, DATAKEY from SRCTBLE ",
    "registration": [
   	"checking":	... better contains a checking verifying src table is in the list of the "data keys"... ,
   	"create target": "create table ...."
@@ -166,38 +177,96 @@ values
   }
   }'
  ),
-('VERTX', 
- 'RDBMS', 'VERTICA',
- 'dbadmin', 'Bre@ker321', 
+('VERT1DT', 
+ 'JDBC', 'VERTICA',
+ 'dbadmin', 'Bxx321', 
  'com.vertica.jdbc.Driver',
  'jdbc:vertica://vertx1:5433/vertx', 
  'Vert x',
- ),
-('KAFKA1', 
+ '{	"createStmt": "create table <TGTTBLNAME> <FLDDEFINTIONS>",
+    "registration": [
+  	"grant ... ",
+  	"grant ...."
+    ],
+  "remove": ["drop table <TBLNAME>"],
+  "initRun": [   ],
+  "incrementalRun": []
+ }'
+ );
+ 
+ 
+ insert into DATA_POINT (
+  DB_ID,
+  DB_CAT, DB_TYPE,
+  DB_USR, DB_PWD,
+  DB_DRIVER, DB_CONN,
+  DB_INFO,
+  INSTRUCTIONS)
+values 
+ ('KAFKA1DT', 
  'MQ', 'KAFKA',
  'xxx', 'xxx', 
- '',
- 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
- 'kafka 1'),
-('KAFKADCC',   --Have a dedicated DCC kafka, to make code easier (on creating the right DataPoint)
- 'MQ', 'KAFKA_',
+ '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'kafka data sink',
+ '{	
+   "createStmt": {"topicname", "xxx"},
+   "registration": [    ],
+  "remove": [],
+  "initRun": [   ],
+  "incrementalRun": []
+ }'
+ ),
+ ('KAFKA1DS', 
+ 'MQ', 'KAFKA',
  'xxx', 'xxx', 
- '',
- 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
- 'kafka DCC'),
-('ORA1', 
- 'RDBMS', 'ORACLE',
+ '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'kafka data consumer',
+  ''
+ );
+ insert into DATA_POINT (
+  DB_ID,
+  DB_CAT, DB_TYPE,
+  DB_USR, DB_PWD,
+  DB_DRIVER, DB_CONN,
+  DB_INFO,
+  INSTRUCTIONS)
+values 
+ ('KAFKA1DT', 
+ 'MQ', 'KAFKA',
+ 'xxx', 'xxx', 
+ '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'kafka data sink',
+  ''
+ ),
+ ('KAFKA1DS', 
+ 'MQ', 'KAFKA',
+ 'xxx', 'xxx', 
+ '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'kafka data consumer',
+  ''
+ );
+ insert into DATA_POINT (
+  DB_ID,
+  DB_CAT, DB_TYPE,
+  DB_USR, DB_PWD,
+  DB_DRIVER, DB_CONN,
+  DB_INFO,
+  INSTRUCTIONS)
+values('ORA1DS', 
+ 'JDBC', 'ORACLE',
  'johnlee', 'johnlee213', 
  'oracle.jdbc.OracleDriver',
  'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
  'Oracle Dev',
- '{	"bareSQL": "select * from a.* from SRCTBLE ";
+ '{	"bareSQL": "select * from a.* from <SRCTBL> a ";
  	"registration": [
-    {"name":"step 1",
-     "stmt":"create table LOGTBLNAME (datakey varchar(20), action char[1], ts_dcc date) tablespace DCCTSNAME; ", 
+    {"db":"ORA1D", 
+     "name":"create log tbl",
+     "stmt":"create table <SRCTBL>_DCCLOG (datakey varchar(20), action char[1], ts_dcc date) tablespace TSDCC ", 
      "rs": "n" },
-    {"name":"step 2", 
-     "stmt":"create or replace trigger TRIGNAME   
+    {"db":"ORA1DS",
+     "name":"create log trigger", 
+     "stmt":"create or replace trigger <SRCTBL>_DCCTRG   
 				after insert or update or delete on SRCTBLE  
 				for each row  
 				begin
@@ -214,25 +283,22 @@ values
  					action := 'U';
 				END IF;
 				
-				insert into LOGTBLNAME (datakey, action, ts_dcc )\n"  
+				insert into <SRCTBL>_DCCLOG (datakey, action, ts_dcc )\n"  
 				values ( :new.rowid, sysdate   );  
 				end; \n",
      "rs": "n" },
-    {"name":"step 2", 
-     "stmt":"commit",
-     "rs": "n" },
-    {"name":"step 3",
+    {"db":"ORA1DS",
+     "name":"the disabled trigger",
      "stmt":"alter trigger TRIGNAME disable;",
-     "rs": "y"},
-    {"name":"statements for creating target",
-     "stmt":" ... ",
-     "rs": "y"}
+     "rs": "n"}
   ],
   "remove": [
-    {"name":"step 1",
+    {"db":"ORA1DS",
+     "name":"step 1",
      "stmt":"drop table LOGTBLNAME ", 
      "rs": "n" },
-    {"name":"step 2", 
+    {"db":"ORA1DS",
+     "name":"step 2", 
      "stmt":"drop trigger TRIGNAME ",
      "rs": "n" }
   ],
@@ -260,7 +326,7 @@ values
   ]}'
   }'
  ),
-('ES1', 
+('ES1DT', 
  'Search Engine', 'ES',
  'xxx', 'xxx', 
  '',

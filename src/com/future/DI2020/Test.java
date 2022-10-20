@@ -55,7 +55,15 @@ class Test
    }
 
 private static void testES() {
-	   ESData es = new ESData();
+	   JSONObject jo = new JSONObject();
+	   //db_id, db_cat, db_type, db_conn, db_driver, db_usr, db_pwd
+	   jo.put("db_id", "ES1");
+	   jo.put("db_cat", "ES");
+	   jo.put("db_type", "ES");
+	   jo.put("db_usr", "APP");
+	   jo.put("db_pwd", "mine");
+
+	   ESData es = new ESData(jo);
 	   es.test();
    }
    private static void testAVROConsumer() {

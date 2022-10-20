@@ -57,6 +57,9 @@ class Kafka extends DataPoint {
 	int kafkaMaxPollRecords;
 	int pollWaitMil;
 
+	private KafkaConsumer<Long, byte[]> consumer;
+	private KafkaProducer<Long, byte[]> producer;
+
 	protected Properties props = new Properties();
 	
 	public Kafka(JSONObject dID) {
@@ -95,7 +98,152 @@ class Kafka extends DataPoint {
 	//	// kc.poll(Duration.ofMillis(pollWaitMil));
 	//	return consumer.poll(Duration.ofMillis(pollWaitMil));
 	//}
+	@Override
+	public int sync(DataPoint srcData) {
+		return 0;
+	}
+	public void write(ResultSet rs) {
+	 	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!   
+	 	   try {
+			for (int i = 0; i < fldType.size(); i++) {  //The last column is the internal key.
+				/* Can't use getObject() for simplicity. :(
+				 *   1. Oracle ROWID, is a special type, not String as expected
+				 *   2. For NUMBER, it returns as BigDecimal, which Java has no proper way for handling and 
+				 *      AVRO has problem with it as well.
+				 */
+				//record.put(i, rs.getObject(i+1));
+				switch(fldType.get(i)) {
+				case 1:
+					record.put(i, rs.getString(i+1));
+					break;
+				case 4:
+					record.put(i, rs.getLong(i+1));
+					break;
+				case 7:
+					tempO=rs.getDate(i+1);
+					if(tempO==null)
+						record.put(i, null);
+					else {
+						//tempNum = rs.getDate(i+1).getTime();
+						record.put(i, tempO.toString());
+					}
+					break;
+				case 6:
+					tempO=rs.getTimestamp(i+1);
+					if(tempO==null)
+						record.put(i, null);
+					else {
+						//record.put(i, tempO); // class java.sql.Date cannot be cast to class java.lang.Long
+						//tempNum = rs.getDate(i+1).getTime();
+						//record.put(i, new java.util.Date(tempNum));  //class java.util.Date cannot be cast to class java.lang.Number 
+						//record.put(i, tempNum);  //but that will show as long on receiving!
+						record.put(i, tempO.toString());  
+					}
+			//		break;
+			//	case 6:
+			//		record.put(i, new java.util.Timestamp(rs.getTimestamp(i+1).getTime()));
+					break;
+				default:
+					logger.warn("unknow data type!");
+					record.put(i, rs.getString(i+1));
+					break;
+				}
+				
+			}
+	   		byte[] myvar = avroToBytes(record, schema);
+	   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
+	   		//producer.send(new ProducerRecord<Long, byte[]>(topic, (long) 1, myvar),new Callback() {  //TODO: what key to send?
+	   		producer.send(new ProducerRecord<Long, byte[]>(topic,  myvar),
+	   			new Callback() {             //      For now, no key
+	   				public void onCompletion(RecordMetadata recordMetadata, Exception e) {   //execute everytime a record is successfully sent or exception is thrown
+	   					if(e == null){
+	   						}else{
+	   							logger.error(e);
+	   						}
+	   					}
+	   			});
+	   			msgCnt++;
+	 	   	}catch (SQLException e) {
+			  logger.error(e);
+	 	   	}
+		}
 
+	private byte[] avroToBytes(GenericRecord avroRec, Schema schema){
+		byte[] myvar=null;
+			
+		  DatumWriter<GenericRecord> writer = new GenericDatumWriter<GenericRecord>(schema);
+		  ByteArrayOutputStream out = new ByteArrayOutputStream();
+		  BinaryEncoder encoder = EncoderFactory.get().binaryEncoder(out, null);
+//other:		  BinaryEncoder encoder = EncoderFactory.get().jsonEncoder(schema, out)
+
+		  try {
+			writer.write(avroRec, encoder);
+			
+		    encoder.flush();
+			out.close();
+		    myvar = out.toByteArray();
+		  } catch (IOException e) {
+	  		logger.error(e);
+	  	}
+		return myvar;
+	  }
+
+	public int crtSrcResultSet() { 
+		//List<String> docList = new ArrayList<String>();
+		int cnt=0;		
+		String topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
+		System.out.println(topic);
+		
+		ConsumerRecords<Long, byte[]> records;
+		GenericRecord a=null, b=null;
+		
+		String jsonSch = metaData.getAvroSchema();
+		System.out.println(jsonSch);
+		Schema schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
+		
+		createKafkaConsumer();
+		consumer.subscribe(Arrays.asList(topic));
+
+		try {
+			DatumReader<GenericRecord> reader = new GenericDatumReader<GenericRecord>(schema);
+
+			int giveUp = Integer.parseInt(conf.getConf("kafkaMaxEmptyPolls"));
+			int noRecordsCount = 0, cntRRN = 0;
+			ByteArrayInputStream in;
+			while (true) {
+				records = consumer.poll(Duration.ofMillis(100));
+				if (records.count() == 0) {  //no record? try again, after consective "giveUp" times.
+					noRecordsCount++;
+					logger.info("    consumer poll cnt: " + noRecordsCount);
+					if (noRecordsCount > giveUp)
+						break; // no more records. exit
+					else
+						continue;
+				}
+
+				for (ConsumerRecord<Long, byte[]> record : records) {
+					in = new ByteArrayInputStream(record.value());
+					BinaryDecoder decoder = DecoderFactory.get().binaryDecoder(in, null);
+					//consumer.commitAsync();
+
+					a = reader.read(null, decoder);
+					//a = reader.read(b, decoder); 
+					System.out.println(a);
+					System.out.println(a.get(1));
+					//sink.process(a); or construct a JSONArray, and return to the sink
+
+					msgKeyList.add(a.toString());
+					cnt++;
+				}
+			}
+			consumer.commitAsync();
+			//sink.bulkIndex(docList);
+		} catch (IOException e) {
+			e.printStackTrace();
+		}
+		return cnt;
+	}
+	
 	protected void setProducerProps() {
 		String cientID = metaData.getJobID() + "_" + metaData.getTaskDetails().get("task_id");
 
@@ -130,6 +278,30 @@ class Kafka extends DataPoint {
 		//return producer;
 	}
 
+	
+	private void createKafkaProducer() {
+		setProducerProps();
+
+		props.put(ProducerConfig.KEY_SERIALIZER_CLASS_CONFIG, LongSerializer.class.getName());  //TODO: need more thinking!
+		props.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, "org.apache.kafka.common.serialization.ByteArraySerializer");
+
+		//KafkaProducer<Long, GenericRecord> prod = new KafkaProducer<Long, GenericRecord>(props);
+		producer = new KafkaProducer<Long, byte[]>(props);
+		ConsumerRecords<Long, String> records = consumer.poll(300);
+	}
+	
+	protected void createKafkaConsumer() {
+		setConsumerProps();
+		props.put("key.deserializer", "org.apache.kafka.common.serialization.LongDeserializer");
+		//propsC.put("value.deserializer", "org.apache.kafka.common.serialization.StringDeserializer");
+		props.put("value.deserializer", "org.apache.kafka.common.serialization.ByteArrayDeserializer");
+
+		consumer = new KafkaConsumer<Long, byte[]>(props);
+
+		// consumerx.subscribe(Arrays.asList("JOHNLEE2.TESTTBL2"));
+		//consumer.subscribe(Arrays.asList(topic));
+	}
+
 	/******** admin client, for registration/unregistration ****/
 	protected AdminClient createKafkaAdmin() {
 		Properties adminProps = new Properties();
@@ -137,6 +309,61 @@ class Kafka extends DataPoint {
 	
 		AdminClient admin = AdminClient.create(adminProps);
 		return admin;
+	}
+
+	@Override
+	public JSONObject runDBcmd(String sqlStr, String type) {
+		// TODO Auto-generated method stub
+		return null;
+	}
+	//TODO: move the following to runDBcmd 
+	@Override
+	public boolean registTask(TaskMeta instructions) {
+		int partitions=2;
+		short replicationFactor=2;
+		String topicName=instructions + "." + tgtTbl;
+		try (final AdminClient adminClient = createKafkaAdmin()) {
+	        try {
+	            // Define topic
+	            final NewTopic newTopic = new NewTopic(topicName, partitions, replicationFactor);
+
+	            // Create topic, which is async call.
+	            final CreateTopicsResult createTopicsResult = adminClient.createTopics(Collections.singleton(newTopic));
+	            // Since the call is Async, Lets wait for it to complete.
+	            createTopicsResult.values().get(topicName).get();
+	            
+	        } catch (InterruptedException | ExecutionException e) {
+	            if (!(e.getCause() instanceof TopicExistsException)) {
+	                throw new RuntimeException(e.getMessage(), e);
+	            }
+	        }
+		}
+		
+		return true;
+	}
+	//clean up the task relate objects
+	@Override
+	public boolean unregistTask(TaskMeta instructions) {
+		//delete the topic
+		String theTopic = metaData.getTaskDetails().get("tgt_schema")+"."
+				+ metaData.getTaskDetails().get("tgt_table");
+		if(!theTopic.equals("*.*")){
+		try (final AdminClient adminClient = createKafkaAdmin()) {
+	        DeleteTopicsResult deleteTopicsResult=adminClient.deleteTopics(Arrays.asList(theTopic));
+	    }
+	}
+		
+		return true;
+	}
+	
+	
+	public void close() {
+		try {
+		consumer.close();
+		producer.close();
+		}catch(NullPointerException e) {
+			logger.info("      nothing to close.");
+		}
 	}
 
 }
