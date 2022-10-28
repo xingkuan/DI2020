@@ -20,15 +20,17 @@ import org.apache.logging.log4j.LogManager;
 class runTask {
 	private static final Logger logger = LogManager.getLogger();
 
-	private static final TaskMeta metaData = TaskMeta.getInstance();
+	private static final TaskMeta taskMeta = TaskMeta.getInstance();
 	private DataPointMgr dataMgr = DataPointMgr.getInstance();
 	
 	//static int tableID;
 	static DataPoint srcData;
 	static DataPoint tgtData;
-	static DataPoint auxData;
+	static DataPoint dccData;
 
-	JSONObject taskDetail;
+	JSONObject srcDetailJSON;
+	JSONObject tgtDetailJSON;
+	JSONObject dccDetailJSON;
 
 	static String jobID ;
 	static int jobSub=3;
@@ -67,7 +69,7 @@ class runTask {
 	}
 	
 	void actOnTasks(int poolID, int actId) {
-		List<Integer> tblList = metaData.getTblsByPoolID(poolID);
+		List<Integer> tblList = taskMeta.getTblsByPoolID(poolID);
 		for (int i : tblList) {
             actOnTask(i, actId);
         }
@@ -79,69 +81,55 @@ class runTask {
 
 		setupTask(jobID, tID);
 		
-
-		/*
-		logger.info("BEGIN: " + metaData.getTaskDetails().get("src_table").toString());
-
-		int dccCnt = srcData.getDccCnt();
-		if(dccCnt==0) {
-			logger.info("   no dcc.");
-			break ;  
-		}
-
-		int cnt=srcData.crtSrcResultSet();
-		if(cnt<0) {
-			logger.info("    error in source.");
-		}else {
-			tgtData.sync(srcData);
-		}
-		srcData.afterSync();
-		tgtData.afterSync();
-
-		if(srcData!=null)
-			srcData.commit();
-		if(tgtData!=null)
-			tgtData.commit();
-*/
-		tgtData.sync(srcData);   //20220927TODO this step should take instructions from meta and do it
-
-		metaData.setTaskState(9);
-		metaData.endTask();
+		JSONObject matrix = srcData.syncTo(tgtData);   //20220927TODO this step should take instructions from meta and do it
+		
+		taskMeta.setTaskState(9);
+		taskMeta.endTask();
 		
 		logger.info("END.");
 	}
 	
 	  private void setupTask(String jobID, int taskId) {
 		int actId = 1;  	//data pumping
-		String srcTbl,  tgtTbl;
 			
-		metaData.setupTask(jobID, taskId, actId);
-		if(metaData.isTaskReadyFor(actId)){
-			taskDetail = metaData.getTaskDetails();
-				
-			srcTbl = taskDetail.get("src_tbl").toString();
-			tgtTbl = taskDetail.get("tgt_tbl").toString();
-	
-			jobID = jobID + taskId + " " + srcTbl + " "+ tgtTbl;
-	
-			srcData = DataPointMgr.getDB(taskDetail.get("src_db_id").toString());
-			tgtData = DataPointMgr.getDB(taskDetail.get("tgt_db_id").toString());
+		taskMeta.setupTask(jobID, taskId, actId);
+		JSONObject tskDetail = taskMeta.getTaskDetails();
 
-			srcData.setTable(srcTbl);
-			tgtData.setTable(tgtTbl);
+		if(taskMeta.isTaskReadyFor(actId)){
+			srcDetailJSON = (JSONObject) tskDetail.get("SRC");
+			tgtDetailJSON = (JSONObject) tskDetail.get("TGT");
+			dccDetailJSON = (JSONObject) tskDetail.get("DCC");
+				
+			jobID = jobID + taskId + " " + ((JSONObject)(srcDetailJSON.get("dbid"))).get("TBL") ;
+	
+			srcData = DataPointMgr.getDB(srcDetailJSON.get("dbid").toString());
+			tgtData = DataPointMgr.getDB(tgtDetailJSON.get("dbid").toString());
+
+			if(dccDetailJSON != null) { //data keys from, eg kafka
+				dccData = DataPointMgr.getDB(dccDetailJSON.get("dbid").toString());
+				dccData.setDetail(dccDetailJSON);
+			}
+			srcData.setDetail(srcDetailJSON);
+			tgtData.setDetail(tgtDetailJSON);
 		}
-		logger.info("Completed "+jobID+": " +  metaData.getTableID());
+		logger.info("Completed "+jobID+": " +  taskMeta.getTableID());
 	}
 	
 	private void endTask() {
-		jobID="audit ";
-		taskDetail = null;
-		
+		JSONObject tskDetail = taskMeta.getTaskDetails();
+
 		srcData.clearState();
 		tgtData.clearState();
 		
-		dataMgr.returnDB(taskDetail.get("src_db_id").toString(), srcData);
-		dataMgr.returnDB(taskDetail.get("tgt_db_id").toString(), tgtData);
+		dataMgr.returnDB(tskDetail.get("src_db_id").toString(), srcData);
+		dataMgr.returnDB(tskDetail.get("tgt_db_id").toString(), tgtData);
+		
+		if(null!=dccData) {
+			dccData.clearState();
+			dataMgr.returnDB(tskDetail.get("ccd_db_id").toString(), dccData);
+		}
+
+		jobID="audit ";
 	}
 
 	

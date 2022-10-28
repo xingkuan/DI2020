@@ -89,7 +89,7 @@ class xformApp
 		//int cnt=srcData.xformInto(tgtData);
 		//srcData.test();
 		//if(cnt>0)
-			tgtData.sync(srcData);
+			srcData.syncTo(tgtData);
 		
 		srcData.closeDB();
 		tgtData.closeDB();

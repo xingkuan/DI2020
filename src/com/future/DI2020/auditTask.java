@@ -70,19 +70,25 @@ class auditTask {
 		JSONObject tskDetail;
 		String srcTbl,  tgtTbl;
 
-		taskMeta.setupTask(jobID, taskId, actId);
-
+		int ok;
+		ok=taskMeta.setupTask(jobID, taskId, actId);
+		if(ok==-1) {
+			return;
+		}
+		
 		tskDetail = taskMeta.getTaskDetails();
 		
-		srcTbl = taskDetail.get("src_tbl").toString();
-		tgtTbl = taskDetail.get("tgt_tbl").toString();
+		JSONObject srcDetailJSON = (JSONObject) tskDetail.get("SRC");
+		JSONObject tgtDetailJSON = (JSONObject) tskDetail.get("TGT");
+		srcTbl = srcDetailJSON.get("src_tbl").toString();
+		tgtTbl = tgtDetailJSON.get("tgt_tbl").toString();
 
 		jobID = jobID + taskId + " " + srcTbl + " "+ tgtTbl;
 		
 		srcData = dataMgr.getDB(tskDetail.get("src_db_id").toString());
-		srcData.setTable(srcTbl);
+		srcData.setDetail(srcDetailJSON);
 		tgtData = dataMgr.getDB(tskDetail.get("tgt_db_id").toString());
-		tgtData.setTable(tgtTbl);
+		tgtData.setDetail(tgtDetailJSON);
    }
 
    private void end() {

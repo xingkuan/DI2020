@@ -26,8 +26,6 @@ class LambdaTry {
 		//((DB2Data400) srcDB).tryFunctional("aa");
 		//FunctionalTry s = (int x)->x*x ;
 		DataPoint srcDB = DataPointMgr.getDB("DB2D");
-		((DB2Data400)srcDB).tryFunctional("srcSch", "srcTbl", "journal" ,(int x)->x*x);
-		
-
+		//srcDB.tryFunctional("srcSch", "srcTbl", "journal" ,(int x)->x*x);
     }
 }

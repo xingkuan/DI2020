@@ -44,23 +44,23 @@ class ESData extends DataPoint{
 	   System.out.println("this constructor is used for testing only");
    }
    
-   @Override
-	public boolean miscPrep() {
-		boolean rtc=true;
-		super.miscPrep();
-
-		String jTemp=metaData.getActDetails().get("act_id").toString()+metaData.getActDetails().get("template_id"); 
-		//if(jTemp.equals("DJ2K")) { 
-		//	rtc=initThisRefreshSeq();
-		//}
-		return rtc;
-	}
 /********** sync APIs *******************/
 	Request request;
 	StringBuilder bulkRequestBody;
 	String ixName; //="testok";
-	public void setupSink() {
+
+	@Override
+	public void setDetail(JSONObject dtl) {
+		dataDetail=dtl;
+		if (dataDetail.get("dbRole")!="W") {
+			System.out.print("not expect to replicate ES data to other DBs");
+			return;
+		}
 		connect();
+		
+		TaskMeta metaData = TaskMeta.getInstance();
+		
+		JSONObject taskDetail = metaData.getTaskDetails();
 		
 		ixName = metaData.getTaskDetails().get("tgt_table").toString();
 		request = new Request(
@@ -75,27 +75,31 @@ class ESData extends DataPoint{
 		 */
 		bulkRequestBody  = new StringBuilder();
 	}
+	
 	@Override
-	public void write(ResultSet rs) {
+	public int upwrite(ResultSet rs, int fldCnt) {
+    	if(null==rs) {
+    		write();
+    		return 0;
+    	}
+		
     	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
     	bulkRequestBody.append("\n");
     	bulkRequestBody.append(rs.toString());   //mem is json, in single line.
     	bulkRequestBody.append("\n");
+    	
+    	return 0;
 	}
+
     @Override
-	public void write(JSONObject rec) {
-    	System.out.println(rec.toString());
-    	String pk=metaData.getTaskDetails().get("data_pk").toString();
-    	String docId = rec.get(pk).toString();
-    	String ixStr ="{\"index\" : {\"_index\" :\"" 
-    			+ ixName + "\", \"_id\" : \"" + docId + "\" } }";
-	   	bulkRequestBody.append("{\"index\": {}}");  // automcatic ID ?
-	   	bulkRequestBody.append("\n");
-	   	bulkRequestBody.append(rec);   //mem is json, in single line.
-	   	bulkRequestBody.append("\n");
-    }
-    @Override
-	public void write(GenericRecord rec) {
+	public int upwrite(GenericRecord rec, int fldCnt) {
+    	if(null==rec) {
+    		write();
+    		return 0;
+    	}
+    	
+		TaskMeta metaData = TaskMeta.getInstance();
+    	
     	System.out.println(rec.toString());
     	
     	String pk=metaData.getTaskDetails().get("data_pk").toString();
@@ -107,9 +111,10 @@ class ESData extends DataPoint{
 	   	bulkRequestBody.append(rec);   //mem is json, in single line.
 	   	bulkRequestBody.append("\n");
 	   	
+	   	return 0;
     }
-    @Override
-	public void write() {
+
+	private void write() {
 	   Request request = new Request(
 			   "POST", 
 	           "/" + ixName+"/_bulk");
@@ -144,8 +149,15 @@ class ESData extends DataPoint{
 		}
    }
    
+	@Override
+	public List<String> getDCCkeys() {
+		// TODO Auto-generated method stub
+		System.out.println("ES is not meant to be a DCC staging platform");
+		return null;
+	}
+
    @Override
-   public void close() {
+   public void closeDB() {
 	   try {
 		restClient.close();
 	} catch (IOException e) {
@@ -193,15 +205,9 @@ class ESData extends DataPoint{
 	   }
 	}
 	@Override
-	public int sync(DataPoint srcData) {
-		List<String> docList = srcData.getDCCKeyList();
-		try {
-			bulkIndex(docList);
-		} catch (Exception e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-		return 100;
+	public JSONObject syncTo(DataPoint tgt) {
+		//I don't expect replicate ES data out
+		return null;
 	}
    public void bulkIndex(List<String> memList) throws Exception { 
 	   Request request = new Request(
@@ -329,28 +335,13 @@ class ESData extends DataPoint{
 	/******** Registration APIs **********/
 	//for creating the needed objects in the Data point
 	@Override
-	public JSONObject runDBcmd(String sqlStr, String type) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-	@Override  //TODO move into runDBcmd
-	public boolean registTask(TaskMeta instructions) {
-		/*
-		 * 
-	PUT /test
-	{
-	 "settings" : {
-	    "number_of_shards" : 1
-	    "number_of_replicas" : 2
-	  },
-	  "mappings" : {
-	    "properties" : {
-	      "field1" : { "type" : "text" }
-	    }
-	  }
-	}
-		 */
-			String indxName = tgtSch+tgtTbl;
+	public JSONObject runDBcmd(String cmd, String type) {
+		TaskMeta metaData = TaskMeta.getInstance();
+		
+		JSONObject taskDetail = metaData.getTaskDetails();
+		String indxName=(String) taskDetail.get("index");
+
+		if(cmd.equals("rgist")) {
 			connect();
 			Response response;
 
@@ -390,8 +381,9 @@ class ESData extends DataPoint{
 				   e.printStackTrace();
 			   }
 		
+		}else if(cmd.equals("unregist")) {
+		}
 		
-		return true;
+		return null;
 	}
-
 }

@@ -7,6 +7,7 @@ import java.time.Duration;
 import java.sql.*;
 
 import org.apache.logging.log4j.Logger;
+import org.json.simple.JSONArray;
 import org.json.simple.JSONObject;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerConfig;
@@ -46,63 +47,80 @@ class initTask {
 		//return 0;
 	}
 
-	private static boolean initializeTgtFromSrc(int taskId) {
+	private static int initializeTgtFromSrc(int taskId) {
 		int actId = 0;
+		int ok;
+		
 		jobID = jobID + taskId ;
 
-		taskMeta.setupTask(jobID, taskId, actId);
-
-		setup(taskId);  
-
-		int ok = taskMeta.beginTask();
-		if(ok == 1) {
-			//ResultSet rsltSet = srcData.getData();
-			int state = tgtData.initDataFrom(srcData);
-			
-			srcData.miscPrep();  
-			srcData.beginDCC();	 //For DB2/AS400 log (to K), set the seq_last_ref, and curr_state=2;
-								 //For DB2/AS400 tbl (to V), curr_state=2
-			
-			srcData.clearState();
-			tgtData.clearState();
-			
-			taskMeta.setTaskState(9);
-			taskMeta.endTask();
-			
-			tearDown();
-		}else {
-			ovLogger.info("    Table not in the right state.");
+		ok=taskMeta.setupTask(jobID, taskId, actId);
+		if(ok==-1) {
+			return -1;
 		}
+		ok=setup(taskId);  
+		if(ok==-1) {
+			return -1;
+		}
+
+		//ResultSet rsltSet = srcData.getData();
+		JSONObject rslt = srcData.syncTo(tgtData);
+
+		srcData.clearState();
+		tgtData.clearState();
+			
+		taskMeta.setTaskState(9);
+		taskMeta.endTask();
+			
+		tearDown();
+
 		ovLogger.info("    COMPLETE.");
 
-		return true;
+		return 0;
 	}
 
 
 	// setup metaData, source and target
-	private static boolean setup(int taskID) {
+	private static int setup(int taskID) {
 		int actId = 0;
 		JSONObject tskDetail = taskMeta.getTaskDetails();
 
 		if(taskMeta.isTaskReadyFor(actId)){
 			ovLogger.info(jobID + " " + taskID + ":" + tskDetail.get("src_table").toString());
-	
-			JSONObject srcInstr =  taskMeta.getInstrs((String) tskDetail.get("src_db_id"));
-			JSONObject tgtInstr =  taskMeta.getInstrs((String) tskDetail.get("tgt_db_id"));
+
+			JSONObject srcDetailJSON = (JSONObject) tskDetail.get("SRC");
+			JSONObject tgtDetailJSON = (JSONObject) tskDetail.get("TGT");
+			
+			JSONArray srcInstr =  (JSONArray) ((JSONObject)(tskDetail.get("src_db_id"))).get("init");
+			JSONArray tgtInstr =  (JSONArray) ((JSONObject)(tskDetail.get("tgt_db_id"))).get("init");
 
 			srcData = dataMgr.getDB(tskDetail.get("src_db_id").toString());
-			srcData.prep(srcInstr);
+			String sqlStr, type;
+			JSONObject rslt;
+			Iterator<JSONObject> it = srcInstr.iterator();
+			while (it.hasNext()) {
+				sqlStr= (String) it.next().get("stmt");
+				type= (String) it.next().get("type");
+				System.out.println(sqlStr );
+
+				rslt = srcData.runDBcmd(sqlStr, type);
+			}
 			ovLogger.info("   src ready: " + tskDetail.get("src_table").toString());
 	
 			tgtData = dataMgr.getDB(tskDetail.get("tgt_db_id").toString());
-			tgtData.prep(tgtInstr);
-			tgtData.setupSink();
+			it = tgtInstr.iterator();
+			while (it.hasNext()) {
+				sqlStr= (String) it.next().get("stmt");
+				type= (String) it.next().get("type");
+				System.out.println(sqlStr );
+
+				rslt = tgtData.runDBcmd(sqlStr, type);
+			}
 			ovLogger.info("   tgt ready: " + tskDetail.get("tgt_table").toString());
-			return true;
+			return 0;
 		}else{
 			ovLogger.info(jobID + ":" + tskDetail.get("src_table").toString() 
 					+ ": log file not ready!");
-			return false;
+			return -1;
 		}
 	}
 	private static void tearDown() {

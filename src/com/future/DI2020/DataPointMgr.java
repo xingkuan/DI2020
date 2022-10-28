@@ -61,7 +61,10 @@ public class DataPointMgr implements AutoCloseable {
 					case "JDBC":
 						db = new JDBCData(jo);
 						break;
-					case "MQ":
+					case "MQK":
+						db = new KafkaKey(jo);
+						break;
+					case "MQD":
 						db = new KafkaData(jo);
 						break;
 					case "ES":
