@@ -1,37 +1,47 @@
 create database didb;
 
+create user repuser password 'passwd';
+
+grant connect on database didb to repuser;
+grant all privileges on database didb to repuser;
+
 \c didb
 
 CREATE TABLE DATA_POINT
 (
   DB_ID         VARCHAR(15)   PRIMARY KEY,
+  DB_ROLE		varchar(10),  --reference only. R for Read from or W for Write to
   DB_CAT        VARCHAR(15),
-  DB_TYPE       VARCHAR(15),
-  DB_USR        VARCHAR(25),
-  DB_PWD        VARCHAR(25),
+  DB_VENDOR     VARCHAR(15),
   DB_DRIVER     VARCHAR(150),
   DB_CONN       VARCHAR(150),
-  DB_INFO       VARCHAR(225),
-  INSTRUCTIONS	JSONB    --the templates of registration, initialization, remove, incremental
+  DB_USR        VARCHAR(25),
+  DB_PWD        VARCHAR(25),
+  DB_DESC       VARCHAR(225),
+  INSTRUCT		JSONB    --the templates of registration, initialization, remove, incremental...
 )
 ;
 -- Let's explicitly know that the DB are RDBMS or KAFKA, for both SRC, TGT and DCC
 CREATE TABLE TASK
 (
-  TASK_ID             INTEGER PRIMARY KEY,
-  POOL_ID             INTEGER,
-  CURR_STATE          INTEGER,
-  SRC_DB_ID           VARCHAR(15),
-  SRC_TABLE           VARCHAR(50),
-  MBR_LST       text, --DB2/400 journal case: list of tables to extract from journal
-  SRC_SQL             text ,  --if customer SQL is used.
-  TGT_DB_ID           VARCHAR(15),
-  TGT_TABLE           VARCHAR(50),
-  TS_REGIST           TIMESTAMP(6),
-  INIT_DT	          DATE,
-  INIT_DURATION       INTEGER,
-  TS_LAST_REF         TIMESTAMP(6),
-  SEQ_LAST_REF        BIGINT
+  TASK_ID         INTEGER PRIMARY KEY,
+  POOL_ID         INTEGER,
+  CURR_STATE      INTEGER,	-- -1: not runable(e.g populated by DB trigger); 
+  							--  0: not initialized; 
+  							--  1: disabled;
+  							--	2: runable;
+  							--	3: being run 
+  SRC_DB_ID         VARCHAR(15),
+  SRC_TABLE         VARCHAR(50),
+  SRC_SQL           TEXT,		--if customer SQL is used.
+  TGT_DB_ID         VARCHAR(15),
+  TGT_TABLE         TEXT,		-- can be a list of, eg. DB2 journal table members
+  AVRO_SCHEMA		jsonb,
+  REG_DT			DATE(6),
+  INIT_DT	        DATE,
+  INIT_DURATION     INTEGER,	-- seconds
+  TS_LAST_REF       TIMESTAMP(6),
+  SEQ_LAST_REF      BIGINT
 --  CONSTRAINT unique_src UNIQUE (SRC_DB_ID, SRC_SCHEMA, SRC_TABLE)
 )
 ; 
@@ -89,275 +99,264 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES in schema public to repuser;
 
 ---------------------------------------------------
 insert into DATA_POINT (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
   DB_DRIVER, DB_CONN,
-  DB_INFO,
-  INSTRUCTIONS)
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
 values 
-('DB2KS', 
+('DB2AK', 'R',
  'JDBC', 'DB2/AS400',
+ 'com.ibm.as400.access.AS400JDBCDriver', 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'johnlee2', 'C3line1998', 
- 'com.ibm.as400.access.AS400JDBCDriver',
- 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'DB2/AS400 data id',
- '{	"bareSQL": "select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR 
-				 FROM table (Display_Journal('<JLLIB = srcschema>', '<JNAME = srctbl >', '*CURCHAIN', 
-					rName , cast('<STARTTS>' as TIMESTAMP),  
-					cast('<STARTSEQ>' as decimal(21,0)),  
-					'R',  
-					'',  
-					'' ,  '' , '*QDDS', '',  
-					'', '', ''  
-					) ) as x order by 2 asc",
-     "rs": "n" 
-     },
-  "registration": [
-  		... one journal member can correspond to multiple tables -> so will be a list of table
-    {"name":"step 1",
-     "stmt":"insert into task (taskid, srcdb, srctbl, mbr_lst, tgtdb, tgttbl,regist_ts)
-     			values(<TASKID>, '<SRDDBID>', '<SRCTBL>', '<MBRLIST>', '<TGTDBID>',
-     			'<TGTTBLID>', '<REGITTS>')", 
-     "rs": "n" },
-  ]
-  }
-  "remove": [],
-  "initRun": [ 
-  	{"name":"xxx",
-     "stmt":"SELECT current timestamp FROM sysibm.sysdummy1;
-			String sqlStmt = " select COUNT_OR_RRN as RRN,  SEQUENCE_NUMBER AS SEQNBR"
-					+ " FROM table (Display_Journal('" + jLibName + "', '" + jName + "', " + "   '" + rLib + "', '"
-					+ rName + "', " + "   cast('" + strTS + "' as TIMESTAMP), " // pass-in the start timestamp;
-					+ "   cast(null as decimal(21,0)), " // starting SEQ #
-					+ "   'R', " // JOURNAL CODE:
-					+ "   ''," // JOURNAL entry:UP,DL,PT,PX
-					+ "   '" + srcSch + "', '" + srcTbl + "', '*QDDS', ''," // Object library, Object name, Object type,
-																			// Object member
-					+ "   '', '', ''" // User, Job, Program
-					+ ") ) as x order by 2 asc"; 
-     	"rs": "n" 
-     }
-  ],
-  "incrementalRun": [
-  		"DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+taskID + "(" + tskDetailJSON.get("data_pk") + " " + keyDataType + ") " 
-				+" NOT LOGGED"; 
-
-		"INSERT INTO qtemp.DCC" + taskID + " VALUES (?)" ;
-
-		sql = getBareSrcSQL() + ", qtemp.DCC"+taskID + " b "
-				+ " where a..rrn(a)=b." +tskDetailJSON.get("data_pk");  //TOTO: may have problem!
-  
-  ]
-  }
-  }'
- ),
+ '{
+  "cdcDB":"KAFKAK1",	
+  "bareSQL": "select COUNT_OR_RRN as DATAKEY,  SEQUENCE_NUMBER AS SEQNBR 
+	 FROM table (Display_Journal('<DIJRNL>', '<DIJMBR>', '*CURCHAIN', 
+	 	'', '',
+		cast('<DICDCTS>' as TIMESTAMP), cast('<DICDCSEQ>' as decimal(21,0)),  
+		'R','','' ,'','*QDDS','','','','') ) as x order by 2 asc",
+  "bareSQL1":"select COUNT_OR_RRN as DATAKEY,  SEQUENCE_NUMBER AS SEQNBR 
+	FROM table (Display_Journal('<DIJRNL>', '<DIJMBR>', '', 
+	'', '',
+		cast('<DISTARTTS>' as TIMESTAMP), cast('<DISTARTSEQ>' as decimal(21,0)),  
+		'R','','' ,'','*QDDS','','','','') ) as x order by 2 asc",
+  "regist":[],
+  "unregist":[],
+  "initRun":[
+   {"note":"if the CDC marks are not set yet, set them.", 
+    "cmd":"select max(COUNT_OR_RRN) as CDCDATAKEY,  max(SEQUENCE_NUMBER AS SEQNBR) as CDCSEQNUM, max(ENTRY_TIMESTAMP) as CDCTS 
+		 FROM table (Display_Journal('<DIJRNL>', '<DIJMBR>', '*CURCHAIN', 
+	 	'', '',
+		cast('<DISTARTTS>' as TIMESTAMP),cast('<DISTARTSEQ>' as decimal(21,0)),  
+		'R','','','','*QDDS','','','','') ) as x order by 2 asc", 
+    "return": ["DICDCKEY, DICDCSEQ",DICDCTS] 
+   }
+  ] 
+ }'
+ );
 insert into DATA_POINT (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
   DB_DRIVER, DB_CONN,
-  DB_INFO,
-  INSTRUCTIONS)
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
 values 
-('DB2DS', 
+('DB2ADS', 'R',
  'JDBC', 'DB2/AS400',
+ 'com.ibm.as400.access.AS400JDBCDriver', 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'johnlee2', 'C3line1998', 
- 'com.ibm.as400.access.AS400JDBCDriver',
- 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'DB2/AS400 data',
- '{	"selectStmt": "select a.*, DATAKEY from SRCTBLE ",
-   "registration": [
-  	"checking":	... better contains a checking verifying src table is in the list of the "data keys"... ,
-  	"create target": "create table ...."
-  ],
-  "remove": [],
-  "initRun": [   ],
-  "incrementalRun": []
-  }
+ '{
+   "cdcDB":"KAFKAK1",	
+   "bareSQL": "select a.*, rrn(a) as datakey from <DISRCTBL> as a",
+   "incRun": [],
+   "incRun":[],
+   "regist":[],
+   "unregist":[]
   }'
- ),
-('VERT1DT', 
+ );
+ 
+ insert into DATA_POINT (
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
+  DB_DRIVER, DB_CONN,
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
+('VERT1DT', 'W', 
  'JDBC', 'VERTICA',
  'dbadmin', 'Bxx321', 
  'com.vertica.jdbc.Driver',
  'jdbc:vertica://vertx1:5433/vertx', 
  'Vert x',
- '{	"createStmt": "create table <TGTTBLNAME> <FLDDEFINTIONS>",
-    "registration": [
-  	"grant ... ",
-  	"grant ...."
-    ],
-  "remove": ["drop table <TBLNAME>"],
-  "initRun": [   ],
-  "incrementalRun": []
- }'
- );
- 
- 
- insert into DATA_POINT (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
-  DB_DRIVER, DB_CONN,
-  DB_INFO,
-  INSTRUCTIONS)
-values 
- ('KAFKA1DT', 
- 'MQ', 'KAFKA',
- 'xxx', 'xxx', 
- '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
- 'kafka data sink',
  '{	
-   "createStmt": {"topicname", "xxx"},
-   "registration": [    ],
-  "remove": [],
-  "initRun": [   ],
-  "incrementalRun": []
- }'
- ),
- ('KAFKA1DS', 
- 'MQ', 'KAFKA',
- 'xxx', 'xxx', 
- '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
- 'kafka data consumer',
-  ''
+  "notes":"no specific instrunction for Vertica destination" 
+  }'
  );
+ 
  insert into DATA_POINT (
-  DB_ID,
-  DB_CAT, DB_TYPE,
-  DB_USR, DB_PWD,
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
   DB_DRIVER, DB_CONN,
-  DB_INFO,
-  INSTRUCTIONS)
-values 
- ('KAFKA1DT', 
- 'MQ', 'KAFKA',
- 'xxx', 'xxx', 
- '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
- 'kafka data sink',
-  ''
- ),
- ('KAFKA1DS', 
- 'MQ', 'KAFKA',
- 'xxx', 'xxx', 
- '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
- 'kafka data consumer',
-  ''
- );
- insert into DATA_POINT (
-  DB_ID,
-  DB_CAT, DB_TYPE,
   DB_USR, DB_PWD,
-  DB_DRIVER, DB_CONN,
-  DB_INFO,
-  INSTRUCTIONS)
-values('ORA1DS', 
+  DB_DESC,
+  INSTRUCT)
+values(
+ 'ORA1DIK', 'R', 
  'JDBC', 'ORACLE',
  'johnlee', 'johnlee213', 
  'oracle.jdbc.OracleDriver',
  'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
- 'Oracle Dev',
- '{	"bareSQL": "select * from a.* from <SRCTBL> a ";
- 	"registration": [
-    {"db":"ORA1D", 
-     "name":"create log tbl",
-     "stmt":"create table <SRCTBL>_DCCLOG (datakey varchar(20), action char[1], ts_dcc date) tablespace TSDCC ", 
-     "rs": "n" },
-    {"db":"ORA1DS",
-     "name":"create log trigger", 
-     "stmt":"create or replace trigger <SRCTBL>_DCCTRG   
-				after insert or update or delete on SRCTBLE  
-				for each row  
-				begin
-				DECLARE
-     				action  char(1);
-				BEGIN 
-				IF DELETING THEN 
- 					action := 'D';
-				END IF;
-				IF INSERTING THEN 
- 					action := 'I';
-				END IF;
-				IF UPDATING THEN 
- 					action := 'U';
-				END IF;
-				
-				insert into <SRCTBL>_DCCLOG (datakey, action, ts_dcc )\n"  
-				values ( :new.rowid, sysdate   );  
-				end; \n",
-     "rs": "n" },
-    {"db":"ORA1DS",
-     "name":"the disabled trigger",
-     "stmt":"alter trigger TRIGNAME disable;",
-     "rs": "n"}
+ 'Oracle Dev key source',
+ '{	
+  "note":"trigger based approach for CDC",
+  "bareSQL": "select CDC_DATA_KEY from <SRCTBL>_LOG",
+  "initRun":[
+   {"note":"get the CDC TS, which will be saved in repo",
+   	"cmd":"select sysdate from from dual",
+   	"return": ["DICDCTS"]
+   },
+   {"name":"enable cdc trigger", 
+    "cmd":"alter trigger <DISRCTBL>_CDCTRG enable"
+   }
+  ]
+  "incRun":[
+   "poststep":{
+   	"cmd":"delete from <SRCTBL>_LOG where CDCTS < '<DICDCTS>'"
+   }
   ],
-  "remove": [
-    {"db":"ORA1DS",
-     "name":"step 1",
-     "stmt":"drop table LOGTBLNAME ", 
-     "rs": "n" },
-    {"db":"ORA1DS",
-     "name":"step 2", 
-     "stmt":"drop trigger TRIGNAME ",
-     "rs": "n" }
-  ],
-  "initRun": [
-    {"name":"step", 
-     "stmt":"alter trigger TRIGNAME enable;",
-     "rs": "n" },
-    {"name":"step 1",
-     "sql":"bareSQL + datakey ", 
-     "rs": "y" }
-  ],
-  "incrementalRun": [
-    {"name":"step 1",
-     "sql":"select sysdate from dual ", 
-     "rs": "y" },
-    {"name":"step 1",
-     "sql":"select distinct datakey from LOGTBLNAME where ts_dcc < CURRTS", 
-     "rs": "y" },    
-     {"name":"dataSQL",
-     "sql":"bareSQL + datakey + where", 
-     "rs": "y" },
-    {"name":"step 2", 
-     "stmt":"delete from LOGTBLNAME where ts_dcc < CURRTS ",
-     "rs": "n" }
-  ]}'
+  "regist": [
+   {"name":"create log tbl",
+    "cmd":"create table <DISRCTBL>_CDCLOG (CDCKEY varchar(20), action char[1], ts_dcc date) tablespace TSDCC " 
+   },
+   {"name":"create log trigger", 
+    "cmd":"create or replace trigger <DISRCTBL>_CDCTRG   
+		after insert or update or delete on SRCTBLE  
+		for each row  
+		begin
+		DECLARE
+    	action  char(1);
+		BEGIN 
+		IF DELETING THEN 
+ 			action := 'D';
+		END IF;
+		IF INSERTING THEN 
+ 			action := 'I';
+		END IF;
+		IF UPDATING THEN 
+ 			action := 'U';
+		END IF;
+			
+		insert into <DISRCTBL>_CDCLOG (datakey, action, ts_dcc )"  
+		values ( :new.rowid, sysdate );  
+		end; " 
+	},
+    {"name":"trigger is disabled",
+      "cmd":"alter trigger <DISRCTBL>_CDCLOG disable"
+    }
+   ],
+  "unregist": [
+    {"name":"drop cdc log tbl",
+     "cmd":"drop table <DISRCTBL>_CDCLOG"
+    },
+    {"name":"drop cdc trigger", 
+     "cmd":"drop trigger <DISRCTBL>_CDCTRG"
+    }
+   ], 
+  "disable": [
+    {"name":"disable cdc trigger", 
+     "cmd":"alter trigger <DISRCTBL>_CDCTRG disable"
+    }
+   ] 
   }'
- ),
-('ES1DT', 
- 'Search Engine', 'ES',
+);
+
+ insert into DATA_POINT (
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
+  DB_DRIVER, DB_CONN,
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
+values(
+ 'ORA1DS', 'R', 
+ 'JDBC', 'ORACLE',
+ 'oracle.jdbc.OracleDriver', 'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
+ 'johnlee', 'johnlee213', 
+ 'Oracle Dev',
+ '{
+  "note":"only action here will be the selecting the data",
+  "bareSQL": "select a.*, a.rowid as CDCKEY from <SRCTBL> a ",
+ }'
+);
+
+insert into DATA_POINT (
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
+  DB_DRIVER, DB_CONN,
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
+values( 
+ 'KAFKAK1', 'WR',
+ 'MQK', 'KAFKA',
+ '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
  'xxx', 'xxx', 
- '',
- 'http://dbatool02:9200', 
- 'ElasticSearch')
+ 'kafka data consumer',
+ '{
+  "note":"all details are actually handled in Java class."
+  "regist": [
+    {"name":"create topic",
+     "cmd":"creade topic"
+    }
+  ],
+  "unregist": [
+    {"name":"delete topic",
+     "cmd":"delete topic"
+    }
+  ]
+ }'
+);
+
+insert into DATA_POINT (
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
+  DB_DRIVER, DB_CONN,
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
+values (
+ 'KAFKAD1', 'WR',
+ 'MQD', 'KAFKA',
+ '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'xxx', 'xxx', 
+ 'kafka data sink',
+ '{	
+  "regist": [
+    {"name":"create topic",
+     "cmd":"creade topic"
+    }
+  ],
+  "unregist": [
+    {"name":"delete topic",
+     "cmd":"delete topic"
+    }
+  ]
+ }'
+);
+ 
+insert into DATA_POINT (
+  DB_ID,DB_ROLE,
+  DB_CAT, DB_VENDOR,
+  DB_DRIVER, DB_CONN,
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
+values 
+('ES1DT', 'DT',
+ 'ES', 'ES',
+ '','http://dbatool02:9200', 
+ 'xxx', 'xxx', 
+ 'ElasticSearch',
+'{	
+  "regist": [
+    {"name":"create index",
+     "cmd":"creade index"
+    }
+  ],
+  "unregist": [
+    {"name":"drop index",
+     "cmd":"drop index"
+    }
+  ]
+ }'
+)
 ;
 
-insert into SYNC_TEMPLATE
-(
-  TEMP_ID, ACT_ID, INFO
-) values 
-('DCC', 0, 'set meta_table.SEQ_LAST_REF to a starting seq.'),
-('DCC', 2, 'sync(extract) DCC to kafka.'),
-('DATA_', 0, 'simply set meta_table.curr_state=2.'),
-('DATA_', 1, 'intial copy src to tgt.'),
-('DATA_', 2, 'sync src to tgt via kafka'),
-('DATA_', 9, 'audit'),
---('D2V', 1, 'ex. temp: intial copy src to tgt.'),
---('D2V', 2, 'ex. temp: sync src to tgt via trig.'),
---('D2V', 9, 'audit.'),
---('D2K_', 2, 'sync src data to kafka topic via kafka.'),
-('DATA', 0, 'enable trig'),
-('DATA', 1, 'initial copy src to tgt'),
-('DATA', 2, 'sync src to tgt via trig'),
-('DATA', 9, 'audit'),
---('O2K', 0, 'enable trig'),
---('O2K', 2, 'sync src to tgt(kafka) via trig'),
---('O2K', 21, 'testing code'),
---('O2K_', 2, 'sync src data to kafka topic via kafka.'),
---('K2E', 2, 'Kafak topic to ES doc')
-;
 
 insert into XFORM_SIMPLE  (X_ID,  
 SRC_AVRO, 

@@ -56,8 +56,8 @@ public class DataPointMgr implements AutoCloseable {
 			try {
 				//db = new DataPointer(dbid);
 				JSONObject jo = metaData.getDBDetails(dbid);
-				String dbType=jo.get("db_cat").toString();
-				switch(dbType){
+				String dbCat=jo.get("db_cat").toString();
+				switch(dbCat){
 					case "JDBC":
 						db = new JDBCData(jo);
 						break;
