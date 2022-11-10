@@ -12,8 +12,8 @@ import javax.script.ScriptException;
 import java.text.*;
 import java.time.Duration;
 import java.sql.*;
-import oracle.jdbc.*;
-import oracle.jdbc.pool.OracleDataSource;
+//import oracle.jdbc.*;
+//import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONObject;
@@ -316,7 +316,7 @@ class KafkaData extends DataPoint {
 	}
 
 	@Override
-	public JSONObject runDBcmd(String cmd, String type) {
+	public int runDBcmd(String cmd, String type) {
 		final TaskMeta taskMeta = TaskMeta.getInstance();
 
 		String topicName=(String) taskMeta.getTaskDetails().get("topic");
@@ -351,7 +351,7 @@ class KafkaData extends DataPoint {
 			
 			}
 		}
-		return null;
+		return 0;
 	}
 	
 	@Override

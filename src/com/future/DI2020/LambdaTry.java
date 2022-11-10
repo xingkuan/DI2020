@@ -22,10 +22,13 @@ class LambdaTry {
         BiFunction<Integer, Integer, Integer> add = (a, b) -> a + b;
         System.out.println(add.apply(13, 2));
         
+        DataPointMgr dataMgr = DataPointMgr.getInstance();
 		//try fP
 		//((DB2Data400) srcDB).tryFunctional("aa");
 		//FunctionalTry s = (int x)->x*x ;
-		DataPoint srcDB = DataPointMgr.getDB("DB2D");
+		DataPoint srcDB = dataMgr.getDB("DB2D");
 		//srcDB.tryFunctional("srcSch", "srcTbl", "journal" ,(int x)->x*x);
     }
+    
+    
 }

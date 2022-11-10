@@ -9,34 +9,35 @@ import java.util.Properties;
 import java.util.stream.Collectors;
 
 import org.json.simple.JSONObject;
+import org.json.simple.parser.JSONParser;
+import org.json.simple.parser.ParseException;
 
 import java.io.IOException;
 
 public class taskAdmin {
-	private static final TaskMeta taskMeta = TaskMeta.getInstance();
-	private DataPointMgr dataMgr = DataPointMgr.getInstance();
-	private static Entry e;
+//	private static final TaskMeta taskMeta = TaskMeta.getInstance();
+//	private DataPointMgr dataMgr = DataPointMgr.getInstance();
+//	private static Entry e;
 
 	
-	public void main(String[] args) throws IOException {
+	public static void main(String[] args) throws IOException {
 		int actionId; //11: registration, 12: unregister; 13: disable;
 		int taskId=0;
 		String jobId;
 		
-		Map<String, String> vars=new HashMap<>();
 		//e. g. vars["SRCDBID"]="ORASRC1"
 		Map<String, String> exVars = null;
 		
 		//System.out.println(args.length);
 		actionId = Integer.parseInt(args[0]);
 		
-		if(actionId==11) {
-			if (args.length != 6) {
+		if(actionId==11) {  //11 ORAD1 VERTSNAP.TEST VERTD1 TEST400.TEST
+			if (args.length != 5) {
 				System.out.println(
 						"Usage:   taskAdmin actionId srdDb srcTbl tgtDb tgtTbl");
 				return;
 			} 
-			taskId = Integer.parseInt(args[5]);
+			//taskId = Integer.parseInt(args[5]); always generate  
 	        Properties properties = System.getProperties();
 	        
 			// named parameter for, e.g, DB2/400 journal name; -DDIxxx=vvv
@@ -48,9 +49,7 @@ public class taskAdmin {
 	        		        e -> (String) e.getValue(),
 	        		        (e1, e2) -> e2, 
 	        		        LinkedHashMap::new));
-
 	        exVars.forEach((k, v) -> System.out.println(k + ":" + v));
-
 		}else {
 			if (args.length != 3) {
 				System.out.println(
@@ -60,34 +59,97 @@ public class taskAdmin {
 			taskId = Integer.parseInt(args[2]);
 		}
 		
+		TaskMeta taskMeta = TaskMeta.getInstance();
 		switch (actionId) {
 			case 11:	//registrating
 				jobId = "regist ";
-				taskId = -1;	//to be registered
-				// if, e.g. datakeys needs pumped to kafka as DCC stage, then need a seperate task for that
-				JSONObject jo = (JSONObject) taskMeta.getDBDetails(args[1]).get("instructions");
-				String dccDtgDBID = (String) jo.get("dccFilter");
-				if (dccDtgDBID != null) { //regist src to dcc first
-					vars.put("DISRCDB", args[1]);
-					vars.put("DISRCTBL", args[2]);
-					vars.put("DITGTDB", dccDtgDBID);
-					vars.put("DITGTTBL", exVars.get("DCTBL"));
-					vars.put("DITASKID", String.valueOf(taskId));
+				taskId = -1;	//to register
+								//also, CDC dbid is to be retrieved from SRCDB
 
-					taskMeta.setupTask(jobId, vars);
-					taskMeta.regist();
-					
-					taskId=taskId+1;
+				Map<String, String> vars=new HashMap<>();
+				Map<String, String> vars1=new HashMap<>();
+
+				DBMeta repoDB = DBMeta.getInstance();
+				//1st, get CDC river DB and "tbl name" from src DB info
+				JSONObject jo = (JSONObject) repoDB.getDB(args[1]);
+				String instr=(String) jo.get("instruct");
+				JSONParser parser = new JSONParser();
+				try {
+					jo = (JSONObject) parser.parse(instr);
+				} catch (ParseException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
 				}
-				//then the regist src to tgt
-				vars.put("DISRCDB", args[1]);
-				vars.put("DISRCTBL", args[2]);
-				vars.put("DITGTDB", args[3]);
-				vars.put("DITGTTBL", args[4]);
-				vars.put("DITASKID", args[5]);
-
+				String cdcDBID = (String) jo.get("CDCDB");
+				String[] nameParts;
+				//the CDC task
+				{
+					vars.put("DISRCDB", args[1]);
+					nameParts = args[2].split("\\.", 2);
+					vars.put("DISRCSCH", nameParts[0]);
+					vars.put("DISRCTBL", nameParts[1]);
+					vars.put("DITGTDB", cdcDBID);
+					//vars.put("DITGTTBL", exVars.get("DCTBL"));
+					String cdcObjTemp = repoDB.getCDCNameTemp(cdcDBID, nameParts[1]);
+					String cdcTbl = cdcObjTemp+"_LOG";
+					String cdcTrg = cdcObjTemp+"_TRG";
+					vars.put("CDCSCH", nameParts[0]);
+					vars.put("CDCTBL", cdcTbl);
+					vars.put("CDCTRG", cdcTrg);
+					vars.put("DITGTTBL", cdcTbl);  //hack
+					vars.put("DITASKID", String.valueOf(taskId));
+					vars.put("DICURRST", "-1");
+				}
+				//check all the way
+				//1. cdc
+				int tid;
 				taskMeta.setupTask(jobId, vars);
-				taskMeta.regist();
+				tid = taskMeta.preRegist();
+				vars.put("DITASKID", String.valueOf(tid)); //put the real taskID in place. TODO not clean!
+				if(tid<0) {
+					System.out.println("cdc check failed!");
+					return ;
+				}
+				//the src to tgt	
+				{
+					taskId=tid+1;   //need to pass the previous taskId to here!
+					vars1.put("DISRCDB", args[1]);
+					nameParts = args[2].split(".", 2);
+					vars1.put("DISRCSCH", nameParts[0]);
+					vars1.put("DISRCTBL", nameParts[1]);
+					vars1.put("DITGTDB", args[3]);
+					nameParts = args[4].split(".", 2);
+					vars1.put("DITGTSCH", nameParts[0]);
+					vars1.put("DITGTTBL", nameParts[1]);
+					vars1.put("DITASKID", String.valueOf(taskId));
+					vars1.put("DICURRST", "0");
+					//taskMeta.setupTask(jobId, vars1);
+					//taskMeta.regist();
+				}
+				//2.data
+				taskMeta.setupTask(jobId, vars1);
+				tid = taskMeta.preRegist();
+				if(tid<0) {
+					System.out.println("cdc check failed!");
+					return ;
+				}
+				//regist
+				//1. cdc
+				boolean isOk;
+				taskMeta.setupTask(jobId, vars);
+				isOk = taskMeta.regist();
+				if(!isOk) {
+					System.out.println("cdc regist failed!");
+					return ;
+				}
+				//2.data
+				taskMeta.setupTask(jobId, vars1);
+				isOk = taskMeta.regist();
+				if(!isOk) {
+					System.out.println("cdc regist failed!");
+					return ;
+				}
+
 				break;
 			case 12:	//unregist
 				jobId = "unregist ";

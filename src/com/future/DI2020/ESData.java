@@ -12,8 +12,8 @@ import javax.script.ScriptException;
 
 import java.text.*;
 import java.sql.*;
-import oracle.jdbc.*;
-import oracle.jdbc.pool.OracleDataSource;
+//import oracle.jdbc.*;
+//import oracle.jdbc.pool.OracleDataSource;
 
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.Request;
@@ -236,7 +236,7 @@ class ESData extends DataPoint{
 	}
 
    public void asynchIndex(List<String> items) {
-	   CountDownLatch latch = new CountDownLatch(items.size());
+	   final CountDownLatch latch = new CountDownLatch(items.size());
 	   ResponseListener listener = new ResponseListener() {
 	     @Override
 	     public void onSuccess(Response response) {
@@ -335,7 +335,7 @@ class ESData extends DataPoint{
 	/******** Registration APIs **********/
 	//for creating the needed objects in the Data point
 	@Override
-	public JSONObject runDBcmd(String cmd, String type) {
+	public int runDBcmd(String cmd, String type) {
 		TaskMeta metaData = TaskMeta.getInstance();
 		
 		JSONObject taskDetail = metaData.getTaskDetails();
@@ -384,6 +384,6 @@ class ESData extends DataPoint{
 		}else if(cmd.equals("unregist")) {
 		}
 		
-		return null;
+		return 0;
 	}
 }

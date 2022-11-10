@@ -1,11 +1,13 @@
 package com.future.DI2020;
 
 import java.io.*;
+import java.math.BigDecimal;
 import java.util.*;
 import java.text.*;
 import java.sql.*;
-import oracle.jdbc.*;
-import oracle.jdbc.pool.OracleDataSource;
+//import oracle.jdbc.*;
+//import oracle.jdbc.pool.OracleDataSource;
+import java.sql.Date;
 
 import org.apache.logging.log4j.Logger;
 import org.json.simple.JSONArray;
@@ -40,21 +42,23 @@ class JDBCData extends DataPoint{
 			}
       
 			try {
-				props.put("user", userID);
-				props.put("passWord", passPWD);
-				props.put("DirectBatchInsert", true);
-				props.put("db", true);
-				props.put("schema", true);
+				//props.put("user", userID);
+				//props.put("passWord", passPWD);
+	//TODO
+	//?only for vertica			props.put("DirectBatchInsert", true);
+	//?only for vertica			props.put("db", true);
+	//?only for vertica			props.put("schema", true);
 				//dbConn.setProperty("DirectBatchInsert", true);
-				//dbConn = DriverManager.getConnection(urlString, userID, passPWD, props);
-				dbConn = DriverManager.getConnection(urlString, props);
+				dbConn = DriverManager.getConnection(urlString, userID, passPWD);
+				//dbConn = DriverManager.getConnection(urlString, props);
 				dbConn.setAutoCommit(false);
+				dbConn.setClientInfo(props);  //not sure
 			} catch(SQLException e) {
 				logger.error("   cannot connect to db");
 				logger.error(e);
 			}
 		}else {
-				logger.info("   If you never see this!");
+				logger.info("   If you ever see this!");
 		}
 	}
 	
@@ -364,113 +368,95 @@ class JDBCData extends DataPoint{
 
 	//registration related APIs	   
 	@Override
-	public JSONObject runDBcmd(String sqlStr, String type) {
-		// TODO Auto-generated method stub
-		return null;
-	}
-
-	public String getAVRO(String selectStmt) {
-		Statement lrepStmt;
-		ResultSet lrRset;
-		int i;
-
-		String avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
-				    + "\"type\": \"record\", \n" 
-				    + "\"name\": \"" + dataDetail.get("SRCTBL") + "\", \n" 
-				    + "\"fields\": [ \n" ;
-		try {
-			lrepStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-
-			i = 0;
-			lrRset = lrepStmt.executeQuery(selectStmt);
-			ResultSetMetaData rsmd = lrRset.getMetaData();
-			int columnCount = rsmd.getColumnCount();
-			String colName;
-			String colType;
-		/*
-Array: 2003
-Big int: -5
-Binary: -2
-Bit: -7
-Blob: 2004
-Boolean: 16
-Char: 1
-Clob: 2005
-Date: 91
-Datalink70
-Decimal: 3
-Distinct: 2001
-Double: 8
-Float: 6
-Integer: 4
-JavaObject: 2000
-Long var char: -16
-Nchar: -15
-NClob: 2011
-Varchar: 12
-VarBinary: -3
-Tiny int: -6
-Time stamt with time zone: 2014
-Timestamp: 93
-Time: 92
-Struct: 2002
-SqlXml: 2009
-Smallint: 5
-Rowid: -8
-Refcursor: 2012
-Ref: 2006
-Real: 7
-Nvarchar: -9
-Numeric: 2
-Null: 0
-Smallint: 5
- */
-			for (i = 1; i <= columnCount; i++ ) {
-				colName = rsmd.getColumnName(i);
-				colType = rsmd.getColumnTypeName(i);
-	
-				avroSchema = avroSchema 
-						+ "{\"name\": \"" + colName + "\", " + colType + "} \n" ;
-				i++;
-			}
-	
-			lrRset.close();
-			lrepStmt.close();
-			
-			avroSchema = avroSchema 
-				+ "] }";
-
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
+	public int runDBcmd(String sqlStr, String type) {
+		int rslt=-1;
+		if(type.equals("SINGLEV")) {
+			rslt=singlIntValSQL(sqlStr);
+		}else if(type.equals("NOV")) {
+			rslt=runUpdateSQL(sqlStr);
 		}
-		
-		return avroSchema;
+		return rslt;
 	}
 
-	public String getSrcSTMT(String bareSQL) {
+	public int singlIntValSQL(String sql) {
+		int rslt=-1;
+		try {
+			Statement stmt = dbConn.createStatement();
+			ResultSet rset = null;
+			rset = stmt.executeQuery(sql);
+
+			rset.next();
+			rslt = rset.getInt(1);
+
+			rset.close();
+			stmt.close();
+		} catch (SQLException e) {
+			logger.error(e);
+		} 
+		return rslt;
+	}
+
+	@Override
+	public Map getTaskSTMTs(String bareSQL) {
+		Map<String, String> taskStmts=null;
+
+		final TaskMeta taskMeta = TaskMeta.getInstance();
+		JSONObject taskDetail = taskMeta.getTaskDetails();
+		
+		String colNames="";
+		String avroFlds="";
+		String valFlds="";
+		int fldsCnt;
+		
 		Statement sqlStmt;
 		ResultSet sqlRset;
-		  try {
+		try {
 			sqlStmt = dbConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
 			ResultSet rs = sqlStmt.executeQuery(bareSQL);
 
 	      //Retrieving the ResultSetMetaData object
-	      ResultSetMetaData rsmd = rs.getMetaData();
+			ResultSetMetaData rsmd = rs.getMetaData();
+			fldsCnt = rsmd.getColumnCount();
+			String colName;
+			String colType;
 
-	      //getting the column type
-	      int column_size = rsmd.getPrecision(3);
-			} catch (SQLException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+			for (int i = 1; i <= fldsCnt; i++ ) {
+				colName = rsmd.getColumnName(i);
+				colType = rsmd.getColumnTypeName(i);
+	
+				avroFlds = avroFlds 
+						+ "{\"name\": \"" + colName + ",\"type\":, \"" + colType + "\"},\n" ;
+				colNames=colNames+colName+",";
+				valFlds=valFlds+"?,";
+				i++;
 			}
-	      
-		return null;
-	}
+			colNames=colNames.substring(0, colNames.length()-1);//get rid of the last ","
+			valFlds=valFlds.substring(0, valFlds.length()-1);//get rid of the last ","
+			avroFlds=avroFlds.substring(0, avroFlds.length()-2) +"\n";//get rid of the last ","
+			String srcQuery="select " + colNames + " from " + taskDetail.get("DISRCTBL");
+			String tgtIns = "insert into " + taskDetail.get("DITGTTBL") + " values (" + valFlds + ")"; 
 
-	public String getTgtDDL(String bareSQL) {
-		// TODO Auto-generated method stub
-		return null;
+			String avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
+				    + "\"type\": \"record\", \n" 
+				    + "\"name\": \"" + taskDetail.get("DISRCTBL") + "\", \n" 
+				    + "\"fields\": [ \n" 
+				    + avroFlds + "] }";
+
+			taskStmts=new HashMap<>();
+			//getting the column type
+			int column_size = rsmd.getPrecision(3);
+			
+			taskStmts.put("srcQuery", srcQuery);
+			taskStmts.put("tgtInsert", tgtIns);
+			taskStmts.put("avro", avroSchema);
+			taskStmts.put("fldCnt", Integer.toString(fldsCnt));
+		} catch (SQLException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			taskStmts=null;
+		}
+	      
+		return taskStmts;
 	}
 
 

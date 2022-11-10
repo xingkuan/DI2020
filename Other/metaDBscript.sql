@@ -1,7 +1,16 @@
+systemctl status postgresql-9.6
+postgres=# show data_directory;
+     data_directory
+-------------------------
+ /var/lib/pgsql/9.6/data
+cd /var/lib/pgsql/9.6/data
+vi pg_hba.conf
+psql -h dbatool01 -d didb -U repuser -W
+
+
 create database didb;
 
 create user repuser password 'passwd';
-
 grant connect on database didb to repuser;
 grant all privileges on database didb to repuser;
 
@@ -9,18 +18,20 @@ grant all privileges on database didb to repuser;
 
 CREATE TABLE DATA_POINT
 (
-  DB_ID         VARCHAR(15)   PRIMARY KEY,
-  DB_ROLE		varchar(10),  --reference only. R for Read from or W for Write to
-  DB_CAT        VARCHAR(15),
-  DB_VENDOR     VARCHAR(15),
-  DB_DRIVER     VARCHAR(150),
-  DB_CONN       VARCHAR(150),
-  DB_USR        VARCHAR(25),
-  DB_PWD        VARCHAR(25),
-  DB_DESC       VARCHAR(225),
-  INSTRUCT		JSONB    --the templates of registration, initialization, remove, incremental...
+  DB_ID      VARCHAR(15)   PRIMARY KEY,
+  DB_ROLE    VARCHAR(5),  --reference only. R for Read from or W for Write to
+  DB_CAT     VARCHAR(15),
+  DB_VENDOR  VARCHAR(15),
+  DB_DRIVER  VARCHAR(150),
+  DB_CONN    VARCHAR(150),
+  DB_USR     VARCHAR(25),
+  DB_PWD     VARCHAR(25),
+  DB_DESC    VARCHAR(225),
+  INSTRUCT   TEXT    --the templates of registration, initialization, remove, incremental...
 )
 ;
+grant select,update,delete,insert on data_point to repuser;
+
 -- Let's explicitly know that the DB are RDBMS or KAFKA, for both SRC, TGT and DCC
 CREATE TABLE TASK
 (
@@ -31,13 +42,15 @@ CREATE TABLE TASK
   							--  1: disabled;
   							--	2: runable;
   							--	3: being run 
-  SRC_DB_ID         VARCHAR(15),
-  SRC_TABLE         VARCHAR(50),
-  SRC_SQL           TEXT,		--if customer SQL is used.
-  TGT_DB_ID         VARCHAR(15),
-  TGT_TABLE         TEXT,		-- can be a list of, eg. DB2 journal table members
-  AVRO_SCHEMA		jsonb,
-  REG_DT			DATE(6),
+  SRC_DB_ID       VARCHAR(15),
+  SRC_TBL         VARCHAR(50),
+  SRC_STMT        TEXT,		--if customer SQL is used.
+  FLD_CNT      int,
+  TGT_DB_ID       VARCHAR(15),
+  TGT_TBL         TEXT,		-- can be a list of, eg. DB2 journal table members
+  TGT_STMT        TEXT,		--if JDBC.
+  AVRO_SCHEMA     jsonb,
+  REG_DT            DATE,
   INIT_DT	        DATE,
   INIT_DURATION     INTEGER,	-- seconds
   TS_LAST_REF       TIMESTAMP(6),
@@ -45,6 +58,7 @@ CREATE TABLE TASK
 --  CONSTRAINT unique_src UNIQUE (SRC_DB_ID, SRC_SCHEMA, SRC_TABLE)
 )
 ; 
+grant select,update,delete,insert on task to repuser;
 
 CREATE TABLE DATA_FIELD
 (
@@ -112,27 +126,29 @@ values
  'johnlee2', 'C3line1998', 
  'DB2/AS400 data id',
  '{
-  "cdcDB":"KAFKAK1",	
-  "bareSQL": "select COUNT_OR_RRN as DATAKEY,  SEQUENCE_NUMBER AS SEQNBR 
-	 FROM table (Display_Journal('<DIJRNL>', '<DIJMBR>', '*CURCHAIN', 
-	 	'', '',
-		cast('<DICDCTS>' as TIMESTAMP), cast('<DICDCSEQ>' as decimal(21,0)),  
-		'R','','' ,'','*QDDS','','','','') ) as x order by 2 asc",
-  "bareSQL1":"select COUNT_OR_RRN as DATAKEY,  SEQUENCE_NUMBER AS SEQNBR 
-	FROM table (Display_Journal('<DIJRNL>', '<DIJMBR>', '', 
-	'', '',
-		cast('<DISTARTTS>' as TIMESTAMP), cast('<DISTARTSEQ>' as decimal(21,0)),  
-		'R','','' ,'','*QDDS','','','','') ) as x order by 2 asc",
+  "cdcDB":"KAFKAK1",
+  "cdcTbl":"<SRCTBL>",	
+  "bareSQL":"select COUNT_OR_RRN as DATAKEY,SEQUENCE_NUMBER AS SEQNBR 
+  FROM table (Display_Journal(''<DIJRNL>'', ''<DIJMBR>'', ''*CURCHAIN'', '''', '''',
+  cast(''<DICDCTS>'' as TIMESTAMP), cast(''<DICDCSEQ>'' as decimal(21,0)),
+   ''R'','''','''' ,'''',''*QDDS'','''','''','''','''') ) as x
+   order by 2 asc",
+  "bareSQL1":"select COUNT_OR_RRN as DATAKEY,SEQUENCE_NUMBER AS SEQNBR
+  FROM table (Display_Journal(''<DIJRNL>'', ''<DIJMBR>'', '''', '''', '''',
+  cast(''<DISTARTTS>'' as TIMESTAMP), cast(''<DISTARTSEQ>'' as decimal(21,0)),
+  ''R'','''','''' ,'''',''*QDDS'','''','''','''','''') ) as x
+  order by 2 asc",
   "regist":[],
   "unregist":[],
   "initRun":[
    {"note":"if the CDC marks are not set yet, set them.", 
-    "cmd":"select max(COUNT_OR_RRN) as CDCDATAKEY,  max(SEQUENCE_NUMBER AS SEQNBR) as CDCSEQNUM, max(ENTRY_TIMESTAMP) as CDCTS 
-		 FROM table (Display_Journal('<DIJRNL>', '<DIJMBR>', '*CURCHAIN', 
-	 	'', '',
-		cast('<DISTARTTS>' as TIMESTAMP),cast('<DISTARTSEQ>' as decimal(21,0)),  
-		'R','','','','*QDDS','','','','') ) as x order by 2 asc", 
-    "return": ["DICDCKEY, DICDCSEQ",DICDCTS] 
+    "cmd":"select max(COUNT_OR_RRN) as CDCDATAKEY,max(SEQUENCE_NUMBER AS SEQNBR) as CDCSEQNUM, max(ENTRY_TIMESTAMP) as CDCTS
+     FROM table (Display_Journal(''<DIJRNL>'', ''<DIJMBR>'', ''*CURCHAIN'', '''', '''',
+     cast(''<DISTARTTS>'' as TIMESTAMP),cast(''<DISTARTSEQ>'' as decimal(21,0)),  
+     ''R'','''','''','''',''*QDDS'','''','''','''','''') ) as x 
+     order by 2 asc", 
+    "type":"MULTIV", 
+    "return": ["KEY, SEQ","TS"] 
    }
   ] 
  }'
@@ -160,25 +176,25 @@ values
   }'
  );
  
- insert into DATA_POINT (
+insert into DATA_POINT (
   DB_ID,DB_ROLE,
   DB_CAT, DB_VENDOR,
   DB_DRIVER, DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
-('VERT1DT', 'W', 
+values(
+'VERTD1', 'W', 
  'JDBC', 'VERTICA',
- 'dbadmin', 'Bxx321', 
- 'com.vertica.jdbc.Driver',
- 'jdbc:vertica://vertx1:5433/vertx', 
+ 'com.vertica.jdbc.Driver', 'jdbc:vertica://vert41:5433/vertc', 
+ 'dbadmin', 'D0gB0ne5y', 
  'Vert x',
  '{	
   "notes":"no specific instrunction for Vertica destination" 
   }'
  );
  
- insert into DATA_POINT (
+insert into DATA_POINT (
   DB_ID,DB_ROLE,
   DB_CAT, DB_VENDOR,
   DB_DRIVER, DB_CONN,
@@ -186,76 +202,97 @@ values
   DB_DESC,
   INSTRUCT)
 values(
- 'ORA1DIK', 'R', 
+ 'ORAK1', 'R', 
  'JDBC', 'ORACLE',
- 'johnlee', 'johnlee213', 
- 'oracle.jdbc.OracleDriver',
- 'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
+ 'oracle.jdbc.OracleDriver', 'jdbc:oracle:thin:@crmdbtest2:1521:CRMP64', 
+ 'VERTSNAP', 'v3rtsnap', 
  'Oracle Dev key source',
  '{	
   "note":"trigger based approach for CDC",
-  "bareSQL": "select CDC_DATA_KEY from <SRCTBL>_LOG",
+  "cdcObj":"CDC<DISRCTBL>",
+  "cdcObjNameLen":15,
+  "bareSQL": "select CDC_DATA_KEY from <CDCLOG>",
   "initRun":[
    {"note":"get the CDC TS, which will be saved in repo",
    	"cmd":"select sysdate from from dual",
-   	"return": ["DICDCTS"]
+    "type":"SINGLEV", 
+   	"return": ["TS"]
    },
    {"name":"enable cdc trigger", 
-    "cmd":"alter trigger <DISRCTBL>_CDCTRG enable"
+    "cmd":"alter trigger <CDCLOG> enable",
+    "type":"NOV", 
    }
   ]
-  "incRun":[
-   "poststep":{
-   	"cmd":"delete from <SRCTBL>_LOG where CDCTS < '<DICDCTS>'"
+  "incRun":[ ],
+  "preRegist":[
+   {"name":"verify log tbl name not used",
+    "cmd":"select case when 
+    exists(select 0 from user_objects where OBJECT_NAME=''<CDCTBL>'') then -1 else 0  end as rtcode 
+    from dual",
+    "type":"SINGLEV", 
+   	"return": ["RC"]
+   },
+   {"name":"verify log trigger name is not used",
+    "cmd":"select case when 
+    exists(select 0 from user_objects where OBJECT_NAME=''<CDCTRG>'') then -1 else 0  end as rtcode 
+    from dual",
+    "type":"SINGLEV", 
+   	"return": ["RC"]
    }
   ],
   "regist": [
-   {"name":"create log tbl",
-    "cmd":"create table <DISRCTBL>_CDCLOG (CDCKEY varchar(20), action char[1], ts_dcc date) tablespace TSDCC " 
+   {"name":"create log tbl name",
+    "cmd":"create table <CDCTBL> (CDCKEY varchar2(20), action char(1), ts_dcc date) ",
+    "type":"NOV"
    },
    {"name":"create log trigger", 
-    "cmd":"create or replace trigger <DISRCTBL>_CDCTRG   
-		after insert or update or delete on SRCTBLE  
+    "cmd":"create or replace trigger <CDCTRG>   
+		after insert or update or delete on <DISRCTBL>  
 		for each row  
 		begin
 		DECLARE
     	action  char(1);
 		BEGIN 
 		IF DELETING THEN 
- 			action := 'D';
+ 			action := ''D'';
 		END IF;
 		IF INSERTING THEN 
- 			action := 'I';
+ 			action := ''I'';
 		END IF;
 		IF UPDATING THEN 
- 			action := 'U';
+ 			action := ''U'';
 		END IF;
 			
-		insert into <DISRCTBL>_CDCLOG (datakey, action, ts_dcc )"  
+		insert into <CDCTBL> (datakey, action, ts_dcc )  
 		values ( :new.rowid, sysdate );  
-		end; " 
+		end; ",
+    "type":"NOV"
 	},
     {"name":"trigger is disabled",
-      "cmd":"alter trigger <DISRCTBL>_CDCLOG disable"
+     "cmd":"alter trigger <CDCTRG> disable",
+     "type":"NOV"
     }
-   ],
+  ],
   "unregist": [
     {"name":"drop cdc log tbl",
-     "cmd":"drop table <DISRCTBL>_CDCLOG"
+     "cmd":"drop table <CDCTBL>",
+     "type":"NOV"
     },
     {"name":"drop cdc trigger", 
-     "cmd":"drop trigger <DISRCTBL>_CDCTRG"
+     "cmd":"drop trigger <CDCTRG>",
+     "type":"NOV"
     }
-   ], 
+  ], 
   "disable": [
     {"name":"disable cdc trigger", 
-     "cmd":"alter trigger <DISRCTBL>_CDCTRG disable"
+     "cmd":"alter trigger <CDCTRG> disable",
+     "type":"NOV"
     }
    ] 
   }'
 );
 
- insert into DATA_POINT (
+insert into DATA_POINT (
   DB_ID,DB_ROLE,
   DB_CAT, DB_VENDOR,
   DB_DRIVER, DB_CONN,
@@ -263,14 +300,15 @@ values(
   DB_DESC,
   INSTRUCT)
 values(
- 'ORA1DS', 'R', 
+ 'ORAD1', 'R', 
  'JDBC', 'ORACLE',
- 'oracle.jdbc.OracleDriver', 'jdbc:oracle:thin:@172.27.136.136:1521:CRMP64', 
- 'johnlee', 'johnlee213', 
+ 'oracle.jdbc.OracleDriver', 'jdbc:oracle:thin:@crmdbtest2:1521:CRMP64', 
+ 'VERTSNAP', 'v3rtsnap', 
  'Oracle Dev',
  '{
   "note":"only action here will be the selecting the data",
-  "bareSQL": "select a.*, a.rowid as CDCKEY from <SRCTBL> a ",
+  "CDCDB":"ORAK1",
+  "bareSQL": "select a.*, a.rowid as CDCKEY from <DISRCTBL> a ",
  }'
 );
 
@@ -291,12 +329,14 @@ values(
   "note":"all details are actually handled in Java class."
   "regist": [
     {"name":"create topic",
-     "cmd":"creade topic"
+     "cmd":"creade topic",
+     "type":"NOV"
     }
   ],
   "unregist": [
     {"name":"delete topic",
-     "cmd":"delete topic"
+     "cmd":"delete topic",
+     "type":"NOV"
     }
   ]
  }'
@@ -318,12 +358,14 @@ values (
  '{	
   "regist": [
     {"name":"create topic",
-     "cmd":"creade topic"
+     "cmd":"creade topic",
+     "type":"NOV"
     }
   ],
   "unregist": [
     {"name":"delete topic",
-     "cmd":"delete topic"
+     "cmd":"delete topic",
+     "type":"NOV"
     }
   ]
  }'
@@ -345,12 +387,14 @@ values
 '{	
   "regist": [
     {"name":"create index",
-     "cmd":"creade index"
+     "cmd":"creade index",
+     "type":"NOV"
     }
   ],
   "unregist": [
     {"name":"drop index",
-     "cmd":"drop index"
+     "cmd":"drop index",
+     "type":"NOV"
     }
   ]
  }'

@@ -26,7 +26,7 @@ import java.text.SimpleDateFormat;
  
  Meta, singleton class of replication metat data, stored in RDBMS
  kafka.docx
- su – postgres
+ su ï¿½ postgres
 */
 
 class TaskMeta {
@@ -65,18 +65,13 @@ class TaskMeta {
 	private static final Matrix metrix = Matrix.getInstance();
 	private DataPointMgr dataMgr = DataPointMgr.getInstance();
 
-	private static Map<String, JSONObject> instructions=new HashMap<>();
-
 	// encapsulate the details into tskDetailJSON;
 	private JSONObject xfmDetailJSON;
 	private JSONObject tskDetailJSON;
-	private JSONObject tmpDetailJSON;
 	private JSONObject dccDetailJSON;
 
 	private JSONObject srcInstr, tgtInstr, dccInstr;
 
-	private JSONObject miscValues=new JSONObject();
-	
 	private String avroSchema;
 	
 	ArrayList<Integer> fldType = new ArrayList<Integer>();
@@ -87,13 +82,15 @@ class TaskMeta {
 	private static TaskMeta instance = null; // use lazy instantiation ;
 
 	public static TaskMeta getInstance() {
-		if (instance == null) {
+		if (Objects.isNull(instance)) {
 			instance = new TaskMeta();
+			instance.initMeta();
 		}
 		return instance;
 	}
 
-	public TaskMeta() {
+	private TaskMeta() {}
+	private void initMeta() {
 		Conf conf = Conf.getInstance();
 		String uID = conf.getConf("repDBuser");
 		String uPW = conf.getConf("repDBpasswd");
@@ -137,7 +134,6 @@ class TaskMeta {
 		srcInstr=null;
 		tgtInstr=null;
 		dccInstr=null;
-		miscValues=null;
 
 		//curr_state
 		// 		-1	(DB value)task is active. setupTask() will set DB value to -1; endTask() to 2.  
@@ -149,54 +145,6 @@ class TaskMeta {
 			return -1;
 		}
 
-		if(initTaskDetails() == -1 ) {  // tmpDetailJSON is included in initTableDetails();
-			rtc = -1;
-			return rtc;
-		}
-		
-		initFieldMetaData();
-		updateTaskState(-1);
-		
-		return 0;
-	}
-
-	public JSONObject getInstrs(String dbid) {
-		return instructions.get(dbid);
-	}
-	
-	private int initTaskDetails() {
-		
-		switch(actID) {
-			case 12:	//remove
-/*
-oracle:
-		String sql = "truncate table " + metaData.getTaskDetails().get("tgt_schema") + "."+ metaData.getTaskDetails().get("tgt_table");
-		sql = "alter trigger " + dccPgm + " disable";
-*/
-				break;
-			case 13:	//disable
-/*
-oracle:
-  		String sql =  "drop TRIGGER " + metaData.getTaskDetails().get("src_dcc_pgm");
-		executeSQL(sql);		
-		sql="drop TABLE " + metaData.getTaskDetails().get("src_dcc_tbl");
-				
- */
-				break;
-			case 14:	//initialization
-/*
-oracle:
-				String sql="alter trigger "  + metaData.getTaskDetails().get("src_dcc_pgm").toString() + " disable";
-		String sql = "truncate table " + metaData.getTaskDetails().get("tgt_schema") + "."+ metaData.getTaskDetails().get("tgt_table");
-*/
-				break;
-			case 15:	//incremental processing
-				break;
-			case 19:	//audit
-				break;
-			default: 
-				break;
-		}
 		
 		JSONArray jo;
 		String sql = "select task_id, template_id, data_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
@@ -210,222 +158,11 @@ oracle:
 		}
 		tskDetailJSON = (JSONObject) jo.get(0);
 
-		String templateId=tskDetailJSON.get("template_id").toString();
+		updateTaskState(-1);
 		
-		switch(templateId) {
-		case "XFRM":
-			sql="select src_avro, tgt_avro "
-					+ " from xform_simple " 
-					+ " where x_id="+taskID;
-			jo = SQLtoJSONArray(sql);
-			if(jo.isEmpty()) {
-				logger.error("error in DCC, e. g. DB2/AS400 journal");
-				return -1;
-			}
-			xfmDetailJSON = (JSONObject) jo.get(0);
-			break;
-		default:
-			if((actID==-1)||(actID==21)) {  //no further setup if it is unregistering or testing.
-				return 0;
-			}else {
-				sql= "select template_id, act_id, info, stmts from TASK_TEMPLATE where template_id='" 
-							+ tskDetailJSON.get("template_id") + "' and act_id=" + actID;
-				jo = SQLtoJSONArray(sql);
-				if(jo.isEmpty()) {
-					logger.error("action not applicable.");
-					return -1;
-				}
-				tmpDetailJSON = (JSONObject) jo.get(0);
-			
-				//TODO: not pretty here!
-				if(templateId.equals("DATA_")) {  
-					String journalName=tskDetailJSON.get("src_dcc_tbl").toString();
-					String[] temp = journalName.split("\\.");
-					lName=temp[0]; jName=temp[1];
-					
-					sql="select task_id, src_db_id, tgt_db_id, src_schema, src_table, seq_last_ref, ts_last_ref, curr_state "
-							+ " from task " 
-							+ " where src_db_id='" + tskDetailJSON.get("src_db_id") + "' and src_schema='"
-							+ lName + "' and src_table='" + jName + "' and tgt_schema='*'";
-					jo = SQLtoJSONArray(sql);
-					if(jo.isEmpty()) {
-						logger.error("error in DCC, e. g. DB2/AS400 journal");
-						return -1;
-					}
-					dccDetailJSON = (JSONObject) jo.get(0);
-				}
-			}
-			break;
-		}
-/*TODO 20220929		 move a lot of code into meta
-oracle examples:
-		JSONObject jo = new JSONObject();
-		JSONArray pre = new JSONArray();
-		switch(template) {
-			case "1DATA":    //case: read the whole table
-				pre.add(metaData.getBareSrcSQL() );
-				jo.put("PRE", pre);
-				break;
-			case "2DATA":   //read the changed rows. Original O2V, O2K
-			// Not needed as it is done in getDccCnt()	
-			//	pre.add("update " + metaData.getTaskDetails().get("src_dcc_tbl") 
-			//			+ " set dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-				pre.add(metaData.getBareSrcSQL() + ", " + metaData.getTaskDetails().get("src_dcc_tbl") 
-						+ " b where b.dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS') "
-						+ " and a.rowid=b."+metaData.getTaskDetails().get("data_pk"));
-				jo.put("PRE", pre);
-				JSONArray aft = new JSONArray();
-				aft.add("delete from " + metaData.getTaskDetails().get("src_dcc_tbl") 
-						+ " where dcc_ts = TO_TIMESTAMP('2000-01-01 00:00:00', 'YYYY-MM-DD HH24:MI:SS')" );
-				jo.put("AFT", aft);
-				break;
-
-DB2:
-	protected JSONObject getSrcSqlStmts(String template) {
-	//from metaData private JSONObject getO2Vact2SQLs() {
-		JSONObject jo = new JSONObject();
-		JSONArray pre = new JSONArray();
-		switch(template) {
-		case "1DATA":    //no case yet. Having it here as a remind.
-		case "1DATA_":    //case: read the whole table
-			pre.add( metaData.getBareSrcSQL() );
-			jo.put("PRE", pre);
-			break;
-		case "2DATA":    //no case yet. Having it here as a remind.
-			break;
-		case "2DATA_":
-			String sql ="DECLARE GLOBAL TEMPORARY TABLE qtemp.DCC"+ metaData.getTaskDetails().get("task_id") 
-			+ "(" + metaData.getTaskDetails().get("data_pk") + " " + metaData.getKeyDataType() + ") " 
-					+" NOT LOGGED"; 
-			pre.add(sql);
-			pre.add("INSERT INTO qtemp.DCC" + metaData.getTaskDetails().get("task_id") + " VALUES (?)" );
-			sql = metaData.getBareSrcSQL() + ", qtemp.DCC"+metaData.getTaskDetails().get("task_id") + " b "
-					+ " where a..rrn(a)=b." +metaData.getTaskDetails().get("data_pk");  //TOTO: may have problem!
-			pre.add(sql);
-			jo.put("PRE", pre);
-			break;
-		case "2DCC":
-			sql=DB2DCCsql(true);
-			pre.add(sql );
-			jo.put("PRE", pre);
-		}
-		return jo;
-	}
-
-Vertica:
-		String delSQL = "delete from " + metaData.getTaskDetails().get("tgt_schema") + "." + metaData.getTaskDetails().get("tgt_table") 
-		+ " where " + metaData.getTaskDetails().get("data_pk") + "=?";
-
-		String sql = "truncate table " + metaData.getTaskDetails().get("tgt_schema") + "."+ metaData.getTaskDetails().get("tgt_table");
-
-		metaData.getSQLInsTgt()
-		
-Kafka:
-		topic=metaData.getTaskDetails().get("tgt_schema")+"."+metaData.getTaskDetails().get("tgt_table");
-		
-		String jsonSch = metaData.getAvroSchema();
-		schema = new Schema.Parser().parse(jsonSch); //TODO: ??  com.fasterxml.jackson.core.JsonParseException
-
-
-	public void write(ResultSet rs) {
- 	   record = new GenericData.Record(schema);	     //each record also has the schema ifno, which is a waste!   
- 	   try {
-		for (int i = 0; i < fldType.size(); i++) {  //The last column is the internal key.
-//			* Can't use getObject() for simplicity. :(
-//			 *   1. Oracle ROWID, is a special type, not String as expected
-//			 *   2. For NUMBER, it returns as BigDecimal, which Java has no proper way for handling and 
-//			 *      AVRO has problem with it as well.
-//			 *
-			//record.put(i, rs.getObject(i+1));
-			switch(fldType.get(i)) {
-			case 1:
-				record.put(i, rs.getString(i+1));
-				break;
-			case 4:
-				record.put(i, rs.getLong(i+1));
-				break;
-			case 7:
-				tempO=rs.getDate(i+1);
-				if(tempO==null)
-					record.put(i, null);
-				else {
-					//tempNum = rs.getDate(i+1).getTime();
-					record.put(i, tempO.toString());
-				}
-				break;
-			case 6:
-				tempO=rs.getTimestamp(i+1);
-				if(tempO==null)
-					record.put(i, null);
-				else {
-					//record.put(i, tempO); // class java.sql.Date cannot be cast to class java.lang.Long
-					//tempNum = rs.getDate(i+1).getTime();
-					//record.put(i, new java.util.Date(tempNum));  //class java.util.Date cannot be cast to class java.lang.Number 
-					//record.put(i, tempNum);  //but that will show as long on receiving!
-					record.put(i, tempO.toString());  
-				}
-		//		break;
-		//	case 6:
-		//		record.put(i, new java.util.Timestamp(rs.getTimestamp(i+1).getTime()));
-				break;
-			default:
-				logger.warn("unknow data type!");
-				record.put(i, rs.getString(i+1));
-				break;
-			}
-			
-		}
-   		byte[] myvar = avroToBytes(record, schema);
-   		//producer.send(new ProducerRecord<Long, byte[]>("VERTSNAP.TESTOK", (long) 1, myvar),new Callback() {
-   		//producer.send(new ProducerRecord<Long, byte[]>(topic, (long) 1, myvar),new Callback() {  //TODO: what key to send?
-   		producer.send(new ProducerRecord<Long, byte[]>(topic,  myvar),
-   			new Callback() {             //      For now, no key
-   				public void onCompletion(RecordMetadata recordMetadata, Exception e) {   //execute everytime a record is successfully sent or exception is thrown
-   					if(e == null){
-   						}else{
-   							logger.error(e);
-   						}
-   					}
-   			});
-   			msgCnt++;
- 	   	}catch (SQLException e) {
-		  logger.error(e);
- 	   	}
-	}
-
-*/		
 		return 0;
 	}
-	
-	/*2022.10.01
-	 *same database can have multiple entries in DATA_POINT. source and target 
-	 * will each has its own entry;
-	 * also, sync as table and sync as SQL will have seperate entry.
-	 */
-	public JSONObject getDBlvlInstr(String dbid) {
-		String sql= "select instruction "
-					+ " from DATA_POINT " + " where db_id='" + dbid + "'";
-		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
-		return jo;
-	}
 
-	public JSONObject getItemlvlInstr(int dbid) {
-		String sql= "select instruction "
-					+ " from DATA_POINT " + " where db_id='" + dbid + "'";
-		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
-		return jo;
-	}
-
-	
-	// return db details as a simpleJSON object, (instead of a cumbersome POJO).
-	// used only by DataPointMgr
-	public JSONObject getDBDetails(String dbid) {
-		String sql= "select db_id, db_cat, db_type, db_conn, db_driver, "
-				+ "db_usr, db_pwd "
-					+ " from DATA_POINT " + " where db_id='" + dbid + "'";
-		JSONObject jo = (JSONObject) SQLtoJSONArray(sql).get(0);
-		return jo;
-	}
 	
 	public JSONArray getDCCsByPoolID(int poolID) {
 	String sql = "select src_db_id, tgt_db_id, src_jurl_name from task where pool_id = " + poolID;
@@ -434,7 +171,7 @@ Kafka:
 	return jRslt;
 	}
 	public JSONArray SQLtoJSONArray(String sql) {
-		JSONArray jArray = new JSONArray();
+		JSONArray rslt = null;
 		JSONObject jsonObject = null;
 
 		JSONObject jo = new JSONObject();
@@ -443,6 +180,7 @@ Kafka:
 		String column;
 		Object value;
 		try {
+			rslt = new JSONArray();
 			stmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_UPDATABLE);
 			rset = stmt.executeQuery(sql);
 
@@ -482,14 +220,15 @@ Kafka:
 						throw new IllegalArgumentException("Unmappable object type: " + value.getClass());
 					}	
 				}
-				jArray.add(jsonObject);
+				rslt.add(jsonObject);
 			}
 			rset.close();
 			stmt.close();
 		} catch (SQLException e) {
+			rslt=null;
 			logger.error(e);
 		} 
-		return jArray;
+		return rslt;
 	}
 
 	public JSONObject getXfrmDetails() {
@@ -566,9 +305,7 @@ Kafka:
 
 		xfmDetailJSON=null;
 		tskDetailJSON=null;
-		tmpDetailJSON=null;
 		dccDetailJSON=null;
-		miscValues=null;
 		
 		avroSchema=null;
 		
@@ -641,105 +378,45 @@ Kafka:
 	}
 
 	private boolean runUpdateSQL(String sql) {
-			// Save to MetaRep:
-			//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-			Statement stmt=null; 
-			try {
-				stmt = repConn.createStatement();
-				int rslt = stmt.executeUpdate(sql);
-				stmt.close();
-				repConn.commit();
-			} catch (SQLException e) {
-				logger.error(e);
-			} 
-		return true;
+		boolean isok=true;
+		// Save to MetaRep:
+		//java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		Statement stmt=null; 
+		try {
+			stmt = repConn.createStatement();
+			int rslt = stmt.executeUpdate(sql);
+			stmt.close();
+			repConn.commit();
+		} catch (SQLException e) {
+			logger.error(e);
+			isok=false;
+		} 
+		return isok;
 	}
 
 	private boolean runDBcmds(DataPoint db, JSONArray inst) {
 		String sqlStr, type;
-		JSONObject rslt;
+		JSONObject jo;
+		int rslt;
 		Iterator<JSONObject> it = inst.iterator();
 		while (it.hasNext()) {
-			sqlStr= (String) it.next().get("stmt");
-			type= (String) it.next().get("type");
-			System.out.println(sqlStr );
+			jo = it.next();
+			sqlStr= (String) jo.get("cmd");
+			type= (String) jo.get("type");
+			//System.out.println(sqlStr );
 
 			sqlStr = parseStmt(sqlStr);  //replace place holders
 
 			rslt = db.runDBcmd(sqlStr, type);
+			if(rslt < 0) {
+				System.out.println("something is not right.");
+				break;
+			}
 		}
 
 		return true;
 	}
 
-	// TODO: move most code into DB as as part of registering table.
-	private void initFieldMetaData() {
-		Statement lrepStmt;
-		ResultSet lrRset;
-		int i;
-
-		avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
-				    + "\"type\": \"record\", \n" 
-				    + "\"name\": \"" + tskDetailJSON.get("src_schema")+"."+ tskDetailJSON.get("src_table") + "\", \n" 
-				    + "\"fields\": [ \n" ;
-		
-		try {
-			lrepStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
-
-		i = 0;
-		lrRset = lrepStmt.executeQuery(
-			  "select src_field, src_field_type, tgt_field, java_type, avro_type from data_field "
-			+ " where task_id=" + taskID + " order by field_id");
-
-		//first line
-		if (lrRset.next()) {
-			//fldType[i] = lrRset.getInt("java_type");
-			//fldNames[i] = lrRset.getString("src_field");
-			fldType.add(lrRset.getInt("java_type"));
-			fldNames.add(lrRset.getString("src_field"));
-
-			avroSchema = avroSchema 
-					+ "{\"name\": \"" + lrRset.getString("tgt_field") + "\", " + lrRset.getString("avro_type") + "} \n" ;
-			i++;
-		}
-		//rest line (but not the last)
-		while (lrRset.next() ) {   
-			//if( lrRset.isLast()) {                                               //In DB2AS400, a.rrn(a) as DB2RRN is wrong syntaxly;
-			//	if(tskDetailJSON.get("db_type").toString().contains("DB2/AS400")){  // but "a." is needed for Oracle.
-			//	avroSchema = avroSchema 
-			//			+ ", {\"name\": \"DB2RRN\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
-			//	}if(tskDetailJSON.get("db_type").toString().contains("ORACLE")){
-			//		avroSchema = avroSchema 
-			//				+ ", {\"name\": \"ORARID\", \"type\": " + lrRset.getString("avro_type") + "} \n" ;
-			//	}
-			//	keyDataType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
-			//}else {
-				keyDataType = lrRset.getString("src_field_type");  //TODO: not a safe way to assume the last one is the PK!!
-				avroSchema = avroSchema 
-						+ ", {\"name\": \"" + lrRset.getString("tgt_field") + "\", " + lrRset.getString("avro_type") + "} \n" ;
-			//}
-			fldType.add(lrRset.getInt("java_type"));
-			fldNames.add(lrRset.getString("src_field"));
-			i++;
-			// System.out.println(i);
-		}
-
-		fldCnt=i;
-		lrRset.close();
-		lrepStmt.close();
-		
-		avroSchema = avroSchema 
-				+ "] }";
-
-		} catch (SQLException e) {
-			// TODO Auto-generated catch block
-			e.printStackTrace();
-		}
-	}
-	//may not needed later on.
-	public ArrayList<Integer> getFldJavaType() {
-		return fldType;
-	}
 	public ArrayList<String> getFldNames() {
 		return fldNames;
 	}
@@ -907,6 +584,8 @@ Kafka:
 	}
 
 	public void disable() {
+		DBMeta repoDB = DBMeta.getInstance();
+
 		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
 		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
 
@@ -914,11 +593,11 @@ Kafka:
 		JSONObject jo;
 
 		//src side
-		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DISRCDB"))).get("isntru");
+		jo = (JSONObject) repoDB.getDB("DISRCDB").get("isntruct");
 		JSONArray stmts = (JSONArray) jo.get("disable");
 		runDBcmds(srcDB, stmts);
 		//tgt side
-		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DITGTDB"))).get("instru");
+		jo = (JSONObject) repoDB.getDB("DITGTDB").get("instruct");
 		stmts = (JSONArray) jo.get("disable");
 		runDBcmds(tgtDB, stmts);
 		
@@ -927,16 +606,18 @@ Kafka:
 	}
 
 	public void unregist() {
+		DBMeta repoDB = DBMeta.getInstance();
+
 		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
 		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
 
 		JSONObject jsonRslt;
 		//src side
-		JSONObject jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DISRCDB"))).get("instr");
+		JSONObject jo = (JSONObject) repoDB.getDB("DISRCDB").get("instruct");
 		JSONArray stmts = (JSONArray) jo.get("unregist");
 		runDBcmds(srcDB, stmts);
 		//tgt side
-		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DITGTDB"))).get("instr");
+		jo = (JSONObject) repoDB.getDB("DITGTDB").get("instr");
 		stmts = (JSONArray) jo.get("unregist");
 		runDBcmds(tgtDB, stmts);
 		
@@ -944,69 +625,14 @@ Kafka:
 		runUpdateSQL(sql);
 	}
 
-	public void regist() {
-		preRegistCheck();
+	public int preRegist() {
+		DBMeta repoDB = DBMeta.getInstance();
 
-		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
-		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
-
-		//srcDB.setTable((String) tskDetailJSON.get("DISRCTBL"));
-		//tgtDB.setTable((String) tskDetailJSON.get("DISRCTBL"));
-		
-		//src side
-		JSONObject jsonRslt;
-		JSONObject jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DISRCDB"))).get("instr");
-
-		String bareSQL = (String) jo.get("bareSQL");
-		String srcQRY = srcDB.getSrcSTMT(bareSQL);
-		String tgtDDL = srcDB.getTgtDDL(bareSQL);
-		String srcAVRO = srcDB.getAVRO(bareSQL);
-		
-		JSONArray stmts = (JSONArray) jo.get("regist");
-		stmts = (JSONArray) jo.get("preCheck");
-		runDBcmds(tgtDB, stmts);
-		//tgt side
-		jo = (JSONObject) getDBlvlInstr((String) (tskDetailJSON.get("DITGTDB"))).get("instr");
-		stmts = (JSONArray) jo.get("regist");
-		stmts = (JSONArray) jo.get("preCheck");
-		runDBcmds(tgtDB, stmts);
-
-		//insert into task
-		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
-		String insTask = "insert into task (taskid, srcdb, srctbl, mbr_lst, tgtdb, tgttbl,regist_ts) " 
-					+ " values( " + tskDetailJSON.get("DITASKID") + ", '" 
-					+ tskDetailJSON.get("DISRDDBID") + "',  '" + tskDetailJSON.get("DISRCTBL") + "',  '" 
-					+ tskDetailJSON.get("DITGTDBID") + "', '" + tskDetailJSON.get("TGTTBLID") + "', '" 
-					+ ts +"')";
-		runUpdateSQL(insTask);	
-	
-		//return DB PTRs to the db ptr mgr
-		dataMgr.returnDB((String) (tskDetailJSON.get("DISRCDB")), srcDB);		
-		dataMgr.returnDB((String) (tskDetailJSON.get("DITGTDB")), tgtDB);		
-	}
-
-	private String parseStmt(String sqlStr) {
-		String sqlStmt = sqlStr;
-
-		//String sqlStmt = "This is a TEST . another UPPER case";
-		Pattern pattern = Pattern.compile("\\b[A-Z0-9]['A-Z0-9]+|\\b[A-Z]\\b");//, Pattern.CASE_INSENSITIVE);
-		Matcher matcher = pattern.matcher(sqlStr);
-		while ( matcher.find()) {
-			//System.out.println("Found the text \"" + matcher.group()
-			//+ "\" starting at " + matcher.start()
-			//+ " index and ending at index " + matcher.end());
-			sqlStmt.replaceAll(matcher.group(), (String) tskDetailJSON.get(tskDetailJSON));
-		}
-		
-		return sqlStmt;
-	}
-
-	private boolean preRegistCheck() {
 		String sql;
 		JSONArray rslt;
 		
-		if(null!=tskDetailJSON.get("DITASKID")) {
-			taskID = Integer.parseInt((String) tskDetailJSON.get("TASKID"));
+		if(!tskDetailJSON.get("DITASKID").equals("-1")) {
+			taskID = Integer.parseInt((String) tskDetailJSON.get("DITASKID"));
 		}else {
 			taskID = getNextTaskID();
 		}
@@ -1015,44 +641,148 @@ Kafka:
 		sql = "select task_id from task where task_id = " + taskID ; 
 		rslt = (JSONArray) SQLtoJSONArray(sql);
 		if(rslt.size()>0) {
-			logger.error("   task ID is already used!");
-			return false;
+			//logger.error("   task ID is already used!");
+			System.out.println("task ID is already used: " + taskID);
+			return 01;
 		}
-		//verify source name not registered 
-		sql = "select task_id from task where SRC_DB_ID='" + tskDetailJSON.get("DISRCDBID") 
-				+ "' and SRC_TBL='"	+ tskDetailJSON.get("DISRCTBL") 
-				+ " and mbr_lst is null";  //if mbr_lst is not null, it is something like DB2/as400 journal ...
-		rslt = (JSONArray) SQLtoJSONArray(sql);
-		if(rslt.size()>0) {
-			logger.error("   the source is already registered!");
-			return false;
-		}
-
+		
+		String srcDBid = (String) (tskDetailJSON.get("DISRCDB"));
+		String tgtDBid = (String) (tskDetailJSON.get("DITGTDB"));
 		//pre-check DBs
-		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
-		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));
-
-		JSONObject jo; 
+		DataPoint srcDB = dataMgr.getDB(srcDBid);
+		DataPoint tgtDB = dataMgr.getDB(tgtDBid);
 		
 		String sqlStr, type;
 		JSONObject parm;
-		//source side
-		jo = (JSONObject) getDBlvlInstr((String) tskDetailJSON.get("DISRCDBID")).get("registration");
-		JSONArray stmts = (JSONArray) jo.get("preCheck");
-		runDBcmds(srcDB, stmts);
-		//tgt side
-		DataPoint tgtData = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));
-		jo = (JSONObject)(JSONObject) getDBlvlInstr((String) tskDetailJSON.get("TGTDBID")).get("retistration");;
-		stmts = (JSONArray) jo.get("preCheck");
-		runDBcmds(tgtDB, stmts);
+		
+		//1. source side
+		String instrStr;
+		JSONObject instruJo; 
+		instrStr = (String) repoDB.getDB(srcDBid).get("instruct");
+		instruJo=stringToJSONObject(instrStr);
+		JSONArray stmts = (JSONArray) instruJo.get("preRegist");
+		if (stmts!=null)
+			runDBcmds(srcDB, stmts);
+		//2. tgt side
+		instrStr = (String) repoDB.getDB(tgtDBid).get("instruct");
+		instruJo=stringToJSONObject(instrStr);
+		stmts = (JSONArray) instruJo.get("preRegist");
+		if (stmts!=null) {
+			boolean ok=runDBcmds(tgtDB, stmts);
+			if(!ok)
+				return -1;
+		}
+		//3. verify the objects is not registered 
+		String mbr=(String) tskDetailJSON.get("DITGTTBL");
+		
+		sql = "select task_id from task where SRC_DB_ID='" + tskDetailJSON.get("DISRCDB") 
+				+ "' and SRC_TBL='"	+ tskDetailJSON.get("DISRCTBL") 
+				+ "' and TGT_TBL like '%" + mbr + "%'";  //if mbr_lst is not null, it is something like DB2/as400 journal ...
+		rslt = (JSONArray) SQLtoJSONArray(sql);
+		if(rslt.size()>0) {
+			logger.error("   the source is already registered!");
+			return -1;
+		}
 
 		//done with srdData and tgtData
-		dataMgr.returnDB((String) (tskDetailJSON.get("DISRCDB")), srcDB);		
-		dataMgr.returnDB((String) (tskDetailJSON.get("DITGTDB")), tgtDB);		
+		//dataMgr.returnDB((String) (tskDetailJSON.get("DISRCDB")), srcDB);		
+		//dataMgr.returnDB((String) (tskDetailJSON.get("DITGTDB")), tgtDB);		
 
-		return true;
+		return taskID;
 	}
 	
+
+	
+	public boolean regist() {
+		DBMeta repoDB = DBMeta.getInstance();
+
+		boolean isOk;
+		
+		String srcDBid= (String) (tskDetailJSON.get("DISRCDB"));
+		String tgtDBid= (String) (tskDetailJSON.get("DITGTDB"));
+		DataPoint srcDB = dataMgr.getDB(srcDBid);
+		DataPoint tgtDB = dataMgr.getDB(tgtDBid);
+
+		//1. src side
+		String instrStr = (String) repoDB.getDB(srcDBid).get("instruct");
+		JSONObject instrJo = stringToJSONObject(instrStr);
+		String bareSQL = (String) instrJo.get("bareSQL");
+		bareSQL = parseStmt(bareSQL);
+		Map taskStmts = srcDB.getTaskSTMTs(bareSQL); //"srcQuery","tgtInsert","avro", "avro","fldCnt" need to be inserted into task
+		
+		JSONArray stmts = (JSONArray) instrJo.get("regist");
+		if(stmts !=null) {
+		isOk=runDBcmds(srcDB, stmts);
+		if(!isOk) {
+			System.out.println("comand failed on " + srcDBid);
+			return false;
+		}
+		}
+		//2. tgt side
+		instrStr = (String) repoDB.getDB(tgtDBid).get("instruct");
+		instrJo = stringToJSONObject(instrStr);
+		stmts = (JSONArray) instrJo.get("regist");
+		isOk =runDBcmds(tgtDB, stmts);
+		if(!isOk) {
+			System.out.println("comand failed on " + tgtDBid);
+			return false;
+		}
+
+		//insert into task
+		java.sql.Timestamp ts = new java.sql.Timestamp(System.currentTimeMillis());
+		String insTask = "insert into task (task_id, pool_id, curr_state, "
+				+ "src_db_id, src_tbl, src_stmt, fld_cnt, "
+				+ "tgt_db_id, tgt_tbl, tgt_stmt, avro_schema, "
+				+ "reg_dt) values (" 
+				+ tskDetailJSON.get("DITASKID") + ", 1," +tskDetailJSON.get("DICURRST") + ", '"
+				+ tskDetailJSON.get("DISRCDB") + "', '" + tskDetailJSON.get("DISRCTBL") + "',  '" 
+//"srcQuery","tgtInsert","avro", "avro","fldCnt"
+				+ taskStmts.get("srcQuery")  + "', " + taskStmts.get("fldCnt") + ", '" 
+				+ tskDetailJSON.get("DITGTDB") + "', '" + tskDetailJSON.get("DITGTTBL") + "', '" 
+				+ taskStmts.get("tgtInsert")  + "', '" + taskStmts.get("avro") + "', '" 
+				+ ts +"')"; 
+		return runUpdateSQL(insTask);	
+	
+	}
+
+	private String parseStmt(String sqlStr) {
+		String sqlStmt = sqlStr;
+		String placehold, key, val;
+
+		//String sqlStmt = "This is a TEST . another UPPER case";
+		Pattern pattern = Pattern.compile("<[A-Z0-9]['A-Z0-9]+>");//, Pattern.CASE_INSENSITIVE);
+		Matcher matcher = pattern.matcher(sqlStr);
+		while ( matcher.find()) {
+			//System.out.println("Found the text \"" + matcher.group()
+			//+ "\" starting at " + matcher.start()
+			//+ " index and ending at index " + matcher.end());
+			placehold=matcher.group();
+			key=placehold.replace("<", "");
+			key=key.replace(">", "");
+			val=(String) tskDetailJSON.get(key);
+			//System.out.println(placehold);
+			//System.out.println(val);
+			sqlStmt=sqlStmt.replace(placehold, val);
+			//System.out.println(sqlStmt);
+		}
+		
+		return sqlStmt;
+	}
+
+	private JSONObject stringToJSONObject(String str) {
+		JSONObject rslt;
+		JSONParser parser = new JSONParser();
+		
+		try {
+			rslt = (JSONObject) parser.parse(str);
+		} catch (ParseException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+			rslt = null;
+		}
+		
+		return rslt;
+	}
 	public int getNextTaskID() {
 		Statement repStmt;
 		ResultSet rRset;
@@ -1113,7 +843,5 @@ Kafka:
 		// TODO Auto-generated method stub
 		currState=syncSt;
 	}
-
-
 
 }

@@ -72,7 +72,8 @@ class xformApp
 	static void transform(int tblId) {
 		jobID = "xform";
 		TaskMeta metaData = TaskMeta.getInstance();
-
+		DataPointMgr dataMgr = DataPointMgr.getInstance();
+		
 		metaData.setupTask(jobID, tblId, 11);  // actId for dev activities.
 		
 		JSONObject tskDetail = metaData.getTaskDetails();
@@ -80,9 +81,9 @@ class xformApp
 		xformEngine xformEng = new xformEngine();
 		xformEng.setupScripts();
 
-		srcData = (KafkaData) DataPointMgr.getDB(tskDetail.get("src_db_id").toString());
+		srcData = (KafkaData) dataMgr.getDB(tskDetail.get("src_db_id").toString());
 		//srcData.testConsumer();
-		tgtData = (ESData) DataPointMgr.getDB(tskDetail.get("tgt_db_id").toString());
+		tgtData = (ESData) dataMgr.getDB(tskDetail.get("tgt_db_id").toString());
 		//tgtData.test();
 		srcData.setupXformEngine(xformEng);
 		//tgtData.setupSink();

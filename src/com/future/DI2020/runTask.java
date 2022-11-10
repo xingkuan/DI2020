@@ -91,7 +91,7 @@ class runTask {
 	
 	  private void setupTask(String jobID, int taskId) {
 		int actId = 1;  	//data pumping
-			
+		DataPointMgr dataMgr=DataPointMgr.getInstance();	
 		taskMeta.setupTask(jobID, taskId, actId);
 		JSONObject tskDetail = taskMeta.getTaskDetails();
 
@@ -102,11 +102,11 @@ class runTask {
 				
 			jobID = jobID + taskId + " " + ((JSONObject)(srcDetailJSON.get("dbid"))).get("TBL") ;
 	
-			srcData = DataPointMgr.getDB(srcDetailJSON.get("dbid").toString());
-			tgtData = DataPointMgr.getDB(tgtDetailJSON.get("dbid").toString());
+			srcData = dataMgr.getDB(srcDetailJSON.get("dbid").toString());
+			tgtData = dataMgr.getDB(tgtDetailJSON.get("dbid").toString());
 
 			if(dccDetailJSON != null) { //data keys from, eg kafka
-				dccData = DataPointMgr.getDB(dccDetailJSON.get("dbid").toString());
+				dccData = dataMgr.getDB(dccDetailJSON.get("dbid").toString());
 				dccData.setDetail(dccDetailJSON);
 			}
 			srcData.setDetail(srcDetailJSON);

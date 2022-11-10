@@ -25,17 +25,25 @@ class auditTask {
 	private static final Matrix matrix = Matrix.getInstance();
 	private static final TaskMeta taskMeta = TaskMeta.getInstance();
 
-	private DataPointMgr dataMgr = DataPointMgr.getInstance();
+	private static DataPointMgr dataMgr = DataPointMgr.getInstance();
 	
-	JSONObject taskDetail;
+	static JSONObject taskDetail;
 	
-   DataPoint srcData;
-   DataPoint tgtData;
+   static DataPoint srcData;
+   static DataPoint tgtData;
 
-   String jobID="audit ";
-   
+   static String jobID="audit ";
+
+	public static void main(String[] args) {
+		if (args.length != 1) {
+			System.out.println("Usage: initTask tskID");
+			//return -1;
+		}
+		int tskId = Integer.parseInt(args[0]);
+		audit(tskId);
+	}
    //202209.27 if need to iterate through a list of tasks, simply call the audit(tId) ...
-   public void audit(int taskId) {
+   private static void audit(int taskId) {
 	   int srcRC=0;
 	   int tgtRC=0;
 	   int rowDiff=0;
@@ -65,7 +73,7 @@ class auditTask {
    }
    
    //setup the source and target
-   private void setupTask(String jobID, int taskId) {
+   private static void setupTask(String jobID, int taskId) {
 		int actId = 9;  	//auditing
 		JSONObject tskDetail;
 		String srcTbl,  tgtTbl;
@@ -91,7 +99,7 @@ class auditTask {
 		tgtData.setDetail(tgtDetailJSON);
    }
 
-   private void end() {
+   private static void end() {
 		jobID="audit ";
 		taskDetail = null;
 	   

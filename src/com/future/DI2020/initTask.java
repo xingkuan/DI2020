@@ -95,7 +95,7 @@ class initTask {
 
 			srcData = dataMgr.getDB(tskDetail.get("src_db_id").toString());
 			String sqlStr, type;
-			JSONObject rslt;
+			int rslt;
 			Iterator<JSONObject> it = srcInstr.iterator();
 			while (it.hasNext()) {
 				sqlStr= (String) it.next().get("stmt");

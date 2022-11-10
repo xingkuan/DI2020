@@ -1,16 +1,13 @@
-module projDI {
-	requires java.sql;
-	requires kafka.clients;
-	requires json.simple;
-	requires org.apache.logging.log4j;
-	requires jt400;
-	requires vertica.jdbc;
-	requires com.oracle.database.jdbc;
-	requires org.apache.avro;
-	requires com.fasterxml.jackson.core;
-	requires com.fasterxml.jackson.annotation;
+module DI2020 {
+	exports com.future.DI2020;
+
 	requires elasticsearch.rest.client;
+	requires java.scripting;
+	requires java.sql;
+	requires json.simple;
+	requires kafka.clients;
+	requires org.apache.avro;
 	requires org.apache.httpcomponents.httpcore;
 	requires org.apache.httpcomponents.httpcore.nio;
-	requires java.scripting;
+	requires org.apache.logging.log4j;
 }
