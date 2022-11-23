@@ -397,11 +397,13 @@ class JDBCData extends DataPoint{
 	}
 
 	@Override
-	public Map getTaskSTMTs(String bareSQL) {
+	public Map getRegSTMTs(String bareSQL) {
+		DBMeta repoDB = DBMeta.getInstance();
+
 		Map<String, String> taskStmts=null;
 
 		final TaskMeta taskMeta = TaskMeta.getInstance();
-		JSONObject taskDetail = taskMeta.getTaskDetails();
+		Map taskDetail = taskMeta.getTaskDetails();
 		
 		String colNames="";
 		String avroFlds="";
@@ -419,22 +421,48 @@ class JDBCData extends DataPoint{
 			fldsCnt = rsmd.getColumnCount();
 			String colName;
 			String colType;
-
-			for (int i = 1; i <= fldsCnt; i++ ) {
+			int prec, scale;
+			int i;
+			for (i = 1; i < fldsCnt; i++ ) {
 				colName = rsmd.getColumnName(i);
 				colType = rsmd.getColumnTypeName(i);
-	
+				
+				prec = rsmd.getPrecision(i);
+				scale = rsmd.getScale(i);
+/*
+				{
+			        "name": "login_time",
+			        "type": [ "null", {
+			            "type": "long",
+			            "logicalType": "time-micros"
+			        }]
+			    }, {
+			        "name": "login_timezone",
+			        "type": [ "null", {
+			            "type": "int",
+			            "logicalType": "time-millis"
+			        }]
+			    }
+*/				
+				String avroType=repoDB.getType("avro", colType, dbEngine);
+				
 				avroFlds = avroFlds 
-						+ "{\"name\": \"" + colName + ",\"type\":, \"" + colType + "\"},\n" ;
+						+ "{\"name\": \"" + colName + ",\"type\":\"" + colType + "\", \"precison\":" + prec + ",\"scale\":" + scale + "},\n" ;
 				colNames=colNames+colName+",";
 				valFlds=valFlds+"?,";
-				i++;
 			}
-			colNames=colNames.substring(0, colNames.length()-1);//get rid of the last ","
-			valFlds=valFlds.substring(0, valFlds.length()-1);//get rid of the last ","
-			avroFlds=avroFlds.substring(0, avroFlds.length()-2) +"\n";//get rid of the last ","
-			String srcQuery="select " + colNames + " from " + taskDetail.get("DISRCTBL");
-			String tgtIns = "insert into " + taskDetail.get("DITGTTBL") + " values (" + valFlds + ")"; 
+			//the last one if CDCKEEY
+			colName = rsmd.getColumnName(i);
+			colType = rsmd.getColumnTypeName(i);
+			prec = rsmd.getPrecision(i);
+			scale = rsmd.getScale(i);
+			colNames=colNames+colName;
+			String selectCols=colNames+taskDetail.get("CDCKEY");
+			valFlds=valFlds=valFlds+"?";
+			avroFlds=avroFlds 
+					+ "{\"name\": \"" + colName + ",\"type\":, \"" + colType + "\", \"precison\":" + prec + ",\"scale\":" + scale + "}\n" ;
+			String srcQuery="select " + selectCols + " from " + taskDetail.get("DISRCTBL");
+			String tgtIns = "insert into " + taskDetail.get("DITGTTBL") + " (" + colNames +") values (" + valFlds + ")"; 
 
 			String avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
 				    + "\"type\": \"record\", \n" 

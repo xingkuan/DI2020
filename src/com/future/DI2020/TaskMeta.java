@@ -67,13 +67,12 @@ class TaskMeta {
 
 	// encapsulate the details into tskDetailJSON;
 	private JSONObject xfmDetailJSON;
-	private JSONObject tskDetailJSON;
+	//private JSONObject tskDetailJSON;
+	private Map tskDetail;
 	private JSONObject dccDetailJSON;
 
 	private JSONObject srcInstr, tgtInstr, dccInstr;
 
-	private String avroSchema;
-	
 	ArrayList<Integer> fldType = new ArrayList<Integer>();
 	ArrayList<String> fldNames = new ArrayList<String>();
 	
@@ -129,7 +128,8 @@ class TaskMeta {
 
 		
 		xfmDetailJSON=null;
-		tskDetailJSON=null;
+		//tskDetailJSON=null;
+		tskDetail=null;
 		dccDetailJSON=null;
 		srcInstr=null;
 		tgtInstr=null;
@@ -139,7 +139,8 @@ class TaskMeta {
 		// 		-1	(DB value)task is active. setupTask() will set DB value to -1; endTask() to 2.  
 		//		0	(DB value)need initialized  
 		//		2	(DB value)task can be invoked.
-		currState= (int) tskDetailJSON.get("curr_state");
+		//currState= (int) tskDetailJSON.get("curr_state");
+		currState= (int) tskDetail.get("CURR_ST");
 		if (currState>10) {
 			logger.warn("	This task is active.");
 			return -1;
@@ -147,16 +148,28 @@ class TaskMeta {
 
 		
 		JSONArray jo;
-		String sql = "select task_id, template_id, data_pk, src_db_id, src_schema, src_table, tgt_db_id, tgt_schema, tgt_table, \n" + 
-					"pool_id, init_dt, init_duration, curr_state, src_dcc_pgm, src_dcc_tbl, dcc_db_id, \n" + 
-					"dcc_store, ts_regist, ts_last_ref, seq_last_ref, db_type,src_stmt0, tgt_stmt0 "
-					+ " from task a, DATA_POINT b " + " where a.src_db_id=b.db_id and task_id=" + taskID;
+		String sql = "select task_id as DITASKID, src_db_id as DISRCDB, "
+				+ "substring(src_tbl, 1, position('.' in src_tbl) as DISRCSCH, "
+				+ "substring(src_tbl, position('.' in src_tbl) as DISRCTBL, "
+				+ "tgt_db_id as DITGTDB, "
+				+ "substring(tgt_tbl, 1, position('.' in tgt_tbl) as DITGTSCH, "
+				+ "substring(tgt_tbl, position('.' in tgt_tbl) as DITGTTBL, "
+				+ "b.instruct as instruct"
+				+ "from task a, DATA_POINT b " + " where a.src_db_id=b.db_id and task_id=" + taskID;
 		jo = SQLtoJSONArray(sql);
 		if(jo.isEmpty()) {
 			logger.error("task does not exist.");
 			return -1;
 		}
-		tskDetailJSON = (JSONObject) jo.get(0);
+		//tskDetailJSON = (JSONObject) jo.get(0);
+		tskDetail =  (Map) jo.get(0);
+		String instStr=(String) tskDetail.get("instruct");
+		JSONObject jo1=stringToJSONObject(instStr);
+		String cdcDB=(String) jo1.get("cdcDB");
+		String cdcTblTmplt=(String) jo1.get("cdcTbl");
+		String cdcTbl=(String) cdcTblTmplt.replaceAll("<SRCTBL>", (String) tskDetail.get("DISRCTBL"));
+		
+		tskDetail.remove("instruct");
 
 		updateTaskState(-1);
 		
@@ -234,33 +247,12 @@ class TaskMeta {
 	public JSONObject getXfrmDetails() {
 		return xfmDetailJSON;
 	}
-	public JSONObject getTaskDetails() {
-		return tskDetailJSON;
-	}
-	/*
-	public JSONObject getActDetails() {
-		return tmpDetailJSON;
-	}
-	public JSONObject getMiscValues() {
-		return miscValues;
-	}
-	public String getKeyDataType() {
-		return keyDataType;
-	}
 	
-	public boolean taskHasDependency(String dbID, String srcSch, String srcTbl) {
-		boolean rtc=true;
-		String sql="select 1 from task "
-				+ "where src_db_id='"+dbID+"' "
-				+ " and src_dcc_tbl='"+srcSch+"."+srcTbl + "'";
-		JSONArray jo = SQLtoJSONArray(sql);
-		if((jo==null)||jo.isEmpty()) {
-			rtc=false;
-		}
-		return rtc;
+	public Map getTaskDetails() {
+		//return tskDetailJSON;
+		return tskDetail;
 	}
 
-*/
 	public void endTask() {
 		//first save the meta data of this task
 		Calendar cal = Calendar.getInstance();
@@ -304,11 +296,11 @@ class TaskMeta {
 
 
 		xfmDetailJSON=null;
-		tskDetailJSON=null;
+		//tskDetailJSON=null;
+		tskDetail=null;
 		dccDetailJSON=null;
 		
-		avroSchema=null;
-		
+	
 		fldType = null;
 		fldNames = null;
 		
@@ -407,11 +399,13 @@ class TaskMeta {
 
 			sqlStr = parseStmt(sqlStr);  //replace place holders
 
-			rslt = db.runDBcmd(sqlStr, type);
+System.out.println("cmd: " + sqlStr);
+/*			rslt = db.runDBcmd(sqlStr, type);
 			if(rslt < 0) {
 				System.out.println("something is not right.");
 				break;
 			}
+*/
 		}
 
 		return true;
@@ -419,18 +413,6 @@ class TaskMeta {
 
 	public ArrayList<String> getFldNames() {
 		return fldNames;
-	}
-	public String getSQLInsTgt() {
-		//return sqlInsertTarget;
-		return tskDetailJSON.get("tgt_stmt0").toString();
-	}
-	private JSONObject getAct1SQLs() {
-		JSONObject jo = new JSONObject();
-		JSONArray pre = new JSONArray();
-		pre.add(1, getBareSrcSQL() );
-		jo.put("PRE", pre);
-		
-		return jo;
 	}
 	
 	public void setRefreshTS(Timestamp thisRefreshHostTS) {
@@ -456,7 +438,7 @@ class TaskMeta {
 
 	public long getDCCSeqLastRefresh() {
 		try {
-			return Long.valueOf(tskDetailJSON.get("seq_last_ref").toString());
+			return Long.valueOf(tskDetail.get("seq_last_ref").toString());
 		}catch (NullPointerException e) {
 			return -1;
 		}
@@ -464,16 +446,6 @@ class TaskMeta {
 
 	public int getPoolID() {
 		return poolID;
-	}
-
-
-	public String getPK() {
-		return tskDetailJSON.get("data_pk").toString();
-	}
-
-	public String getBareSrcSQL() {
-		//return sqlSelectSource;
-		return tskDetailJSON.get("src_stmt0").toString();
 	}
 
 	public int getCurrState() {
@@ -484,8 +456,6 @@ class TaskMeta {
 		return taskID;
 	}
 
-
-	
 	public void close() {
 		try {
 			repRSet.close();
@@ -567,9 +537,98 @@ class TaskMeta {
 	}
 
 	public String getAvroSchema(){
+		String avroSchema;
+		String avroFld, avroFlds="";
+		
+		String sql;
+		
+		//construct avroSchema from data_flds
+		try {
+			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			//fist get the avro fild template
+			sql = "select avro_fld_templ from db_engine where db_engine ='"+tskDetail.get("DISRDDBID")+"'";
+			repRSet = repStmt.executeQuery(sql);
+			repRSet.next();
+			String sqlRslt = repRSet.getString(1);
+			JSONObject avroTemplate = stringToJSONObject(sqlRslt);
+			//now the the fields and copose the avro schema
+			sql ="select data_flds from task where task_id = " + taskID;
+			repRSet = repStmt.executeQuery(sql);
+			repRSet.next();
+			sqlRslt = repRSet.getString(1);
+
+			JSONObject ja = stringToJSONObject(sqlRslt);
+			JSONObject jo;
+			for (int i = 0 ; i < ja.size(); i++) {
+				   jo = (JSONObject) ja.get(i);
+				   
+				   avroFld = (String) avroTemplate.get(jo.get("type"));
+				   avroFld.replaceFirst("<p>", (String) jo.get("precision"));
+				   avroFld.replaceFirst("<s>", (String) jo.get("scale"));
+				   avroFlds = avroFlds + avroFld + ",";
+				   
+		    }
+		} catch (SQLException se) {
+			logger.error("OJDBC driver error has occured" + se);
+		} catch (Exception e) {
+			// Handle errors for Class.forName
+			logger.error(e);
+		} 
+		
+		avroSchema = "{\"namespace\": \"com.future.DI2020.avro\", \n" 
+			    + "\"type\": \"record\", \n" 
+			    + "\"name\": \"" + tskDetail.get("DISRCTBL") + "\", \n" 
+			    + "\"fields\": [ \n" 
+			    + avroFlds + "] }";
+		
 		return avroSchema;
 	}
-	
+
+	public String getDDLforEngine(String dbEngine){
+		String crtTbl;
+		String Fld, Flds="";
+		
+		String sql;
+		
+		//construct avroSchema from data_flds
+		try {
+			repStmt = repConn.createStatement(ResultSet.TYPE_FORWARD_ONLY, ResultSet.CONCUR_READ_ONLY);
+			//fist get the avro fild template
+			sql = "select fld_templ from db_engine where db_engine ='"+dbEngine+"'";
+			repRSet = repStmt.executeQuery(sql);
+			repRSet.next();
+			String sqlRslt = repRSet.getString(1);
+			JSONObject avroTemplate = stringToJSONObject(sqlRslt);
+			//now the the fields and copose the avro schema
+			sql ="select data_flds from task where task_id = " + taskID;
+			repRSet = repStmt.executeQuery(sql);
+			repRSet.next();
+			sqlRslt = repRSet.getString(1);
+
+			JSONObject ja = stringToJSONObject(sqlRslt);
+			JSONObject jo;
+			for (int i = 0 ; i < ja.size(); i++) {
+				   jo = (JSONObject) ja.get(i);
+				   
+				   Fld = (String) avroTemplate.get(jo.get("type"));
+				   Fld.replaceFirst("<p>", (String) jo.get("precision"));
+				   Fld.replaceFirst("<s>", (String) jo.get("scale"));
+				   Flds = Flds + Fld + ",";
+				   
+		    }
+		} catch (SQLException se) {
+			logger.error("OJDBC driver error has occured" + se);
+		} catch (Exception e) {
+			// Handle errors for Class.forName
+			logger.error(e);
+		} 
+		
+		crtTbl = "create table " + tskDetail.get("DITGTTBLE") 
+			    + "(" + Flds + ")";
+		
+		return crtTbl;
+	}
+
 	/**** task admin APIs ****/
 	public void setupTask(String jobId, Map<String, String> vars) {
 		int rtc;
@@ -578,16 +637,19 @@ class TaskMeta {
 		actID = 11;    //regist a new task
 		taskID = -1;   //taskID is to be generated.
 		
-		tskDetailJSON=new JSONObject(vars);
+		//tskDetailJSON=new JSONObject(vars);
+		tskDetail=vars;
 		
-		jobId = jobId + tskDetailJSON.get("DISRCTBL");
+		jobId = jobId + tskDetail.get("DISRCTBL");
 	}
 
 	public void disable() {
 		DBMeta repoDB = DBMeta.getInstance();
 
-		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
-		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
+		//DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
+		//DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
+		DataPoint srcDB = dataMgr.getDB((String) (tskDetail.get("DISRCDB")));
+		DataPoint tgtDB = dataMgr.getDB((String) (tskDetail.get("DITGTDB")));;
 
 		JSONObject jsonRslt;
 		JSONObject jo;
@@ -608,8 +670,8 @@ class TaskMeta {
 	public void unregist() {
 		DBMeta repoDB = DBMeta.getInstance();
 
-		DataPoint srcDB = dataMgr.getDB((String) (tskDetailJSON.get("DISRCDB")));
-		DataPoint tgtDB = dataMgr.getDB((String) (tskDetailJSON.get("DITGTDB")));;
+		DataPoint srcDB = dataMgr.getDB((String) (tskDetail.get("DISRCDB")));
+		DataPoint tgtDB = dataMgr.getDB((String) (tskDetail.get("DITGTDB")));;
 
 		JSONObject jsonRslt;
 		//src side
@@ -631,8 +693,10 @@ class TaskMeta {
 		String sql;
 		JSONArray rslt;
 		
-		if(!tskDetailJSON.get("DITASKID").equals("-1")) {
-			taskID = Integer.parseInt((String) tskDetailJSON.get("DITASKID"));
+		//if(!tskDetailJSON.get("DITASKID").equals("-1")) {
+		if(!tskDetail.get("DITASKID").equals("-1")) {
+			//taskID = Integer.parseInt((String) tskDetailJSON.get("DITASKID"));
+			taskID = Integer.parseInt((String) tskDetail.get("DITASKID"));
 		}else {
 			taskID = getNextTaskID();
 		}
@@ -646,8 +710,10 @@ class TaskMeta {
 			return 01;
 		}
 		
-		String srcDBid = (String) (tskDetailJSON.get("DISRCDB"));
-		String tgtDBid = (String) (tskDetailJSON.get("DITGTDB"));
+		//String srcDBid = (String) (tskDetailJSON.get("DISRCDB"));
+		//String tgtDBid = (String) (tskDetailJSON.get("DITGTDB"));
+		String srcDBid = (String) (tskDetail.get("DISRCDB"));
+		String tgtDBid = (String) (tskDetail.get("DITGTDB"));
 		//pre-check DBs
 		DataPoint srcDB = dataMgr.getDB(srcDBid);
 		DataPoint tgtDB = dataMgr.getDB(tgtDBid);
@@ -673,10 +739,10 @@ class TaskMeta {
 				return -1;
 		}
 		//3. verify the objects is not registered 
-		String mbr=(String) tskDetailJSON.get("DITGTTBL");
+		String mbr=(String) tskDetail.get("DITGTTBL");
 		
-		sql = "select task_id from task where SRC_DB_ID='" + tskDetailJSON.get("DISRCDB") 
-				+ "' and SRC_TBL='"	+ tskDetailJSON.get("DISRCTBL") 
+		sql = "select task_id from task where SRC_DB_ID='" + tskDetail.get("DISRCDB") 
+				+ "' and SRC_TBL='"	+ tskDetail.get("DISRCTBL") 
 				+ "' and TGT_TBL like '%" + mbr + "%'";  //if mbr_lst is not null, it is something like DB2/as400 journal ...
 		rslt = (JSONArray) SQLtoJSONArray(sql);
 		if(rslt.size()>0) {
@@ -698,8 +764,8 @@ class TaskMeta {
 
 		boolean isOk;
 		
-		String srcDBid= (String) (tskDetailJSON.get("DISRCDB"));
-		String tgtDBid= (String) (tskDetailJSON.get("DITGTDB"));
+		String srcDBid= (String) (tskDetail.get("DISRCDB"));
+		String tgtDBid= (String) (tskDetail.get("DITGTDB"));
 		DataPoint srcDB = dataMgr.getDB(srcDBid);
 		DataPoint tgtDB = dataMgr.getDB(tgtDBid);
 
@@ -708,7 +774,7 @@ class TaskMeta {
 		JSONObject instrJo = stringToJSONObject(instrStr);
 		String bareSQL = (String) instrJo.get("bareSQL");
 		bareSQL = parseStmt(bareSQL);
-		Map taskStmts = srcDB.getTaskSTMTs(bareSQL); //"srcQuery","tgtInsert","avro", "avro","fldCnt" need to be inserted into task
+		Map taskStmts = srcDB.getRegSTMTs(bareSQL); //"srcQuery","tgtInsert","avro", "avro","fldCnt" need to be inserted into task
 		
 		JSONArray stmts = (JSONArray) instrJo.get("regist");
 		if(stmts !=null) {
@@ -734,11 +800,11 @@ class TaskMeta {
 				+ "src_db_id, src_tbl, src_stmt, fld_cnt, "
 				+ "tgt_db_id, tgt_tbl, tgt_stmt, avro_schema, "
 				+ "reg_dt) values (" 
-				+ tskDetailJSON.get("DITASKID") + ", 1," +tskDetailJSON.get("DICURRST") + ", '"
-				+ tskDetailJSON.get("DISRCDB") + "', '" + tskDetailJSON.get("DISRCTBL") + "',  '" 
+				+ tskDetail.get("DITASKID") + ", 1," +tskDetail.get("DICURRST") + ", '"
+				+ tskDetail.get("DISRCDB") + "', '" + tskDetail.get("DISRCTBL") + "',  '" 
 //"srcQuery","tgtInsert","avro", "avro","fldCnt"
 				+ taskStmts.get("srcQuery")  + "', " + taskStmts.get("fldCnt") + ", '" 
-				+ tskDetailJSON.get("DITGTDB") + "', '" + tskDetailJSON.get("DITGTTBL") + "', '" 
+				+ tskDetail.get("DITGTDB") + "', '" + tskDetail.get("DITGTTBL") + "', '" 
 				+ taskStmts.get("tgtInsert")  + "', '" + taskStmts.get("avro") + "', '" 
 				+ ts +"')"; 
 		return runUpdateSQL(insTask);	
@@ -759,7 +825,7 @@ class TaskMeta {
 			placehold=matcher.group();
 			key=placehold.replace("<", "");
 			key=key.replace(">", "");
-			val=(String) tskDetailJSON.get(key);
+			val=(String) tskDetail.get(key);
 			//System.out.println(placehold);
 			//System.out.println(val);
 			sqlStmt=sqlStmt.replace(placehold, val);

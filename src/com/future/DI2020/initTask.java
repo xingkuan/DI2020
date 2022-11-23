@@ -82,7 +82,7 @@ class initTask {
 	// setup metaData, source and target
 	private static int setup(int taskID) {
 		int actId = 0;
-		JSONObject tskDetail = taskMeta.getTaskDetails();
+		Map tskDetail = taskMeta.getTaskDetails();
 
 		if(taskMeta.isTaskReadyFor(actId)){
 			ovLogger.info(jobID + " " + taskID + ":" + tskDetail.get("src_table").toString());

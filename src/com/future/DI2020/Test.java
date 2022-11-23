@@ -1,6 +1,7 @@
 package com.future.DI2020;
 
 import java.sql.SQLException;
+import java.util.Map;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -72,7 +73,7 @@ private static void testES() {
 
 //		metaData.setupTaskForAction("testConsumeAVRO", tableID, 21);  // actId for dev activities.
 		
-		JSONObject tblDetail = metaData.getTaskDetails();
+		Map tblDetail = metaData.getTaskDetails();
 		String actTemp = tblDetail.get("template_id").toString();
 
 //		KafkaData tgtData = (KafkaData) DataPointMgr.dataPtrCreater(tblDetail.get("tgt_db_id").toString(), "TGT");

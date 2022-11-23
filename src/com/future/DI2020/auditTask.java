@@ -75,7 +75,7 @@ class auditTask {
    //setup the source and target
    private static void setupTask(String jobID, int taskId) {
 		int actId = 9;  	//auditing
-		JSONObject tskDetail;
+		Map tskDetail;
 		String srcTbl,  tgtTbl;
 
 		int ok;

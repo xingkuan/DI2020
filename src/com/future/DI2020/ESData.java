@@ -60,7 +60,7 @@ class ESData extends DataPoint{
 		
 		TaskMeta metaData = TaskMeta.getInstance();
 		
-		JSONObject taskDetail = metaData.getTaskDetails();
+		Map taskDetail = metaData.getTaskDetails();
 		
 		ixName = metaData.getTaskDetails().get("tgt_table").toString();
 		request = new Request(
@@ -338,7 +338,7 @@ class ESData extends DataPoint{
 	public int runDBcmd(String cmd, String type) {
 		TaskMeta metaData = TaskMeta.getInstance();
 		
-		JSONObject taskDetail = metaData.getTaskDetails();
+		Map taskDetail = metaData.getTaskDetails();
 		String indxName=(String) taskDetail.get("index");
 
 		if(cmd.equals("rgist")) {

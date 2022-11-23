@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 import javax.script.Invocable;
 import javax.script.ScriptEngine;
@@ -76,7 +77,7 @@ class xformApp
 		
 		metaData.setupTask(jobID, tblId, 11);  // actId for dev activities.
 		
-		JSONObject tskDetail = metaData.getTaskDetails();
+		Map tskDetail = metaData.getTaskDetails();
 		
 		xformEngine xformEng = new xformEngine();
 		xformEng.setupScripts();

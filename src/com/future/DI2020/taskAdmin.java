@@ -81,6 +81,7 @@ public class taskAdmin {
 					e.printStackTrace();
 				}
 				String cdcDBID = (String) jo.get("CDCDB");
+				String cdcKEY = (String) jo.get("CCDKEY");
 				String[] nameParts;
 				//the CDC task
 				{
@@ -99,6 +100,7 @@ public class taskAdmin {
 					vars.put("DITGTTBL", cdcTbl);  //hack
 					vars.put("DITASKID", String.valueOf(taskId));
 					vars.put("DICURRST", "-1");
+					vars.put("CDCKEY", cdcKEY);
 				}
 				//check all the way
 				//1. cdc
@@ -112,7 +114,7 @@ public class taskAdmin {
 				}
 				//the src to tgt	
 				{
-					taskId=tid+1;   //need to pass the previous taskId to here!
+					//taskId=tid+1;   //need to pass the previous taskId to here!
 					vars1.put("DISRCDB", args[1]);
 					nameParts = args[2].split(".", 2);
 					vars1.put("DISRCSCH", nameParts[0]);
@@ -121,7 +123,8 @@ public class taskAdmin {
 					nameParts = args[4].split(".", 2);
 					vars1.put("DITGTSCH", nameParts[0]);
 					vars1.put("DITGTTBL", nameParts[1]);
-					vars1.put("DITASKID", String.valueOf(taskId));
+					vars1.put("DICDCTASKID", String.valueOf(taskId));
+					vars1.put("DITASKID", String.valueOf(taskId+1));
 					vars1.put("DICURRST", "0");
 					//taskMeta.setupTask(jobId, vars1);
 					//taskMeta.regist();

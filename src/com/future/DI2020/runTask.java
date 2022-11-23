@@ -93,7 +93,7 @@ class runTask {
 		int actId = 1;  	//data pumping
 		DataPointMgr dataMgr=DataPointMgr.getInstance();	
 		taskMeta.setupTask(jobID, taskId, actId);
-		JSONObject tskDetail = taskMeta.getTaskDetails();
+		Map tskDetail = taskMeta.getTaskDetails();
 
 		if(taskMeta.isTaskReadyFor(actId)){
 			srcDetailJSON = (JSONObject) tskDetail.get("SRC");
@@ -116,7 +116,7 @@ class runTask {
 	}
 	
 	private void endTask() {
-		JSONObject tskDetail = taskMeta.getTaskDetails();
+		Map tskDetail = taskMeta.getTaskDetails();
 
 		srcData.clearState();
 		tgtData.clearState();

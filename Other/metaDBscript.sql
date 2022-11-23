@@ -16,13 +16,23 @@ grant all privileges on database didb to repuser;
 
 \c didb
 
+CREATE TABLE DB_ENGINE
+(
+  DB_ENGINE  VARCHAR(15)   PRIMARY KEY,
+  DB_VENDOR  VARCHAR(15),
+  DB_DRIVER  VARCHAR(150),
+  SQL_FLD_TMPLT TEXT,
+  AVRO_FLD_TMPLT TEXT
+)
+;
+grant select,update,delete,insert on db_engine to repuser;
+
 CREATE TABLE DATA_POINT
 (
   DB_ID      VARCHAR(15)   PRIMARY KEY,
+  DB_ENGINE  VARCHAR(15),
   DB_ROLE    VARCHAR(5),  --reference only. R for Read from or W for Write to
   DB_CAT     VARCHAR(15),
-  DB_VENDOR  VARCHAR(15),
-  DB_DRIVER  VARCHAR(150),
   DB_CONN    VARCHAR(150),
   DB_USR     VARCHAR(25),
   DB_PWD     VARCHAR(25),
@@ -36,8 +46,9 @@ grant select,update,delete,insert on data_point to repuser;
 CREATE TABLE TASK
 (
   TASK_ID         INTEGER PRIMARY KEY,
+  CDCTASK_ID      INTEGER,
   POOL_ID         INTEGER,
-  CURR_STATE      INTEGER,	-- -1: not runable(e.g populated by DB trigger); 
+  CURR_ST      INTEGER,	-- -1: not runable(e.g populated by DB trigger); 
   							--  0: not initialized; 
   							--  1: disabled;
   							--	2: runable;
@@ -49,7 +60,7 @@ CREATE TABLE TASK
   TGT_DB_ID       VARCHAR(15),
   TGT_TBL         TEXT,		-- can be a list of, eg. DB2 journal table members
   TGT_STMT        TEXT,		--if JDBC.
-  AVRO_SCHEMA     jsonb,
+  FLDS     TEXT,
   REG_DT            DATE,
   INIT_DT	        DATE,
   INIT_DURATION     INTEGER,	-- seconds
@@ -59,44 +70,6 @@ CREATE TABLE TASK
 )
 ; 
 grant select,update,delete,insert on task to repuser;
-
-CREATE TABLE DATA_FIELD
-(
-  TASK_ID 			INTEGER,
-  FIELD_ID          INTEGER,
-  SRC_FIELD         VARCHAR(50),
-  SRC_FIELD_TYPE    VARCHAR(20),
-  SRC_FIELD_LEN     INTEGER,
-  SRC_FIELD_SCALE   INTEGER,
-  TGT_FIELD         VARCHAR(50),
-  TGT_FIELD_TYPE    VARCHAR(20),
-  JAVA_TYPE         INT,
-  AVRO_TYPE         VARCHAR(80),
-  primary key (tbl_id, field_id)
-)
-;
-
--- Simple transformation. target field and the transformation function,
---                        between AVRO (or JSON) records;
--- (for more needing transformation, use Sparks-based transformation).
-CREATE TABLE AVRO
-(
-   AVRO_ID varchar(50) PRIMARY KEY, 
-   AVRO_SCHEMA jsonb
-);
-
-INSERT INTO avro_schema (avro_id, avro_schema ) 
-VALUES ('user',  
-'{"namespace": "example.avro", 
- "type": "record", 
- "name": "User", 
- "fields": [ 
-     {"name": "name", "type": "string"}, 
-     {"name": "favorite_number",  "type": ["int", "null"]}, 
-     {"name": "favorite_color", "type": ["string", "null"]} 
- ]  
-}');
-
 
 CREATE TABLE XFORM_SIMPLE  (
    X_ID        INTEGER PRIMARY KEY,  --Let it be that of task_id
@@ -112,17 +85,134 @@ grant all privileges on database didb to repuser;
 GRANT SELECT, INSERT, UPDATE, DELETE ON ALL TABLES in schema public to repuser;
 
 ---------------------------------------------------
+insert into DB_ENGINE (
+  DB_ENGINE, DB_VENDOR,
+  DB_DRIVER,
+  SQL_FLD_TMPLT,
+  AVRO_FLD_TMPLT
+)values (
+ 'ORACLE','ORACLE',
+ 'oracle.jdbc.OracleDriver',
+ '{
+["INT","NUMBER(10)"],
+["LONG","NUMBER(19)"],
+["BOOL","NUMBER(1)"],
+["UTF8","BYTE_ARRAY	RAW(2000)"],
+["FLOAT","BINARY_FLOAT"],
+["DOUBLE","BINARY_DOUBLE"],
+["DECIMAL(<p>)","NUMBER(<p>)"],
+["DECIMAL(<p>,<s>)","NUMBER(<p>,<s>)"],
+["DATE","DATE"],
+["STRING","VARCHAR2"],
+["TIME-MILLIS","TIMESTAMP(3)"],
+["TIME-MICROS","TIMESTAMP(6)"]		 
+ }', 
+ '{
+["INT","NUMBER(10)"],
+["LONG","NUMBER(19)"],
+["BOOL","NUMBER(1)"],
+["UTF8","BYTE_ARRAY	RAW(2000)"],
+["FLOAD","BINARY_FLOAT"],
+["DOUBLE","BINARY_DOUBLE"],
+["type": {
+       "type": "bytes",
+       "logicalType": "decimal",
+       "precision": <p>
+     }","NUMBER(<p>)"],
+["type": {
+       "type": "bytes",
+       "logicalType": "decimal",
+       "precision": <p>,
+       "scale": <s>
+     }","NUMBER(<p>,<s>)"],
+["type": {
+        "type": "int",
+        "logicalType": "date"
+      }","DATE"],
+["type": "string","VARCHAR2"],
+["type": {
+        "type": "int",
+        "logicalType": "time-millis"
+      },"TIMESTAMP(3)"],
+["type": {
+        "type": "long",
+        "logicalType": "time-micros"
+      },"TIMESTAMP(6)"]		 
+ }'
+);
+
+insert into DB_ENGINE (
+  DB_ENGINE, DB_VENDOR,
+  DB_DRIVER,
+  SQL_FLD_TMPLT,
+  AVRO_FLD_TMPLT
+)values 
+('DB2/AS400','IBM',
+ 'com.ibm.as400.access.AS400JDBCDriver', 
+ '{
+ [ ]
+ }',
+ '{
+ [ ]
+ }' 
+ );
+
+insert into DB_ENGINE (
+  DB_ENGINE, DB_VENDOR,
+  DB_DRIVER,
+  SQL_FLD_TMPLT,
+  AVRO_FLD_TMPLT
+)values 
+('VERTICA','VERTICA',
+ 'com.vertica.jdbc.Driver', 
+ '{
+ [ ]
+ }',
+ '{
+ [ ]
+ }' 
+ );
+insert into DB_ENGINE (
+  DB_ENGINE, DB_VENDOR,
+  DB_DRIVER,
+  SQL_FLD_TMPLT,
+  AVRO_FLD_TMPLT
+)values 
+('KAFKA','APACHE',
+ '', 
+ '{
+ [ ]
+ }',
+ '{
+ [ ]
+ }' 
+ );
+insert into DB_ENGINE (
+  DB_ENGINE, DB_VENDOR,
+  DB_DRIVER,
+  SQL_FLD_TMPLT,
+  AVRO_FLD_TMPLT
+)values 
+('ES','ES',
+ '', 
+ '{
+ [ ]
+ }',
+ '{
+ [ ]
+ }' 
+ );
+ 
+---------------------------------------------
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE, DB_ROLE, DB_CAT, 
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values 
-('DB2AK', 'R',
- 'JDBC', 'DB2/AS400',
- 'com.ibm.as400.access.AS400JDBCDriver', 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
+('DB2AK', 'DB2/AS400', 'R', 'JDBC', 
+ 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'johnlee2', 'C3line1998', 
  'DB2/AS400 data id',
  '{
@@ -154,16 +244,14 @@ values
  }'
  );
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE, DB_ROLE, DB_CAT, 
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values 
-('DB2ADS', 'R',
- 'JDBC', 'DB2/AS400',
- 'com.ibm.as400.access.AS400JDBCDriver', 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
+('DB2ADS', 'DB2/AS400', 'R', 'JDBC', 
+ 'jdbc:as400://DEVELOPM:2551/DB2_RETSYS', 
  'johnlee2', 'C3line1998', 
  'DB2/AS400 data',
  '{
@@ -177,34 +265,40 @@ values
  );
  
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE,DB_ROLE,DB_CAT, 
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values(
-'VERTD1', 'W', 
- 'JDBC', 'VERTICA',
- 'com.vertica.jdbc.Driver', 'jdbc:vertica://vert41:5433/vertc', 
+'VERTD1', 'VERTICA', 'W', 'JDBC', 
+ 'jdbc:vertica://vert41:5433/vertc', 
  'dbadmin', 'D0gB0ne5y', 
  'Vert x',
  '{	
-  "notes":"no specific instrunction for Vertica destination" 
+  "notes":"no specific instrunction for Vertica destination" ,
+  "regist": [
+    {"name":"create tgt tbl",
+     "cmd":"drop table <CDCTBL>",
+     "type":"AVRO2TBL"
+    },
+    {"name":"maybe grant", 
+     "cmd":"grant ...",
+     "type":"not implemented"
+    }
+  ]
   }'
  );
  
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE,DB_ROLE, DB_CAT, 
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values(
- 'ORAK1', 'R', 
- 'JDBC', 'ORACLE',
- 'oracle.jdbc.OracleDriver', 'jdbc:oracle:thin:@crmdbtest2:1521:CRMP64', 
+ 'ORAK1', 'ORACLE', 'R','JDBC', 
+ 'jdbc:oracle:thin:@crmdbtest2:1521:CRMP64', 
  'VERTSNAP', 'v3rtsnap', 
  'Oracle Dev key source',
  '{	
@@ -293,36 +387,48 @@ values(
 );
 
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE,DB_ROLE,DB_CAT, 
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values(
- 'ORAD1', 'R', 
- 'JDBC', 'ORACLE',
- 'oracle.jdbc.OracleDriver', 'jdbc:oracle:thin:@crmdbtest2:1521:CRMP64', 
+ 'ORAD1','ORACLE', 'R', 'JDBC', 
+ 'jdbc:oracle:thin:@crmdbtest2:1521:CRMP64', 
  'VERTSNAP', 'v3rtsnap', 
  'Oracle Dev',
  '{
   "note":"only action here will be the selecting the data",
   "CDCDB":"ORAK1",
+  "CCDKEY":"a.rowid as CDCKEY",
   "bareSQL": "select a.*, a.rowid as CDCKEY from <DISRCTBL> a ",
  }'
 );
 
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE,DB_ROLE,DB_CAT, 
+  DB_CONN,
+  DB_USR, DB_PWD,
+  DB_DESC,
+  INSTRUCT)
+values(
+ 'ORAD2','ORACLE', 'W', 'JDBC', 
+ 'jdbc:oracle:thin:@rhvrep:1523:DPRD', 
+ 'VERTSNAP', 'v3rtsn,@P', 
+ 'Oracle Dev',
+ '{
+  }'
+ );
+
+insert into DATA_POINT (
+  DB_ID,DB_ENGINE,DB_ROLE, DB_CAT, 
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values( 
- 'KAFKAK1', 'WR',
- 'MQK', 'KAFKA',
- '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'KAFKAK1', 'KAFKA', 'WR', 'MQ', 
+ 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
  'xxx', 'xxx', 
  'kafka data consumer',
  '{
@@ -343,16 +449,14 @@ values(
 );
 
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE,DB_ROLE, DB_CAT,
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values (
- 'KAFKAD1', 'WR',
- 'MQD', 'KAFKA',
- '', 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
+ 'KAFKAD1', 'KAFKA', 'WR', 'MQ', 
+ 'usir1xrvkfk01:9092,usir1xrvkfk02:9092,usir1xrvkfk03:9092', 
  'xxx', 'xxx', 
  'kafka data sink',
  '{	
@@ -372,16 +476,14 @@ values (
 );
  
 insert into DATA_POINT (
-  DB_ID,DB_ROLE,
-  DB_CAT, DB_VENDOR,
-  DB_DRIVER, DB_CONN,
+  DB_ID,DB_ENGINE,DB_ROLE, DB_CAT, 
+  DB_CONN,
   DB_USR, DB_PWD,
   DB_DESC,
   INSTRUCT)
 values 
-('ES1DT', 'DT',
- 'ES', 'ES',
- '','http://dbatool02:9200', 
+('ES1DT', 'ES', 'DT','ES', 
+ 'http://dbatool02:9200', 
  'xxx', 'xxx', 
  'ElasticSearch',
 '{	
@@ -400,7 +502,7 @@ values
  }'
 )
 ;
-
+--------------------------------
 
 insert into XFORM_SIMPLE  (X_ID,  
 SRC_AVRO, 
@@ -433,5 +535,37 @@ VALUES ('job 1', 'test ...',
   ]
 }'
 );
-[[[ in Oracle: create table johnlee.tuser (name varchar2(20), fav_num int, fav_col varchar2(10)); ]]]
 
+-- in Oracle, login as vertsnap: 
+create table test (
+c0 char(5), 
+c1 varchar2(20), 
+c2 int,
+c3 number(8),
+c4 number (8,2),
+c5 number (12,2),
+c6 raw(20),
+c7 float,
+c8 double precision,
+c9 date,
+c10 timestamp,
+c11 timestamp(3),
+c12 timestamp(6)
+)
+; 
+-->
+{"name": "C0,"type":"CHAR", "precison":5,"scale":0},
+{"name": "C1,"type":"VARCHAR2", "precison":20,"scale":0},
+{"name": "C2,"type":"NUMBER", "precison":38,"scale":0},   <<<
+{"name": "C3,"type":"NUMBER", "precison":8,"scale":0},
+{"name": "C4,"type":"NUMBER", "precison":8,"scale":2},
+{"name": "C5,"type":"NUMBER", "precison":12,"scale":2},
+{"name": "C6,"type":"RAW", "precison":0,"scale":0},    <<<
+{"name": "C7,"type":"NUMBER", "precison":126,"scale":-127},   <<<
+{"name": "C8,"type":"NUMBER", "precison":126,"scale":-127},   <<<
+{"name": "C9,"type":"DATE", "precison":0,"scale":0},
+{"name": "C10,"type":"TIMESTAMP", "precison":0,"scale":6},  <<<
+{"name": "C11,"type":"TIMESTAMP", "precison":0,"scale":3},  <<<
+{"name": "C12,"type":"TIMESTAMP", "precison":0,"scale":6},  <<<
+{"name": "CDCKEY,"type":, "ROWID", "precison":0,"scale":0}  <<<
+--https://www.striim.com/docs/en/data-type-support---mapping-for-postgresql-sources.html
