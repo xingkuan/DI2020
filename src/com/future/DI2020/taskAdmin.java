@@ -90,6 +90,9 @@ public class taskAdmin {
 					vars.put("DISRCSCH", nameParts[0]);
 					vars.put("DISRCTBL", nameParts[1]);
 					vars.put("DITGTDB", cdcDBID);
+					
+					JSONObject cdcDBmeta = (JSONObject) repoDB.getDB(args[1]);
+					String cdcDBengine = (String) cdcDBmeta.get("db_engine");
 					//vars.put("DITGTTBL", exVars.get("DCTBL"));
 					String cdcObjTemp = repoDB.getCDCNameTemp(cdcDBID, nameParts[1]);
 					String cdcTbl = cdcObjTemp+"_LOG";
@@ -101,6 +104,7 @@ public class taskAdmin {
 					vars.put("DITASKID", String.valueOf(taskId));
 					vars.put("DICURRST", "-1");
 					vars.put("CDCKEY", cdcKEY);
+					vars.put("DITGTDBEGIN", cdcDBengine);
 				}
 				//check all the way
 				//1. cdc
@@ -120,12 +124,17 @@ public class taskAdmin {
 					vars1.put("DISRCSCH", nameParts[0]);
 					vars1.put("DISRCTBL", nameParts[1]);
 					vars1.put("DITGTDB", args[3]);
+					
+					JSONObject tgtDBmeta = (JSONObject) repoDB.getDB(args[1]);
+					String tgtDBengine = (String) tgtDBmeta.get("db_engine");
+
 					nameParts = args[4].split(".", 2);
 					vars1.put("DITGTSCH", nameParts[0]);
 					vars1.put("DITGTTBL", nameParts[1]);
 					vars1.put("DICDCTASKID", String.valueOf(taskId));
 					vars1.put("DITASKID", String.valueOf(taskId+1));
 					vars1.put("DICURRST", "0");
+					vars1.put("DITGTDBEGIN", tgtDBengine);
 					//taskMeta.setupTask(jobId, vars1);
 					//taskMeta.regist();
 				}

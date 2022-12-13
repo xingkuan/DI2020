@@ -408,6 +408,7 @@ class JDBCData extends DataPoint{
 		String colNames="";
 		String avroFlds="";
 		String valFlds="";
+		String crtTblFlds="";
 		int fldsCnt;
 		
 		Statement sqlStmt;
@@ -444,12 +445,16 @@ class JDBCData extends DataPoint{
 			        }]
 			    }
 */				
-				String avroType=repoDB.getType("avro", colType, dbEngine);
+				String avroType=repoDB.getType(dbEngine, colType, "avro");
 				
 				avroFlds = avroFlds 
 						+ "{\"name\": \"" + colName + ",\"type\":\"" + colType + "\", \"precison\":" + prec + ",\"scale\":" + scale + "},\n" ;
 				colNames=colNames+colName+",";
+				
 				valFlds=valFlds+"?,";
+				
+				String tgtColType=repoDB.getType(dbEngine, colType, (String)taskDetail.get("DITGTDBEGIN"));
+				crtTblFlds = crtTblFlds + colName + " " + tgtColType +",";
 			}
 			//the last one if CDCKEEY
 			colName = rsmd.getColumnName(i);
@@ -469,13 +474,16 @@ class JDBCData extends DataPoint{
 				    + "\"name\": \"" + taskDetail.get("DISRCTBL") + "\", \n" 
 				    + "\"fields\": [ \n" 
 				    + avroFlds + "] }";
-
+			crtTblFlds = crtTblFlds + colName + " " + colType ;
+			
+			String crtTbl = "create table " + taskDetail.get("DITGTTBL") + "(" + crtTblFlds +")";
 			taskStmts=new HashMap<>();
 			//getting the column type
 			int column_size = rsmd.getPrecision(3);
 			
 			taskStmts.put("srcQuery", srcQuery);
 			taskStmts.put("tgtInsert", tgtIns);
+			taskStmts.put("tgtCrtTbl", crtTbl);
 			taskStmts.put("avro", avroSchema);
 			taskStmts.put("fldCnt", Integer.toString(fldsCnt));
 		} catch (SQLException e) {
